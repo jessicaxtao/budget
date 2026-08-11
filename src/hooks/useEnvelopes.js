@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useAssignments } from "../contexts/AssignmentsContext";
-import { useBudgetPlan } from "../contexts/BudgetPlanContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { useIncome } from "../contexts/IncomeContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
@@ -39,7 +38,6 @@ export default function useEnvelopes(period) {
   const { budgets, expenses } = useBudgets();
   const { assignments } = useAssignments();
   const { income } = useIncome();
-  const { getPlannedCents } = useBudgetPlan();
 
   return useMemo(() => {
     // budgetId -> { before, current } in cents, for each of spend and assigned.
@@ -104,12 +102,16 @@ export default function useEnvelopes(period) {
         assignedCents: entry.assignedNow,
         spentCents: entry.spentNow,
         availableCents: carriedInCents + entry.assignedNow - entry.spentNow,
-        plannedCents: budget ? getPlannedCents(budgetId, period) : 0,
+        // The standing estimate from Configuration, which is the same figure in
+        // every period — it says what this category is expected to need in a
+        // month, not what one particular month was planned at.
+        plannedCents: budget?.plannedCents ?? 0,
       };
     });
 
-    // Configured categories first, in the order the user made them, then the
-    // catch-alls. Sort order is presentation only — the sums cover every row.
+    // Configured categories first, in the order the user arranged them on the
+    // Configuration page, then the catch-alls. Sort order is presentation only
+    // — the sums cover every row.
     const order = { category: 0, uncategorized: 1, orphan: 2 };
     const positionById = new Map(budgets.map((budget, index) => [budget.id, index]));
     rows.sort(
@@ -159,5 +161,5 @@ export default function useEnvelopes(period) {
       cumIncomeCents,
       cumSpentCents,
     };
-  }, [budgets, expenses, assignments, income, period, getPlannedCents]);
+  }, [budgets, expenses, assignments, income, period]);
 }

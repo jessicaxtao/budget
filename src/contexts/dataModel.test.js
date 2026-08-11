@@ -1,10 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import AppProviders from "./AppProviders";
-import { useBudgets, UNCATEGORIZED_BUDGET_ID } from "./BudgetsContext";
-import { useBudgetPlan } from "./BudgetPlanContext";
+import { useBudgets, UNCATEGORIZED_BUDGET_ID, UNGROUPED_ID } from "./BudgetsContext";
+import { useIncomePlan } from "./IncomePlanContext";
 import { useIncome } from "./IncomeContext";
 import { useAssignments } from "./AssignmentsContext";
 import useEnvelopes from "../hooks/useEnvelopes";
+import { monthlyCents } from "../cadence";
+import { toSections } from "../planLayout";
 import {
   addMonths,
   currentPeriod,
@@ -69,25 +71,86 @@ describe("migrating records written before the schema changed", () => {
     ]);
   });
 
-  test("a legacy budget's max becomes this period's plan and leaves the budget", () => {
+  test("a legacy budget's floating-point max becomes its standing estimate in cents", () => {
     localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries", max: 400 }]));
 
-    const { result } = renderHook(
-      () => ({ budgets: useBudgets(), plan: useBudgetPlan() }),
-      { wrapper }
-    );
+    const { result } = renderHook(() => useBudgets(), { wrapper });
 
-    expect(result.current.budgets.budgets).toEqual([{ id: "b1", name: "Groceries" }]);
-    expect(result.current.plan.getPlannedCents("b1", currentPeriod())).toBe(40000);
+    expect(result.current.budgets).toEqual([
+      { id: "b1", name: "Groceries", plannedCents: 40000, groupId: UNGROUPED_ID },
+    ]);
   });
 
-  test("migration is idempotent — a second mount does not re-seed", () => {
-    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries", max: 400 }]));
+  test("the last per-period plan folds into the estimate on the budget", () => {
+    // The schema in between filed an estimate against each month. The standing
+    // figure is the most recent one the user stated, not the earliest.
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries" }]));
+    localStorage.setItem(
+      "budgetPlans",
+      JSON.stringify([
+        { id: "p1", budgetId: "b1", period: "2026-01", plannedCents: 40000 },
+        { id: "p2", budgetId: "b1", period: "2026-04", plannedCents: 50000 },
+        { id: "p3", budgetId: "b1", period: "2026-02", plannedCents: 45000 },
+      ])
+    );
 
-    renderHook(() => useBudgetPlan(), { wrapper }).unmount();
-    const { result } = renderHook(() => useBudgetPlan(), { wrapper });
+    const { result } = renderHook(() => useBudgets(), { wrapper });
 
-    expect(result.current.plans).toHaveLength(1);
+    expect(result.current.budgets[0].plannedCents).toBe(50000);
+  });
+
+  test("a broken budgetPlans key costs the estimates, not the categories", () => {
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries" }]));
+    localStorage.setItem("budgetPlans", "{ not json");
+
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+
+    expect(result.current.budgets).toEqual([
+      { id: "b1", name: "Groceries", plannedCents: 0, groupId: UNGROUPED_ID },
+    ]);
+  });
+
+  test("migration is idempotent — a second mount does not re-read the old key", () => {
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries" }]));
+    localStorage.setItem(
+      "budgetPlans",
+      JSON.stringify([{ id: "p1", budgetId: "b1", period: "2026-01", plannedCents: 40000 }])
+    );
+
+    renderHook(() => useBudgets(), { wrapper }).unmount();
+    // The estimate is on the record now, so the legacy key is not consulted
+    // again — and editing it down to zero must not be undone by a remount.
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+    act(() => {
+      result.current.updateBudget({ id: "b1", plannedCents: 0 });
+    });
+
+    renderHook(() => useBudgets(), { wrapper }).unmount();
+    const { result: remounted } = renderHook(() => useBudgets(), { wrapper });
+
+    expect(remounted.current.budgets[0].plannedCents).toBe(0);
+  });
+
+  test("a legacy income source loses its anchor date and keeps its cadence", () => {
+    localStorage.setItem(
+      "incomeSources",
+      JSON.stringify([
+        {
+          id: "s1",
+          name: "Salary",
+          amount: 1500,
+          cadence: "biweekly",
+          anchorDate: "2026-01-02",
+          endDate: null,
+        },
+      ])
+    );
+
+    const { result } = renderHook(() => useIncomePlan(), { wrapper });
+
+    expect(result.current.sources).toEqual([
+      { id: "s1", name: "Salary", amountCents: 150000, cadence: "biweekly" },
+    ]);
   });
 
   test("legacy income gains cents and an unknown date", () => {
@@ -161,83 +224,273 @@ describe("amounts are validated at the context boundary", () => {
   });
 });
 
-describe("plans are the single source of truth for a limit", () => {
-  test("a period with no plan of its own carries the last one forward", () => {
-    const { result } = renderHook(() => useBudgetPlan(), { wrapper });
-
-    act(() => {
-      result.current.setPlannedAmount({ budgetId: "b1", period: "2026-01", plannedCents: 40000 });
+describe("the estimate is one standing figure on the category", () => {
+  test("it reads the same in every period, past and future alike", () => {
+    const useAll = () => ({
+      budgets: useBudgets(),
+      past: useEnvelopes("2020-01"),
+      later: useEnvelopes("2030-12"),
     });
+    const { result } = renderHook(useAll, { wrapper });
+
+    let id;
     act(() => {
-      result.current.setPlannedAmount({ budgetId: "b1", period: "2026-04", plannedCents: 50000 });
+      id = result.current.budgets.addBudget({ name: "Groceries", planned: "400" }).id;
     });
 
-    expect(result.current.getPlannedCents("b1", "2026-01")).toBe(40000);
-    expect(result.current.getPlannedCents("b1", "2026-03")).toBe(40000);
-    expect(result.current.getPlannedCents("b1", "2026-04")).toBe(50000);
-    expect(result.current.getPlannedCents("b1", "2026-09")).toBe(50000);
+    // No carry-forward rule to get wrong: there is one figure, and it describes
+    // the category rather than a month.
+    expect(envelopeFor(result.current.past, id).plannedCents).toBe(40000);
+    expect(envelopeFor(result.current.later, id).plannedCents).toBe(40000);
   });
 
-  test("a period before the first plan has no limit", () => {
-    const { result } = renderHook(() => useBudgetPlan(), { wrapper });
+  test("editing it restates the plan rather than adding a record", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
 
+    let id;
     act(() => {
-      result.current.setPlannedAmount({ budgetId: "b1", period: "2026-05", plannedCents: 40000 });
+      id = result.current.addBudget({ name: "Groceries", planned: "400" }).id;
+    });
+    act(() => {
+      result.current.updateBudget({ id, planned: "500" });
     });
 
-    expect(result.current.getPlannedCents("b1", "2026-01")).toBe(0);
+    expect(result.current.budgets).toHaveLength(1);
+    expect(result.current.getPlannedCents(id)).toBe(50000);
+    expect(result.current.totalPlannedCents).toBe(50000);
   });
 
-  test("editing one period leaves the others intact", () => {
-    const { result } = renderHook(() => useBudgetPlan(), { wrapper });
+  test("a category with no estimate stated reads as zero, and junk is refused", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
 
+    let blank;
+    let junk;
     act(() => {
-      result.current.setPlannedAmount({ budgetId: "b1", period: "2026-01", plannedCents: 40000 });
-    });
-    act(() => {
-      result.current.setPlannedAmount({ budgetId: "b1", period: "2026-02", plannedCents: 60000 });
-    });
-    act(() => {
-      result.current.setPlannedAmount({ budgetId: "b1", period: "2026-02", plannedCents: 70000 });
+      blank = result.current.addBudget({ name: "Undecided" });
+      junk = result.current.addBudget({ name: "Nonsense", planned: "abc" });
     });
 
-    expect(result.current.plans).toHaveLength(2);
-    expect(result.current.getPlannedCents("b1", "2026-01")).toBe(40000);
-    expect(result.current.getPlannedCents("b1", "2026-02")).toBe(70000);
+    expect(blank.ok).toBe(true);
+    expect(result.current.getPlannedCents(blank.id)).toBe(0);
+    expect(junk.ok).toBe(false);
+    expect(result.current.budgets).toHaveLength(1);
+  });
+
+  test("renaming does not blank the estimate it was not asked about", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+
+    let id;
+    act(() => {
+      id = result.current.addBudget({ name: "Groceries", planned: "400" }).id;
+    });
+    act(() => {
+      result.current.updateBudget({ id, name: "Food" });
+    });
+
+    expect(result.current.budgets[0]).toMatchObject({ name: "Food", plannedCents: 40000 });
+  });
+});
+
+describe("expected income is an average, never a month", () => {
+  test("a cadence contributes its yearly total spread over twelve months", () => {
+    // 26 fortnightly payments is 2.1667 a month, not two. Taking two would
+    // leave the plan short by a month's pay every year.
+    expect(monthlyCents(150000, "biweekly")).toBe(325000);
+    expect(monthlyCents(150000, "semimonthly")).toBe(300000);
+    expect(monthlyCents(150000, "monthly")).toBe(150000);
+    expect(monthlyCents(120000, "annually")).toBe(10000);
+  });
+
+  test("an unknown cadence expects nothing rather than guessing", () => {
+    expect(monthlyCents(150000, "fortnightly-ish")).toBe(0);
+    expect(monthlyCents(150000, undefined)).toBe(0);
+  });
+
+  test("a source without a cadence is refused at the boundary", () => {
+    const { result } = renderHook(() => useIncomePlan(), { wrapper });
+
+    let outcome;
+    act(() => {
+      outcome = result.current.addIncomeSource({ name: "Salary", amount: "1500" });
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(result.current.sources).toHaveLength(0);
+  });
+
+  test("the expected total is the sum of the monthly averages", () => {
+    const { result } = renderHook(() => useIncomePlan(), { wrapper });
+
+    act(() => {
+      result.current.addIncomeSource({ name: "Salary", amount: "1500", cadence: "biweekly" });
+      result.current.addIncomeSource({ name: "Rent", amount: "800", cadence: "monthly" });
+    });
+
+    expect(result.current.expectedMonthlyCents).toBe(325000 + 80000);
+  });
+});
+
+describe("groups are headings, not owners", () => {
+  test("deleting one hands its categories back rather than taking them with it", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+
+    let groupId;
+    let budgetId;
+    act(() => {
+      groupId = result.current.addGroup({ name: "Fixed" }).id;
+    });
+    act(() => {
+      budgetId = result.current.addBudget({ name: "Rent", planned: "1200", groupId }).id;
+    });
+
+    expect(result.current.budgets[0].groupId).toBe(groupId);
+
+    act(() => {
+      result.current.deleteGroup({ id: groupId });
+    });
+
+    expect(result.current.groups).toHaveLength(0);
+    expect(result.current.budgets).toHaveLength(1);
+    expect(result.current.budgets[0]).toMatchObject({
+      id: budgetId,
+      plannedCents: 120000,
+      groupId: UNGROUPED_ID,
+    });
+  });
+
+  test("a category filed under a group that never existed is not stranded", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+
+    act(() => {
+      result.current.addBudget({ name: "Rent", planned: "1200", groupId: "no-such-group" });
+    });
+
+    expect(result.current.budgets[0].groupId).toBe(UNGROUPED_ID);
+  });
+
+  test("clashing group names are refused, case-insensitively", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+
+    let outcome;
+    act(() => {
+      result.current.addGroup({ name: "Fixed" });
+    });
+    act(() => {
+      outcome = result.current.addGroup({ name: "  fixed  " });
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(result.current.groups).toHaveLength(1);
+  });
+});
+
+describe("rearranging the categories", () => {
+  function seedThree(result) {
+    const ids = {};
+    act(() => {
+      ids.fixed = result.current.addGroup({ name: "Fixed" }).id;
+    });
+    act(() => {
+      ids.rent = result.current.addBudget({ name: "Rent", planned: "1200" }).id;
+      ids.food = result.current.addBudget({ name: "Food", planned: "400" }).id;
+      ids.fuel = result.current.addBudget({ name: "Fuel", planned: "120" }).id;
+    });
+    return ids;
+  }
+
+  test("one commit changes both the group and the order", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+    const ids = seedThree(result);
+
+    act(() => {
+      result.current.setCategoryLayout([
+        { groupId: ids.fixed, budgetIds: [ids.rent] },
+        { groupId: null, budgetIds: [ids.fuel, ids.food] },
+      ]);
+    });
+
+    expect(result.current.budgets.map((budget) => budget.name)).toEqual(["Rent", "Fuel", "Food"]);
+    expect(result.current.budgets[0].groupId).toBe(ids.fixed);
+    expect(result.current.budgets[1].groupId).toBe(UNGROUPED_ID);
+  });
+
+  test("a rearrangement never deletes a category it was not told about", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+    const ids = seedThree(result);
+
+    act(() => {
+      // Fuel is missing, and one id is not a category at all.
+      result.current.setCategoryLayout([
+        { groupId: ids.fixed, budgetIds: [ids.food, "not-a-budget"] },
+      ]);
+    });
+
+    expect(result.current.budgets).toHaveLength(3);
+    expect(result.current.budgets.map((budget) => budget.name)).toEqual(["Food", "Rent", "Fuel"]);
+  });
+
+  test("the same category listed twice lands once", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+    const ids = seedThree(result);
+
+    act(() => {
+      result.current.setCategoryLayout([
+        { groupId: ids.fixed, budgetIds: [ids.rent] },
+        { groupId: null, budgetIds: [ids.rent, ids.food, ids.fuel] },
+      ]);
+    });
+
+    expect(result.current.budgets).toHaveLength(3);
+    expect(result.current.budgets[0].groupId).toBe(ids.fixed);
+  });
+
+  test("sections fold the two flat lists back into headings, ungrouped last", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
+    const ids = seedThree(result);
+
+    act(() => {
+      result.current.setCategoryLayout([
+        { groupId: ids.fixed, budgetIds: [ids.rent, ids.food] },
+        { groupId: null, budgetIds: [ids.fuel] },
+      ]);
+    });
+
+    const sections = toSections(result.current.groups, result.current.budgets);
+
+    expect(sections).toHaveLength(2);
+    expect(sections[0]).toMatchObject({ groupId: ids.fixed, name: "Fixed", plannedCents: 160000 });
+    expect(sections[0].budgets.map((budget) => budget.name)).toEqual(["Rent", "Food"]);
+    // Always present, even when empty — it is the only place a category can be
+    // dragged out to.
+    expect(sections[1]).toMatchObject({ groupId: UNGROUPED_ID, plannedCents: 12000 });
   });
 });
 
 describe("deleting a budget", () => {
-  test("reassigns its expenses and takes its plan history with it", () => {
-    const { result } = renderHook(
-      () => ({ budgets: useBudgets(), plan: useBudgetPlan() }),
-      { wrapper }
-    );
+  test("reassigns its expenses and takes its estimate with it", () => {
+    const { result } = renderHook(() => useBudgets(), { wrapper });
 
     let id;
     act(() => {
-      id = result.current.budgets.addBudget({ name: "Groceries" }).id;
+      id = result.current.addBudget({ name: "Groceries", planned: "400" }).id;
     });
     act(() => {
-      result.current.plan.setPlannedAmount({
-        budgetId: id,
-        period: currentPeriod(),
-        plannedCents: 40000,
-      });
-      result.current.budgets.addExpense({ description: "Coffee", amount: "4.50", budgetId: id });
+      result.current.addExpense({ description: "Coffee", amount: "4.50", budgetId: id });
     });
 
-    expect(result.current.plan.plans).toHaveLength(1);
+    expect(result.current.totalPlannedCents).toBe(40000);
 
     act(() => {
-      result.current.budgets.deleteBudget({ id });
+      result.current.deleteBudget({ id });
     });
 
-    expect(result.current.budgets.budgets).toHaveLength(0);
-    expect(result.current.plan.plans).toHaveLength(0);
+    // The estimate goes with the record — there is nothing left for it to
+    // describe.
+    expect(result.current.budgets).toHaveLength(0);
+    expect(result.current.totalPlannedCents).toBe(0);
     // the expense survives — it is what actually happened
-    expect(result.current.budgets.expenses).toHaveLength(1);
-    expect(result.current.budgets.expenses[0].budgetId).toBe(UNCATEGORIZED_BUDGET_ID);
+    expect(result.current.expenses).toHaveLength(1);
+    expect(result.current.expenses[0].budgetId).toBe(UNCATEGORIZED_BUDGET_ID);
   });
 
   test("its funding follows its expenses onto Uncategorized", () => {

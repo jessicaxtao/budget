@@ -1,26 +1,25 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useLocalStorage from "../hooks/useLocalStorage";
-import { CADENCES, expectedCentsInPeriod, occurrencesInPeriod } from "../recurrence";
-import { isValidISODate, toCents } from "../utils";
+import { CADENCES, monthlyCents } from "../cadence";
+import { toCents } from "../utils";
 
 /**
- * The income side of the plan: the paycheques and other money the user expects
- * to arrive, and when.
+ * The income side of the configuration: the paycheques and other money the user
+ * expects, and how often each one arrives.
  *
- * This is to IncomeContext what BudgetPlanContext is to expenses — the estimate,
- * not the record. Nothing here is money that has landed, and nothing here is
- * spendable: the envelope figures on the Transactions page are built entirely
- * from income that actually arrived. Expected income exists so the plan can
- * answer one question before the month starts — does what I intend to spend fit
+ * This is what a category's monthly estimate is to expenses — the standing
+ * expectation, not the record. Nothing here is money that has landed, and
+ * nothing here is spendable: the envelope figures on the Transactions page are
+ * built entirely from income that actually arrived. Expected income exists so
+ * the configuration can answer one question — does what I intend to spend fit
  * inside what I intend to earn?
  *
- * A source is stored once with a cadence and one real payday (`anchorDate`), and
- * every period's figure is derived from it by counting the paydays that fall in
- * that month. See src/recurrence.js for why they are counted rather than
- * averaged. `endDate` retires a source without deleting it, which matters
- * because these figures are derived: deleting a finished job would also rewrite
- * what every month it paid out in expected to earn.
+ * A source is stored once, as an amount and a cadence, and its contribution to
+ * the plan is the monthly average of the two (see src/cadence.js). There is no
+ * payday on the calendar here by design: this describes income in general, and a
+ * date would only be needed to answer a question about a particular month, which
+ * this store does not ask.
  */
 const IncomePlanContext = React.createContext();
 
@@ -28,6 +27,10 @@ export function useIncomePlan() {
   return useContext(IncomePlanContext);
 }
 
+// Sources used to carry an `anchorDate` — one real payday — and an optional
+// `endDate`, so a month's expected income could be counted exactly rather than
+// averaged. Configuration has no month to count into, so both fields are
+// dropped. Keyed on field presence, and safe to run repeatedly.
 function migrateIncomeSources(stored) {
   const sources = Array.isArray(stored) ? stored : [];
   return sources
@@ -37,41 +40,32 @@ function migrateIncomeSources(stored) {
       name: source.name,
       amountCents: source.amountCents ?? toCents(source.amount) ?? 0,
       cadence: source.cadence,
-      anchorDate: source.anchorDate ?? null,
-      // Absent and "runs forever" are the same thing; store one of them.
-      endDate: source.endDate ?? null,
     }));
 }
 
 export const IncomePlanProvider = ({ children }) => {
   const [sources, setSources] = useLocalStorage("incomeSources", [], migrateIncomeSources);
 
-  /**
-   * Each source with the paydays it has in this period and what they add up to.
-   * Sources that do not pay this month are kept in the list with an empty
-   * `dates` — a quarterly source is silent two months in three, and dropping it
-   * from the table would read as though it had been deleted.
-   */
-  const getPeriodSources = useCallback(
-    (period) =>
-      sources.map((source) => {
-        const dates = occurrencesInPeriod(source, period);
-        return { ...source, dates, expectedCents: dates.length * source.amountCents };
-      }),
+  /** Each source with what it contributes to a typical month. */
+  const incomeRows = useMemo(
+    () =>
+      sources.map((source) => ({
+        ...source,
+        monthlyCents: monthlyCents(source.amountCents, source.cadence),
+      })),
     [sources]
   );
 
-  const getExpectedIncomeCents = useCallback(
-    (period) =>
-      sources.reduce((sum, source) => sum + expectedCentsInPeriod(source, period), 0),
-    [sources]
+  const expectedMonthlyCents = useMemo(
+    () => incomeRows.reduce((sum, row) => sum + row.monthlyCents, 0),
+    [incomeRows]
   );
 
   // Validated here rather than in the form: this is the boundary every caller
-  // crosses, and a source with no cadence or no anchor would silently expect
-  // nothing, for every month, forever.
+  // crosses, and a source with no cadence would silently expect nothing, every
+  // month, forever.
   const addIncomeSource = useCallback(
-    ({ name, amount, amountCents, cadence, anchorDate, endDate = null }) => {
+    ({ name, amount, amountCents, cadence }) => {
       const trimmed = (name ?? "").trim();
       if (!trimmed) return { ok: false, error: "Give the income source a name." };
 
@@ -80,34 +74,56 @@ export const IncomePlanProvider = ({ children }) => {
         return { ok: false, error: "Enter an amount of zero or more." };
       }
       if (!CADENCES[cadence]) return { ok: false, error: "Choose how often it is paid." };
-      if (!isValidISODate(anchorDate)) {
-        return { ok: false, error: "Enter the date of a payment, so the schedule has a starting point." };
-      }
-
-      // Empty is the common case — most income has no known end.
-      const end = endDate ? endDate : null;
-      if (end != null && !isValidISODate(end)) {
-        return { ok: false, error: "Enter a valid end date, or leave it blank." };
-      }
-      if (end != null && end < anchorDate) {
-        return { ok: false, error: "The end date cannot fall before the first payment." };
-      }
 
       const id = uuidV4();
       setSources((prevSources) => [
         ...prevSources,
-        { id, name: trimmed, amountCents: cents, cadence, anchorDate, endDate: end },
+        { id, name: trimmed, amountCents: cents, cadence },
       ]);
       return { ok: true, id };
     },
     [setSources]
   );
 
+  const updateIncomeSource = useCallback(
+    ({ id, name, amount, amountCents, cadence }) => {
+      const existing = sources.find((source) => source.id === id);
+      if (!existing) return { ok: false, error: "That income source no longer exists." };
+
+      const patch = {};
+
+      if (name !== undefined) {
+        const trimmed = name.trim();
+        if (!trimmed) return { ok: false, error: "Give the income source a name." };
+        patch.name = trimmed;
+      }
+
+      if (amount !== undefined || amountCents !== undefined) {
+        const cents = amountCents ?? (amount === "" ? 0 : toCents(amount));
+        if (cents == null || cents < 0) {
+          return { ok: false, error: "Enter an amount of zero or more." };
+        }
+        patch.amountCents = cents;
+      }
+
+      if (cadence !== undefined) {
+        if (!CADENCES[cadence]) return { ok: false, error: "Choose how often it is paid." };
+        patch.cadence = cadence;
+      }
+
+      setSources((prevSources) =>
+        prevSources.map((source) => (source.id === id ? { ...source, ...patch } : source))
+      );
+      return { ok: true };
+    },
+    [sources, setSources]
+  );
+
   /**
    * No cascade, in either direction. Nothing links a source to the income
    * records it predicted — a paycheque that arrives is logged on its own, and
    * matching the two would mean inventing a correspondence the user never
-   * stated. Deleting a source only changes what the plan expected.
+   * stated. Deleting a source only changes what the plan expects.
    */
   const deleteIncomeSource = useCallback(
     ({ id }) => setSources((prevSources) => prevSources.filter((source) => source.id !== id)),
@@ -119,12 +135,20 @@ export const IncomePlanProvider = ({ children }) => {
   const value = useMemo(
     () => ({
       sources,
-      getPeriodSources,
-      getExpectedIncomeCents,
+      incomeRows,
+      expectedMonthlyCents,
       addIncomeSource,
+      updateIncomeSource,
       deleteIncomeSource,
     }),
-    [sources, getPeriodSources, getExpectedIncomeCents, addIncomeSource, deleteIncomeSource]
+    [
+      sources,
+      incomeRows,
+      expectedMonthlyCents,
+      addIncomeSource,
+      updateIncomeSource,
+      deleteIncomeSource,
+    ]
   );
 
   return <IncomePlanContext.Provider value={value}>{children}</IncomePlanContext.Provider>;

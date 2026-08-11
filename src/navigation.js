@@ -1,6 +1,6 @@
 import DashboardPage from "./pages/DashboardPage";
 import TransactionsPage from "./pages/TransactionsPage";
-import BudgetPlanPage from "./pages/BudgetPlanPage";
+import ConfigurationPage from "./pages/ConfigurationPage";
 import ReportsPage from "./pages/ReportsPage";
 import NetWorthPage from "./pages/NetWorthPage";
 import RetirementPage from "./pages/RetirementPage";
@@ -28,8 +28,8 @@ export const navigation = [
   },
   {
     path: "/plan",
-    label: "Budget plan",
-    Component: BudgetPlanPage,
+    label: "Configuration",
+    Component: ConfigurationPage,
     accent: { text: "text-sulfur", border: "border-sulfur" },
   },
   {

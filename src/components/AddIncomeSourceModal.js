@@ -1,27 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import Dialog from "./Dialog";
-import Field from "./Field";
+import Field, { SelectField } from "./Field";
 import Button from "./Button";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
-import { CADENCE_KEYS, CADENCES, DEFAULT_CADENCE } from "../recurrence";
-import { todayISO } from "../utils";
+import { CADENCE_KEYS, CADENCES, DEFAULT_CADENCE, monthlyCents } from "../cadence";
+import { formatCents, toCents } from "../utils";
 
 /**
  * A recurring source of income the plan should expect.
  *
- * "First payment" is a real date rather than a day of the month because that is
- * what a fortnightly schedule needs: without a day on the calendar there is no
- * way to know whether a given month holds two payments or three. For the
- * monthly cadences only its day-of-month matters.
+ * Two fields and a cadence, and deliberately no date. This describes income in
+ * general — what arrives, how often — not what lands in a named month, so
+ * there is no payday to anchor to. The form shows the monthly average it works
+ * out to as the user types, because that average is the surprising part: "every
+ * 2 weeks" is 2.1667 payments a month, not two, and a figure the user did not
+ * type has to show itself before it turns up in the plan.
  */
 export default function AddIncomeSourceModal({ show, handleClose }) {
   const formRef = useRef();
   const nameRef = useRef();
   const amountRef = useRef();
   const cadenceRef = useRef();
-  const anchorDateRef = useRef();
-  const endDateRef = useRef();
   const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(0);
 
   const { addIncomeSource } = useIncomePlan();
 
@@ -33,9 +34,16 @@ export default function AddIncomeSourceModal({ show, handleClose }) {
     formRef.current.reset();
     setError(null);
     cadenceRef.current.value = DEFAULT_CADENCE;
-    anchorDateRef.current.value = todayISO();
-    endDateRef.current.value = "";
+    setPreview(0);
   }, [show]);
+
+  // One form-level handler rather than state per field: the preview is derived
+  // from what is already in the DOM, and holding a copy of it in React would
+  // give the form two ideas of what the user typed.
+  function handleChange() {
+    const cents = toCents(amountRef.current.value);
+    setPreview(cents == null ? 0 : monthlyCents(cents, cadenceRef.current.value));
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -44,8 +52,6 @@ export default function AddIncomeSourceModal({ show, handleClose }) {
       name: nameRef.current.value,
       amount: amountRef.current.value,
       cadence: cadenceRef.current.value,
-      anchorDate: anchorDateRef.current.value,
-      endDate: endDateRef.current.value,
     });
 
     // Keep the modal open on a rejection so the typed figures are still there
@@ -60,7 +66,7 @@ export default function AddIncomeSourceModal({ show, handleClose }) {
 
   return (
     <Dialog show={show} handleClose={handleClose} title="New income source">
-      <form ref={formRef} onSubmit={handleSubmit}>
+      <form ref={formRef} onChange={handleChange} onSubmit={handleSubmit}>
         <Field label="Name" inputRef={nameRef} type="text" required />
         <Field
           label="Amount per payment"
@@ -70,32 +76,18 @@ export default function AddIncomeSourceModal({ show, handleClose }) {
           min={0}
           step={0.01}
         />
-        <label className="mb-5 block">
-          <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
-            How often
-          </span>
-          <select
-            ref={cadenceRef}
-            defaultValue={DEFAULT_CADENCE}
-            className="w-full border-0 border-b-2 border-edge bg-panel px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors focus:border-azure"
-          >
-            {CADENCE_KEYS.map((cadence) => (
-              <option key={cadence} value={cadence}>
-                {CADENCES[cadence].label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Field
-          label="First payment"
-          inputRef={anchorDateRef}
-          type="date"
-          required
-          defaultValue={todayISO()}
-        />
-        {/* Optional, and worth having: retiring a source keeps the months it did
-            pay out intact, where deleting it would rewrite them. */}
-        <Field label="Last payment (optional)" inputRef={endDateRef} type="date" />
+        <SelectField label="How often" selectRef={cadenceRef} defaultValue={DEFAULT_CADENCE}>
+          {CADENCE_KEYS.map((cadence) => (
+            <option key={cadence} value={cadence}>
+              {CADENCES[cadence].label}
+            </option>
+          ))}
+        </SelectField>
+        <p role="status" className="-mt-3 mb-5 font-mono text-label uppercase text-chalk-soft">
+          Adds{" "}
+          <span className="font-medium text-verdant">{formatCents(preview)}</span> to expected
+          income each month
+        </p>
         {error && (
           <p role="alert" className="-mt-2 mb-5 font-sans text-row text-vermilion">
             {error}

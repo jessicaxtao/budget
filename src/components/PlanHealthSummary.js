@@ -1,28 +1,26 @@
-import { formatCents, formatPeriod } from "../utils";
+import { formatCents } from "../utils";
 import TallyGauge from "./TallyGauge";
 
 /**
- * Does this month's plan balance?
+ * Does the plan balance?
  *
- *   unplanned = expected income − Σ category estimates
+ *   unplanned = expected income per month − Σ category estimates per month
  *
  * Three figures and a verdict. The verdict is the point of the page: a plan that
  * allocates more than it expects to take in is not a plan, and the user has to
  * see that before they leave the screen rather than discover it in three weeks
  * when the envelopes run dry.
  *
- * Deliberately silent about the books. Nothing here says whether the money that
- * arrived has been assigned — that is "to be assigned" on the Transactions page,
- * and answering both questions in one place would blur which of them is being
- * answered. The one figure from reality, recorded income, sits with the sources
- * that predicted it in the table below.
+ * Both sides are monthly averages that hold until the user changes them, so
+ * there is no month on this panel and no figure from the books on it either.
+ * Whether the money that actually arrived has been given a job is "to be
+ * assigned" on the Transactions page; answering both questions in one place
+ * would blur which of them is being answered.
  */
 export default function PlanHealthSummary({
-  period,
   expectedIncomeCents,
   plannedCents,
   unplannedCents,
-  paymentCount,
   sourceCount,
   categoryCount,
   estimatedCount,
@@ -57,9 +55,7 @@ export default function PlanHealthSummary({
     <section className={`mb-4 border ${tone.border} bg-panel`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Plan health</h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
-          {formatPeriod(period)}
-        </span>
+        <span className="font-mono text-label uppercase text-chalk-soft">Per month</span>
       </div>
 
       {/* Hairline dividers drawn by the grid gap showing the edge colour through
@@ -73,9 +69,7 @@ export default function PlanHealthSummary({
           <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
             {sourceCount === 0
               ? "No sources"
-              : `${sourceCount} ${sourceCount === 1 ? "source" : "sources"} · ${paymentCount} ${
-                  paymentCount === 1 ? "payment" : "payments"
-                }`}
+              : `${sourceCount} ${sourceCount === 1 ? "source" : "sources"}, averaged`}
           </dd>
         </div>
 
@@ -116,8 +110,8 @@ export default function PlanHealthSummary({
       )}
 
       {/* A status region rather than an alert: this is on screen from the moment
-          the page loads, and an assertive announcement on every period step
-          would talk over the user. */}
+          the page loads, and an assertive announcement on every keystroke into
+          an estimate would talk over the user. */}
       <div role="status" className="border-t border-edge px-4 py-3">
         <p className={`font-sans text-row ${unknown ? "text-chalk-soft" : tone.text}`}>{verdict}</p>
         {unestimated > 0 && (

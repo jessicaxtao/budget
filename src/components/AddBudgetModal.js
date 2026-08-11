@@ -1,54 +1,57 @@
 import { useEffect, useRef, useState } from "react";
 import Dialog from "./Dialog";
-import Field from "./Field";
+import Field, { SelectField } from "./Field";
 import Button from "./Button";
-import { useBudgets } from "../contexts/BudgetsContext";
-import { useBudgetPlan } from "../contexts/BudgetPlanContext";
-import { currentPeriod, toCents } from "../utils";
+import { useBudgets, UNGROUPED_ID } from "../contexts/BudgetsContext";
 
-// `period` is the month the estimate is filed under — the one the plan page is
-// currently showing, which is not necessarily the current one.
-export default function AddBudgetModal({ show, handleClose, period }) {
+// The estimate used to be filed against a month, so this had to create the
+// category and then write a plan against it — two writes, with a bad figure
+// able to strand a category with nothing planned. It is one standing figure on
+// the record now, so there is one write and `addBudget` does all the checking.
+//
+// `defaultGroupId` is the group the modal was opened from, so adding a category
+// from a heading files it under that heading. Opened from the page header it is
+// undefined, which reads as ungrouped.
+export default function AddBudgetModal({ show, handleClose, defaultGroupId }) {
   const formRef = useRef();
   const nameRef = useRef();
-  const maxRef = useRef();
+  const plannedRef = useRef();
+  const groupIdRef = useRef();
   const [error, setError] = useState(null);
 
-  const { addBudget } = useBudgets();
-  const { setPlannedAmount } = useBudgetPlan();
+  const { addBudget, groups } = useBudgets();
 
   // The modal stays mounted, so clear the previous entry — and the previous
-  // error — each time it opens.
+  // error — each time it opens. The select is set explicitly rather than left
+  // to `defaultValue`, which only ever applies on the first mount, when
+  // `defaultGroupId` was still undefined.
   useEffect(() => {
     if (!show) return;
     formRef.current.reset();
     setError(null);
-  }, [show]);
+    const known = groups.some((group) => group.id === defaultGroupId);
+    groupIdRef.current.value = known ? defaultGroupId : "";
+  }, [show, defaultGroupId, groups]);
 
   function handleSubmit(e) {
     e.preventDefault();
 
-    // Checked before the budget is created so a bad figure cannot leave a
-    // category behind with no estimate against it.
-    const cents = toCents(maxRef.current.value);
-    if (cents == null || cents < 0) {
-      setError("Enter a monthly estimate of zero or more.");
-      maxRef.current.focus();
-      return;
-    }
+    // "" is what the ungrouped option is worth in the DOM; the store wants null.
+    const groupId = groupIdRef.current.value || UNGROUPED_ID;
+    const result = addBudget({
+      name: nameRef.current.value,
+      planned: plannedRef.current.value,
+      groupId,
+    });
 
-    const result = addBudget({ name: nameRef.current.value });
-
-    // Keep the modal open on a clash so the typed name is still there to edit.
+    // Keep the modal open on a rejection so the typed name is still there to
+    // edit.
     if (!result.ok) {
       setError(result.error);
       nameRef.current.focus();
       return;
     }
 
-    // The estimate lives with the plan for this period, not on the budget, so
-    // changing it next month leaves this month's history intact.
-    setPlannedAmount({ budgetId: result.id, period: period ?? currentPeriod(), plannedCents: cents });
     handleClose();
   }
 
@@ -56,7 +59,22 @@ export default function AddBudgetModal({ show, handleClose, period }) {
     <Dialog show={show} handleClose={handleClose} title="New category">
       <form ref={formRef} onSubmit={handleSubmit}>
         <Field label="Name" inputRef={nameRef} type="text" required />
-        <Field label="Monthly estimate" inputRef={maxRef} type="number" required min={0} step={0.01} />
+        <Field
+          label="Monthly estimate"
+          inputRef={plannedRef}
+          type="number"
+          required
+          min={0}
+          step={0.01}
+        />
+        <SelectField label="Group" selectRef={groupIdRef}>
+          <option value="">Ungrouped</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </SelectField>
         {error && (
           <p role="alert" className="-mt-2 mb-5 font-sans text-row text-vermilion">
             {error}

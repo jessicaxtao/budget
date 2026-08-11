@@ -2,7 +2,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import AddExpenseModal from "./AddExpenseModal";
 import AddBudgetModal from "./AddBudgetModal";
+import AddGroupModal from "./AddGroupModal";
 import AddIncomeModal from "./AddIncomeModal";
+import AddIncomeSourceModal from "./AddIncomeSourceModal";
 import AssignIncomeModal from "./AssignIncomeModal";
 import AppProviders from "../contexts/AppProviders";
 import { addMonths, currentPeriod, todayISO } from "../utils";
@@ -343,5 +345,211 @@ describe("duplicate budget names", () => {
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("budgets"))).toHaveLength(2);
+  });
+});
+
+describe("filing a new category under a group", () => {
+  // Mirrors the page: the group the modal was opened from varies between
+  // openings, which is the case a `defaultValue` on the select cannot serve.
+  function GroupChoiceHarness({ groupIds }) {
+    const [show, setShow] = useState(false);
+    const [groupId, setGroupId] = useState();
+    return (
+      <>
+        {groupIds.map((id) => (
+          <button
+            key={id ?? "header"}
+            onClick={() => {
+              setGroupId(id);
+              setShow(true);
+            }}
+          >
+            open {id ?? "header"}
+          </button>
+        ))}
+        <AddBudgetModal
+          show={show}
+          defaultGroupId={groupId}
+          handleClose={() => setShow(false)}
+        />
+      </>
+    );
+  }
+
+  beforeEach(() => {
+    localStorage.setItem(
+      "budgetGroups",
+      JSON.stringify([
+        { id: "g1", name: "Fixed" },
+        { id: "g2", name: "Variable" },
+      ])
+    );
+  });
+
+  test("the group preselects from where it was opened, and updates on reopen", () => {
+    render(
+      <AppProviders>
+        <GroupChoiceHarness groupIds={["g1", "g2"]} />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open g1"));
+    expect(screen.getByLabelText(/group/i)).toHaveValue("g1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByText("open g2"));
+    expect(screen.getByLabelText(/group/i)).toHaveValue("g2");
+  });
+
+  test("opening from the page header, or from a group since deleted, falls back to ungrouped", () => {
+    render(
+      <AppProviders>
+        <GroupChoiceHarness groupIds={["gone", undefined]} />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open gone"));
+    expect(screen.getByLabelText(/group/i)).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByText("open header"));
+    expect(screen.getByLabelText(/group/i)).toHaveValue("");
+  });
+
+  test("the chosen group is stored as an id, and ungrouped as null", () => {
+    render(
+      <AppProviders>
+        <GroupChoiceHarness groupIds={["g1", undefined]} />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open g1"));
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Rent" } });
+    fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "1200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    fireEvent.click(screen.getByText("open header"));
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Travel" } });
+    fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // "" is what the ungrouped option is worth in the DOM; it must not reach
+    // storage, where it would be a group id matching nothing.
+    expect(JSON.parse(localStorage.getItem("budgets"))).toEqual([
+      { id: expect.any(String), name: "Rent", plannedCents: 120000, groupId: "g1" },
+      { id: expect.any(String), name: "Travel", plannedCents: 10000, groupId: null },
+    ]);
+  });
+});
+
+describe("the group modal adds and renames with one form", () => {
+  function GroupHarness() {
+    const [show, setShow] = useState(false);
+    const [group, setGroup] = useState(null);
+    return (
+      <>
+        <button
+          onClick={() => {
+            setGroup(null);
+            setShow(true);
+          }}
+        >
+          open new
+        </button>
+        <button
+          onClick={() => {
+            setGroup({ id: "g1", name: "Fixed" });
+            setShow(true);
+          }}
+        >
+          open rename
+        </button>
+        <AddGroupModal show={show} group={group} handleClose={() => setShow(false)} />
+      </>
+    );
+  }
+
+  test("renaming seeds the existing name, and adding afterwards starts empty", () => {
+    localStorage.setItem("budgetGroups", JSON.stringify([{ id: "g1", name: "Fixed" }]));
+    render(
+      <AppProviders>
+        <GroupHarness />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open rename"));
+    expect(screen.getByLabelText(/name/i)).toHaveValue("Fixed");
+
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Essentials" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(JSON.parse(localStorage.getItem("budgetGroups"))).toEqual([
+      { id: "g1", name: "Essentials" },
+    ]);
+
+    // The rename left a name in the field; opening it to add must not offer it
+    // back as a starting point.
+    fireEvent.click(screen.getByText("open new"));
+    expect(screen.getByLabelText(/name/i)).toHaveValue("");
+  });
+
+  test("a clashing name reports the problem instead of closing silently", () => {
+    localStorage.setItem("budgetGroups", JSON.stringify([{ id: "g1", name: "Fixed" }]));
+    render(
+      <AppProviders>
+        <GroupHarness />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open new"));
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "fixed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(JSON.parse(localStorage.getItem("budgetGroups"))).toHaveLength(1);
+  });
+});
+
+describe("adding an income source", () => {
+  test("the monthly average is previewed as the amount and cadence are set", () => {
+    render(
+      <AppProviders>
+        <SimpleHarness Modal={AddIncomeSourceModal} />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open"));
+    fireEvent.change(screen.getByLabelText(/amount per payment/i), { target: { value: "1500" } });
+
+    // Monthly by default: what you type is what you get.
+    expect(screen.getByRole("status")).toHaveTextContent("$1,500");
+
+    // 26 payments over 12 months, not two a month — the figure the user did not
+    // type has to be on screen before it reaches the plan.
+    fireEvent.change(screen.getByLabelText(/how often/i), { target: { value: "biweekly" } });
+    expect(screen.getByRole("status")).toHaveTextContent("$3,250");
+  });
+
+  test("the cadence resets to monthly on reopen, and so does the preview", () => {
+    render(
+      <AppProviders>
+        <SimpleHarness Modal={AddIncomeSourceModal} />
+      </AppProviders>
+    );
+
+    fireEvent.click(screen.getByText("open"));
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Salary" } });
+    fireEvent.change(screen.getByLabelText(/amount per payment/i), { target: { value: "1500" } });
+    fireEvent.change(screen.getByLabelText(/how often/i), { target: { value: "biweekly" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("incomeSources"))).toEqual([
+      { id: expect.any(String), name: "Salary", amountCents: 150000, cadence: "biweekly" },
+    ]);
+
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByLabelText(/name/i)).toHaveValue("");
+    expect(screen.getByLabelText(/how often/i)).toHaveValue("monthly");
+    expect(screen.getByRole("status")).toHaveTextContent("$0");
   });
 });
