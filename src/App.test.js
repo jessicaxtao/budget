@@ -29,10 +29,20 @@ test('every navigation entry renders a page', () => {
   });
 });
 
-test('the transactions page keeps the existing ledger UI', () => {
+// Configuration and money movement are split across two pages: categories are
+// created where their estimates live, and funded where the income lands.
+test('the transactions page drives income, assignment and expenses', () => {
   renderAt('/transactions');
   expect(screen.getByRole('heading', { level: 1, name: /transactions/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /add budget/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /assign income/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /add income/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /add expense/i })).toBeInTheDocument();
+});
+
+test('the budget plan page is where categories are configured', () => {
+  renderAt('/plan');
+  expect(screen.getByRole('heading', { level: 1, name: /budget plan/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /add category/i })).toBeInTheDocument();
 });
 
 test('an unknown route falls back to the dashboard', () => {

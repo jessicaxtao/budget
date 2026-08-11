@@ -3,7 +3,9 @@ import { useState } from "react";
 import AddExpenseModal from "./AddExpenseModal";
 import AddBudgetModal from "./AddBudgetModal";
 import AddIncomeModal from "./AddIncomeModal";
+import AssignIncomeModal from "./AssignIncomeModal";
 import AppProviders from "../contexts/AppProviders";
+import { addMonths, currentPeriod, todayISO } from "../utils";
 
 // Mirrors how TransactionsPage drives the modals: mounted once for the life of
 // the page and toggled with `show`, with the budget it was opened from varying
@@ -31,6 +33,20 @@ function ExpenseHarness({ budgetIds }) {
   );
 }
 
+// The assign modal is period-scoped, so the harness can step the month the same
+// way the page's stepper does — including while the modal is open.
+function AssignHarness() {
+  const [show, setShow] = useState(false);
+  const [period, setPeriod] = useState(currentPeriod);
+  return (
+    <>
+      <button onClick={() => setShow(true)}>open</button>
+      <button onClick={() => setPeriod(addMonths(period, 1))}>next month</button>
+      <AssignIncomeModal show={show} period={period} handleClose={() => setShow(false)} />
+    </>
+  );
+}
+
 function SimpleHarness({ Modal }) {
   const [show, setShow] = useState(false);
   return (
@@ -53,6 +69,130 @@ beforeEach(() => {
 function seedBudgets(budgets) {
   localStorage.setItem("budgets", JSON.stringify(budgets));
 }
+
+function seedIncome(dollars) {
+  localStorage.setItem(
+    "income",
+    JSON.stringify([{ id: "i1", description: "Pay", amount: dollars, date: todayISO() }])
+  );
+}
+
+describe("assigning income to categories", () => {
+  function openWith(budgets, dollars) {
+    seedBudgets(budgets);
+    if (dollars != null) seedIncome(dollars);
+    render(
+      <AppProviders>
+        <AssignHarness />
+      </AppProviders>
+    );
+    fireEvent.click(screen.getByText("open"));
+  }
+
+  test("filling a category tops it up to its estimate and the pool drops", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    expect(screen.getByRole("status")).toHaveTextContent("$1,000");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fill" }));
+
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(400);
+    expect(screen.getByRole("status")).toHaveTextContent("$600");
+  });
+
+  test("the remaining figure tracks typing, and goes negative past the pool", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "250" } });
+    expect(screen.getByRole("status")).toHaveTextContent("$750");
+
+    // Over-assigning is allowed and has to be visible, not blocked.
+    fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "1200" } });
+    expect(screen.getByRole("status")).toHaveTextContent("-$200");
+  });
+
+  test("saving writes every row, and reopening shows what was stored", () => {
+    openWith(
+      [
+        { id: "a", name: "Groceries", max: 400 },
+        { id: "b", name: "Fuel", max: 120 },
+      ],
+      1000
+    );
+
+    fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "300" } });
+    fireEvent.change(screen.getByLabelText("Assign to Fuel"), { target: { value: "120" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(JSON.parse(localStorage.getItem("assignments"))).toHaveLength(2);
+
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(300);
+    expect(screen.getByRole("status")).toHaveTextContent("$580");
+  });
+
+  test("abandoned typing does not survive a reopen", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(null);
+    expect(screen.getByRole("status")).toHaveTextContent("$1,000");
+  });
+
+  test("a negative assignment is accepted — it pulls money back out", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "-50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(JSON.parse(localStorage.getItem("assignments"))[0].assignedCents).toBe(-5000);
+  });
+
+  test("stepping the month underneath an open modal re-seeds it", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "300" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(300);
+
+    fireEvent.click(screen.getByText("next month"));
+
+    // Next month has its own assignment, not this month's carried over.
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(null);
+  });
+
+  test("Uncategorized is offered when it owes money, even with no activity now", () => {
+    // An empty assignments key so the day-one seed does not run and zero it out.
+    localStorage.setItem("assignments", JSON.stringify([]));
+    localStorage.setItem(
+      "expenses",
+      JSON.stringify([
+        {
+          id: "e1",
+          description: "Parking",
+          amountCents: 900,
+          budgetId: "Uncategorized",
+          date: "2020-01-05",
+        },
+      ])
+    );
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    // Keyed on the balance rather than this month's activity: an overspend
+    // carried in from years ago is exactly the row the user came here to cover.
+    expect(screen.getByLabelText("Assign to Uncategorized")).toBeInTheDocument();
+  });
+
+  test("a category with no estimate cannot be filled", () => {
+    openWith([{ id: "a", name: "Groceries" }], 1000);
+
+    expect(screen.getByRole("button", { name: "Fill" })).toBeDisabled();
+  });
+});
 
 describe("expense modal budget preselection", () => {
   test("opening from a budget card preselects that budget, and updates on reopen", () => {
@@ -160,7 +300,7 @@ describe("forms do not keep stale input", () => {
 
     fireEvent.click(screen.getByText("open"));
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Travel" } });
-    fireEvent.change(screen.getByLabelText(/monthly limit/i), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "500" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     fireEvent.click(screen.getByText("open"));
@@ -179,7 +319,7 @@ describe("duplicate budget names", () => {
 
     fireEvent.click(screen.getByText("open"));
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "groceries" } });
-    fireEvent.change(screen.getByLabelText(/monthly limit/i), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "500" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(/already exists/i);
@@ -198,7 +338,7 @@ describe("duplicate budget names", () => {
 
     fireEvent.click(screen.getByText("open"));
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Travel" } });
-    fireEvent.change(screen.getByLabelText(/monthly limit/i), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "500" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

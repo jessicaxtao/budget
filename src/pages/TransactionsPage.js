@@ -1,44 +1,50 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import BudgetCard from "../components/BudgetCard";
-import IncomeBudgetCard from "../components/IncomeBudgetCard";
-import AddBudgetModal from "../components/AddBudgetModal";
+import ToBeAssignedCard from "../components/ToBeAssignedCard";
 import AddExpenseModal from "../components/AddExpenseModal";
 import AddIncomeModal from "../components/AddIncomeModal";
+import AssignIncomeModal from "../components/AssignIncomeModal";
 import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
+import PeriodStepper from "../components/PeriodStepper";
 import UncategorizedBudgetCard from "../components/UncategorizedBudgetCard";
 import TotalBudgetCard from "../components/TotalBudgetCard";
 import ViewExpensesModal from "../components/ViewExpensesModal";
 import ViewIncomeModal from "../components/ViewIncomeModal";
-import { UNCATEGORIZED_BUDGET_ID, useBudgets } from "../contexts/BudgetsContext";
-import { useBudgetPlan } from "../contexts/BudgetPlanContext";
-import { useIncome } from "../contexts/IncomeContext";
+import { UNCATEGORIZED_BUDGET_ID } from "../contexts/BudgetsContext";
+import useEnvelopes from "../hooks/useEnvelopes";
 import { currentPeriod } from "../utils";
 
 export default function TransactionsPage() {
-  const [showAddBudgetModal, setShowAddBudgetModal] = useState(false);
+  const [period, setPeriod] = useState(currentPeriod);
   const [viewExpensesModalBudgetId, setViewExpensesModalBudgetId] = useState();
   const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [showAddIncomeModal, setShowAddIncomeModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [addExpenseModalBudgetId, setAddExpenseModalBudgetId] = useState();
-  const { budgets, getBudgetTotalCents } = useBudgets();
-  const { getPlannedCents } = useBudgetPlan();
-  const { totalIncomeCents } = useIncome();
 
-  const period = currentPeriod();
+  // Every figure on this page comes from one derivation at one period. The
+  // all-time totals the contexts also expose are on a different clock — they
+  // count future-dated records — and mixing the two would put two figures on
+  // screen that disagree with nothing to explain why.
+  const {
+    rows,
+    toBeAssignedCents,
+    totalCarriedInCents,
+    periodIncomeCents,
+    periodAssignedCents,
+    periodSpentCents,
+  } = useEnvelopes(period);
+
+  const categoryRows = rows.filter((row) => row.kind === "category");
+  const uncategorizedRow = rows.find((row) => row.kind === "uncategorized");
+  const orphanRows = rows.filter((row) => row.kind === "orphan");
 
   function openAddExpenseModal(budgetId) {
     setShowAddExpenseModal(true);
     setAddExpenseModalBudgetId(budgetId);
-  }
-
-  function openAddIncomeModal() {
-    setShowAddIncomeModal(true);
-  }
-
-  function openViewIncomeModal() {
-    setShowIncomeModal(true);
   }
 
   return (
@@ -46,57 +52,91 @@ export default function TransactionsPage() {
       <PageHeader
         eyebrow="Day to day"
         title="Transactions"
-        description="Record income and expenses as they land, and see how each category is tracking this period."
+        description="Record income and expenses as they land, give every dollar a category, and see what each envelope has left."
         actions={
           <>
-            <Button variant="primary" onClick={() => setShowAddBudgetModal(true)}>
-              Add budget
+            <PeriodStepper period={period} onChange={setPeriod} />
+            <Button variant="primary" onClick={() => setShowAssignModal(true)}>
+              Assign income
             </Button>
             <Button variant="outline" onClick={() => openAddExpenseModal()}>
               Add expense
             </Button>
-            <Button variant="outline" onClick={openAddIncomeModal}>
+            <Button variant="outline" onClick={() => setShowAddIncomeModal(true)}>
               Add income
             </Button>
           </>
         }
       />
       <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-4">
-        <IncomeBudgetCard
-          name="Income"
-          amountCents={totalIncomeCents}
-          onAddIncomeClick={openAddIncomeModal}
-          onViewIncomeClick={openViewIncomeModal}
+        <ToBeAssignedCard
+          toBeAssignedCents={toBeAssignedCents}
+          periodIncomeCents={periodIncomeCents}
+          periodAssignedCents={periodAssignedCents}
+          onAssignClick={() => setShowAssignModal(true)}
+          onViewIncomeClick={() => setShowIncomeModal(true)}
         />
-        {budgets.length === 0 && (
+        {categoryRows.length === 0 && (
           <div className="border border-dashed border-edge bg-panel/60 p-4 font-sans text-row text-chalk-soft">
-            Every category starts empty. Add a budget to start assigning your income.
+            Every category starts empty.{" "}
+            <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">
+              Add one on the budget plan
+            </Link>{" "}
+            to start assigning your income.
           </div>
         )}
-        {budgets.map((budget) => (
+        {categoryRows.map((row) => (
           <BudgetCard
-            key={budget.id}
-            name={budget.name}
-            amountCents={getBudgetTotalCents(budget.id)}
-            maxCents={getPlannedCents(budget.id, period)}
-            onAddExpenseClick={() => openAddExpenseModal(budget.id)}
-            onViewExpensesClick={() => setViewExpensesModalBudgetId(budget.id)}
+            key={row.budgetId}
+            name={row.name}
+            carriedInCents={row.carriedInCents}
+            assignedCents={row.assignedCents}
+            spentCents={row.spentCents}
+            plannedCents={row.plannedCents}
+            onAddExpenseClick={() => openAddExpenseModal(row.budgetId)}
+            onViewExpensesClick={() => setViewExpensesModalBudgetId(row.budgetId)}
           />
         ))}
         <UncategorizedBudgetCard
-          onAddExpenseClick={openAddExpenseModal}
+          row={uncategorizedRow}
+          onAddExpenseClick={() => openAddExpenseModal(UNCATEGORIZED_BUDGET_ID)}
           onViewExpensesClick={() => setViewExpensesModalBudgetId(UNCATEGORIZED_BUDGET_ID)}
         />
-        <TotalBudgetCard />
+        {/* Ids with money against them but no category record. They count in
+            every total, so they have to be visible somewhere too. */}
+        {orphanRows.map((row) => (
+          <BudgetCard
+            key={row.budgetId}
+            name={row.name}
+            carriedInCents={row.carriedInCents}
+            assignedCents={row.assignedCents}
+            spentCents={row.spentCents}
+            gray
+            onAddExpenseClick={() => openAddExpenseModal(row.budgetId)}
+            onViewExpensesClick={() => setViewExpensesModalBudgetId(row.budgetId)}
+          />
+        ))}
+        <TotalBudgetCard
+          carriedInCents={totalCarriedInCents}
+          assignedCents={periodAssignedCents}
+          spentCents={periodSpentCents}
+        />
       </div>
-      <AddBudgetModal show={showAddBudgetModal} handleClose={() => setShowAddBudgetModal(false)} />
+      <AssignIncomeModal
+        show={showAssignModal}
+        period={period}
+        handleClose={() => setShowAssignModal(false)}
+      />
       <AddExpenseModal
         show={showAddExpenseModal}
         defaultBudgetId={addExpenseModalBudgetId}
         handleClose={() => setShowAddExpenseModal(false)}
       />
       <AddIncomeModal show={showAddIncomeModal} handleClose={() => setShowAddIncomeModal(false)} />
-      <ViewExpensesModal budgetId={viewExpensesModalBudgetId} handleClose={() => setViewExpensesModalBudgetId()} />
+      <ViewExpensesModal
+        budgetId={viewExpensesModalBudgetId}
+        handleClose={() => setViewExpensesModalBudgetId()}
+      />
       <ViewIncomeModal show={showIncomeModal} handleClose={() => setShowIncomeModal(false)} />
     </>
   );

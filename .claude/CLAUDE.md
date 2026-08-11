@@ -1,99 +1,96 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Repository layout
-
-The Create React App project lives at the repo root (`src/`, `public/`, `package.json`). Run all commands from the repo root.
+Personal budgeting app: Create React App at the repo root, **no backend**, single user, no auth. Every store persists to `localStorage` via `useLocalStorage` (`src/hooks/useLocalStorage.js`) — `useState`-shaped, JSON, optional third `migrate` arg applied to stored values but never to the default.
 
 ## Commands
 
-- `npm start` — dev server (CRA) at http://localhost:3000, hot reload
-- `npm test` — Jest + React Testing Library in watch mode. Non-interactive single file: `npm test -- --watchAll=false src/App.test.js`
-- `npm run build` — production build to `build/`
+Run from the repo root.
 
-No lint script beyond CRA's built-in ESLint (`eslintConfig` extends `react-app`), which runs during `npm start`/`npm test`.
+- `npm start` — dev server at http://localhost:3000
+- `npm test` — Jest + RTL, watch mode. Single file: `npm test -- --watchAll=false src/App.test.js`
+- `npm run build` — production build
 
-## Architecture
+No lint script; CRA's ESLint (`react-app`) runs during `npm start` / `npm test`.
 
-A personal budgeting app with **no backend** — every store persists to `localStorage` through `useLocalStorage` (`src/hooks/useLocalStorage.js`), a hook shaped like `useState` that syncs to a given key as JSON. Single user, no auth.
+## Money and dates
 
-`useLocalStorage` takes an optional third argument, `migrate`, applied to values read back from storage but never to the default. Because every provider wraps the whole app, the hook swallows everything storage can throw: corrupt JSON falls back to the default *and* clears the key so the failure cannot repeat forever, and a failed write never reaches the render. It also listens for `storage` events, so a second tab does not silently overwrite the first.
+- **Money is an integer number of cents**, always in a `…Cents` field. Never floating-point dollars. Parse input with `toCents` and render with `formatCents` (`src/utils.js`); `toCents` returns `null` for junk, which is how contexts reject bad input instead of writing `NaN`.
+- **Transactions carry a `date`** (`"YYYY-MM-DD"`, local calendar via `todayISO` — never `toISOString`, which is UTC). Periods (`"YYYY-MM"`) are always **derived** with `toPeriod`, never stored, so the two cannot disagree. Legacy records have `date: null` and display as "Undated"; do not backfill invented history.
+- **Compare periods with `periodLTE`, never a bare `<=`** — `null <= null` is `true` in JS, which sweeps undated records into sums that already count them. Step months with `addMonths`, never string arithmetic (`"2026-13"` sorts before `"2027-01"`).
+- Migrations live next to the store owning the key and are keyed on **field presence** (`"amount" in record`), not a version counter, so they are safe to re-run.
 
-### Money and dates
+## Routing
 
-Two rules hold across every store:
+`react-router-dom` v6, pinned: v7's `react-router/dom` export cannot be resolved by the Jest resolver in react-scripts 5. Both routers take the shared `routerFuture` flags (`src/routerFuture.js`).
 
-- **Money is an integer number of cents**, in a field named `…Cents` (`amountCents`, `plannedCents`). Never floating-point dollars — a ledger that disagrees with itself is worse than none. Convert user input with `toCents` and render with `formatCents` (`src/utils.js`); `toCents` returns `null` for anything unparseable, which is how contexts reject bad input instead of letting `NaN` reach storage as `null`.
-- **Transactions carry a `date`** (`"YYYY-MM-DD"`, local calendar via `todayISO` — never `toISOString`, which is UTC). Periods are `"YYYY-MM"` and are always **derived** with `toPeriod`, never stored alongside the date, so the two cannot disagree. Records written before dates existed have `date: null` and display as "Undated" rather than being backfilled with invented history.
+`src/navigation.js` is the single source of truth for pages, feeding both the route table in `App.js` and the tab bar in `AppShell.js` — **adding a page means adding one entry there**. `src/App.js` is only shell; each page owns its state and modals.
 
-Migrations live next to the store that owns the key and are keyed on **field presence** (`"amount" in record`) rather than a version counter, which makes them self-describing and safe to re-run.
+Implemented: `/transactions` (envelope grid, income, assignment, expenses), `/plan` (partly — categories and estimates). Scaffolds: `/`, `/reports`, `/net-worth`, `/retirement` — they render `PageHeader` plus `Placeholder` sections whose listed capabilities are the intended scope.
 
-### Routing
+## State: six providers in `src/contexts/AppProviders.js`
 
-`react-router-dom` v6, pinned deliberately: v7 exposes `react-router/dom` via package `exports`, which the Jest resolver bundled with react-scripts 5 cannot resolve. Both routers opt into v7 behavior through the shared `routerFuture` flags (`src/routerFuture.js`).
+Add stores there, not in `index.js`. IDs are generated with `uuid` v4 **in the context**, never in form components.
 
-`src/navigation.js` is the single source of truth for pages — it feeds both the route table in `App.js` and the tab bar in `AppShell.js`. **Adding a page means adding one entry there**, not editing both. Unknown paths redirect to `/`.
+**Provider order matters.** `BudgetPlanProvider` and `AssignmentsProvider` sit outside `BudgetsProvider` so deleting a budget takes its plans and funding with it. They reference budgets by id and never read them back — keep the dependency one-way. **Cross-store maths belongs in `useEnvelopes`, never in a provider.** `UNCATEGORIZED_BUDGET_ID` lives in `src/contexts/constants.js` for that reason.
 
-`src/App.js` is only the shell (nav chrome + route outlet); each page owns its own state and modals.
+- **`BudgetPlanContext`** — `plans` per (budget, period): the recurring **estimate**. `getPlannedCents` carries the most recent earlier plan forward.
+- **`AssignmentsContext`** — `assignments` per (budget, period): what was **actually put in**. Does *not* carry forward (the balance does). Zero rows pruned; negatives allowed — under rollover that is the only way to pull money back out.
+- **`BudgetsContext`** — `budgets` and `expenses`. Deleting a budget moves its expenses **and its assignments** onto `UNCATEGORIZED_BUDGET_ID` and drops its plans; dropping the funding instead would ask the user to fund the same purchase twice. `getBudgetTotalCents` / `getBudgetExpenses` / `totalSpentCents` are **all-time** — never mix them with period-scoped envelope figures on one screen.
+- **`IncomeContext`** — `income` plus `totalIncomeCents` / `getPeriodIncome`. Deliberately **no** delete cascade: nothing maps income to the envelopes it funded. Deleting assigned income correctly drives "to be assigned" negative.
+- **`AccountsContext`**, **`RetirementContext`** *(scaffolds)* — storage + CRUD only; derived math deliberately absent. Retirement is separate so the plan can be seeded from real figures without writing back to the books.
 
-### Pages (`src/pages/`)
+Mutators that can reject input (`addBudget`, `addExpense`, `addIncome`, `setPlannedAmount`, `setAssignedAmount`, `setPeriodAssignments`, `setBalance`) return `{ ok, error }`. **Callers must surface the error** — never close a modal as though the write succeeded. Each context memoises its value.
 
-| Route | Page | State |
-| --- | --- | --- |
-| `/` | Dashboard — holistic overview | scaffold |
-| `/transactions` | Day-to-day income/expense ledger | **implemented** |
-| `/plan` | Budget configuration over time | scaffold |
-| `/reports` | Spending charts by category and over time | scaffold |
-| `/net-worth` | Net worth over time, asset allocation | scaffold |
-| `/retirement` | Retirement projection | scaffold |
+## Envelope budgeting (`src/hooks/useEnvelopes.js`)
 
-Scaffold pages render `PageHeader` plus `Placeholder` sections listing the capabilities that section is meant to cover. When implementing one, replace its `Placeholder`s — the listed items are the intended scope.
+The only place that reads across stores. `useEnvelopes(period)` returns one row per budget id plus the pool:
 
-### State management: five context providers
+```
+available(b, P) = Σ over p ≤ P of [ assigned(b,p) − spent(b,p) ]
+carriedIn(b, P) = the same sum over p < P
+toBeAssigned(P) = Σ over p ≤ P of [ income(p) − Σ over b of assigned(b,p) ]
+```
 
-All composed in `src/contexts/AppProviders.js`, which `index.js` and the tests both wrap the app with. Add a store there, not in `index.js`. Every collection generates IDs with `uuid` v4 **in the context**, not in form components.
+**The invariant**, asserted after every mutation by the tripwire in `dataModel.test.js`:
 
-**Provider order matters.** `BudgetPlanProvider` sits outside `BudgetsProvider` so deleting a budget can take its plan history with it. Plans reference budgets by id and never read them back, so the dependency runs one way only — keep it that way.
+```
+toBeAssigned + Σ available === cumulative income − cumulative spend
+```
 
-- **`BudgetPlanContext`** — `plans` (`id`, `budgetId`, `period`, `plannedCents`), one per (budget, period). **The single source of truth for what a category may spend**; budgets deliberately carry no `max` of their own. `getPlannedCents(budgetId, period)` returns that period's plan or carries the most recent earlier one forward, which is what makes one stored limit sufficient. `setPlannedAmount` upserts.
-- **`BudgetsContext`** — `budgets` (`id`, `name`) and `expenses` (`id`, `description`, `amountCents`, `budgetId`, `date`). Deleting a budget reassigns its expenses to the `UNCATEGORIZED_BUDGET_ID` sentinel rather than deleting them — expenses are what actually happened — and drops its plans. Exposes pre-grouped `getBudgetTotalCents` / `getBudgetExpenses` and `totalSpentCents`; use those rather than re-scanning `expenses` per budget.
-- **`IncomeContext`** — `income` (`id`, `description`, `amountCents`, `date`), plus `totalIncomeCents` and `getPeriodIncome`.
-- **`AccountsContext`** *(scaffold)* — `accounts` (assets/liabilities, tagged with an asset class) and `balances`, one hand-entered `amountCents` per (account, period). Deleting an account drops its balances.
-- **`RetirementContext`** *(scaffold)* — a single `assumptions` object. Kept separate on purpose: the plan may be *seeded* from real budget/net-worth figures but editing it must never write back to the books. `null` fields mean "fall back to the real number".
+The assignment terms cancel algebraically, so this checks coverage, not arithmetic. Two conditions keep it true:
 
-Mutators that can reject input (`addBudget`, `addExpense`, `addIncome`, `setPlannedAmount`, `setBalance`) return `{ ok, error }` rather than failing silently. Callers must surface the error — closing a modal as though the write succeeded is the one option that cannot be right. Each context memoises its value, so a change in one store does not re-render consumers of the others.
+1. **`rows` is the union** of budget ids, the Uncategorized sentinel, and every id appearing in `expenses` or `assignments`. Filtering what the *grid* renders is fine; filtering what the *sums* cover is not.
+2. **Both sides use the same period filter.**
 
-The scaffold contexts are storage + CRUD only; derived math (allocation, projections) is deliberately not implemented.
+Also:
 
-### UI conventions
+- **Undated records count in every period's cumulative sums.** On a row they fold into `carriedIn`, never `spentCents`, so the displayed figures add up to the displayed balance.
+- **Future-dated records are excluded** until their month arrives — hence the ban on mixing these figures with all-time ones.
+- **Rollover is the closed form above**, not a stored carry-in, so past periods are not immutable.
+- **The day-one seed** in `AssignmentsContext` opens every category with an assignment equal to its existing spend, so a pre-existing ledger starts at zero envelopes with net cash unassigned. It runs in the **lazy default only**.
+- **"Fill" tops a category up to its estimate outright**, ignoring carry-in, so sinking funds accumulate.
 
-Tailwind, with a spreadsheet-derived palette and dense type scale defined in `tailwind.config.js`. Use these tokens rather than raw hex or default Tailwind colors.
+## UI conventions
 
-**Two surfaces, and text tokens named for the one they sit on.** A dark chrome (`ledger` page, `panel` cards, `edge` hairlines) carries `chalk`/`chalk-soft` text; inverted inside it, a near-white data body (`sheet`, `sheet-alt` zebra, `band` subtotals, `rule` hairlines) carries `ink`/`ink-soft`. Pairing text with the wrong surface is meant to be visible at the call site — check which one you are on before picking a token. Accents `azure` (figures, primary action), `verdant` (income, under budget), `vermilion` (expense, over budget) and `sulfur` (active tab) are tuned for the dark chrome and are too light to carry text on a white row; destructive actions inside the sheet use `vermilion-ink` instead.
+Tailwind with the Gotham terminal palette and a dense type scale in `tailwind.config.js`. Take new colors from there — **never raw hex or default Tailwind colors**.
 
-Type is `font-sans` (IBM Plex Sans) for structure and `font-mono` (IBM Plex Mono) for figures, on a three-step scale — `text-label` (uppercase column heads), `text-row` (data), `text-figure` (card totals).
+**Two surfaces, with text tokens named for the one they sit on.** Dark chrome (`ledger`, `panel`, `panel-raised`, `edge` hairlines) carries `chalk` / `chalk-soft`; the light mint data body inside it (`sheet`, `sheet-alt` zebra, `band` subtotals, `rule` hairlines) carries `ink` / `ink-soft`. Check which surface you are on before picking a token. Accents `azure` (figures, primary action), `verdant` (income, under budget), `vermilion` (expense, over budget), `sulfur` (active tab) are tuned for dark chrome and are too light for text on a light row — destructive actions in the sheet use `vermilion-ink`.
 
-Currency renders through `formatCents` in `src/utils.js`; monetary figures are set in `font-mono`, and columns of them get `tabular-nums`. `CURRENCY` and `CURRENCY_LOCALE` are pinned together — the app books one currency, and leaving the locale to the viewer's machine while hardcoding the symbol produced a mismatched format.
+`font-sans` (IBM Plex Sans) for structure, `font-mono` (IBM Plex Mono) for figures, on `text-label` / `text-row` / `text-figure`. Currency goes through `formatCents`; columns of figures get `tabular-nums`. `CURRENCY` and `CURRENCY_LOCALE` are pinned together.
 
-Shared components (`src/components/`):
+Shared components in `src/components/` — read the file before reusing one. Rules that are not visible from the call site:
 
-- `AppShell` — masthead + tab nav, wraps every page
-- `PageHeader` — eyebrow / title / description / actions; every page starts with one, and the title is the page's only `<h1>`
-- `Placeholder` — dashed "Not built" panel with a list of intended capabilities
-- `Button` — `variant` named for the job and the surface it belongs on: `primary` / `outline` / `danger` on dark chrome, `row` inside light data rows. `size` is `sm` | `md`.
-- `Dialog` — native `<dialog>` with `showModal()`, backdrop-click to close
-- `Field` — underlined label + input, takes `inputRef`
-- `TallyGauge` — tick progress meter that shifts toward `vermilion` as it fills
-- `LedgerList` — the shared expense/income table (description, date, amount, remove). Both record types are the same shape, so they share one table rather than two that drift apart; it reads `amountCents` and renders a null `date` as "Undated".
-- `BudgetCard` — shared card taking `amountCents` / `maxCents`, reused by `TotalBudgetCard` and `UncategorizedBudgetCard`, which return `null` when there is nothing to show. `IncomeBudgetCard` always renders: income is a standing part of the ledger rather than an overflow bucket, and hiding it would take the only "Add income" control on the card grid with it.
+- Every page starts with `PageHeader`, whose title is the page's only `<h1>`.
+- `Button` `variant` names the surface: `primary` / `outline` / `danger` on dark chrome, `row` inside light data rows.
+- `TallyGauge` treats a non-positive `max` as a zero ratio, so **callers must suppress it rather than pass one**.
+- `BudgetCard` has **one** definition of trouble, `available < 0` — not a second rule about the estimate, which an envelope with carry-over can safely exceed.
 
-`Add*Modal` components are uncontrolled forms using a `useRef` per field, read on submit — not controlled inputs. `View*Modal` components list entries with delete actions, pulling from the relevant context. Modals stay mounted and are toggled by a `show` prop rather than conditionally rendered.
+`Add*Modal` forms are uncontrolled (`useRef` per field, read on submit), stay mounted, and toggle on a `show` prop. **Because they never unmount they must re-seed on open** — a `formRef` effect on `show` that calls `form.reset()`, clears the error, and re-applies defaults. Without it fields keep the previous entry and `<select>` `defaultValue` silently does nothing after first mount. `AssignIncomeModal` recomputes its live counter from `FormData` in one form-level `onChange` rather than holding state per row; its re-seed effect depends on `[show, period]` and deliberately **not** on the rows array.
 
-**Because modals never unmount, they must re-seed themselves on open.** Each `Add*Modal` holds a `formRef` and runs an effect on `show` that calls `form.reset()`, clears any error, and re-applies defaults. Without it, fields keep the previous entry, and `defaultValue` on a `<select>` silently does nothing after the first mount — which is how "Add expense" on a budget card used to file everything under Uncategorized.
+## Testing
 
-### Testing
-
-jsdom 16 (bundled with react-scripts 5) implements no `<dialog>` at all, so `src/setupTests.js` polyfills `showModal` / `show` / `close` — including the `close` event `Dialog` subscribes to. Without it every modal test dies on `showModal is not a function`. The polyfill is guarded, so a future jsdom with native support wins.
-
-Modal regressions only appear across repeated open/close cycles on a persistently mounted component, so drive them through a small harness that mimics `TransactionsPage` rather than rendering the modal once with fixed props.
+- jsdom 16 has no `<dialog>`; `src/setupTests.js` polyfills `showModal` / `show` / `close` and the `close` event. Guarded, so native support wins later.
+- Tests seed pre-migration JSON into `localStorage` before `renderHook` and use the real `AppProviders`, exercising migrations and provider order rather than mocking them.
+- **Any change to the envelope maths must keep the identity tripwire in `dataModel.test.js` green** — nothing else catches a row-set or cascade regression.
+- Seeding the `expenses` key also fires the day-one assignment seed; to test spend with no funding, write an empty `assignments` key too.
+- Modal regressions only appear across repeated open/close cycles, so drive them through a harness that mimics `TransactionsPage`.

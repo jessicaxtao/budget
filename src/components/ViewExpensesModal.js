@@ -18,8 +18,11 @@ export default function ViewExpensesModal({ budgetId, handleClose }) {
       handleClose={handleClose}
       title={
         <div className="flex flex-wrap items-center gap-3">
-          <span>Expenses — {budget?.name}</span>
-          {budgetId !== UNCATEGORIZED_BUDGET_ID && (
+          <span>Expenses — {budget?.name ?? "Unknown category"}</span>
+          {/* Guarded on the record, not just the sentinel: an id with expenses
+              against it but no category to match has nothing to delete, and
+              deleteBudget would destructure undefined. */}
+          {budget && budgetId !== UNCATEGORIZED_BUDGET_ID && (
             <Button
               onClick={() => {
                 deleteBudget(budget);
@@ -28,7 +31,7 @@ export default function ViewExpensesModal({ budgetId, handleClose }) {
               variant="danger"
               size="sm"
             >
-              Delete budget
+              Delete category
             </Button>
           )}
         </div>

@@ -3,7 +3,16 @@ import AppProviders from "./AppProviders";
 import { useBudgets, UNCATEGORIZED_BUDGET_ID } from "./BudgetsContext";
 import { useBudgetPlan } from "./BudgetPlanContext";
 import { useIncome } from "./IncomeContext";
-import { currentPeriod, toCents, todayISO, toPeriod } from "../utils";
+import { useAssignments } from "./AssignmentsContext";
+import useEnvelopes from "../hooks/useEnvelopes";
+import {
+  addMonths,
+  currentPeriod,
+  periodLTE,
+  toCents,
+  todayISO,
+  toPeriod,
+} from "../utils";
 
 const wrapper = ({ children }) => <AppProviders>{children}</AppProviders>;
 
@@ -229,5 +238,373 @@ describe("deleting a budget", () => {
     // the expense survives — it is what actually happened
     expect(result.current.budgets.expenses).toHaveLength(1);
     expect(result.current.budgets.expenses[0].budgetId).toBe(UNCATEGORIZED_BUDGET_ID);
+  });
+
+  test("its funding follows its expenses onto Uncategorized", () => {
+    const { result } = renderHook(
+      () => ({
+        budgets: useBudgets(),
+        assignments: useAssignments(),
+        env: useEnvelopes(currentPeriod()),
+      }),
+      { wrapper }
+    );
+
+    let id;
+    act(() => {
+      id = result.current.budgets.addBudget({ name: "Groceries" }).id;
+    });
+    act(() => {
+      result.current.assignments.setAssignedAmount({
+        budgetId: id,
+        period: currentPeriod(),
+        amountCents: 50000,
+      });
+      result.current.budgets.addExpense({ description: "Shop", amount: "200", budgetId: id });
+    });
+
+    const before = result.current.env.toBeAssignedCents;
+    expect(envelopeFor(result.current.env, id).availableCents).toBe(30000);
+
+    act(() => {
+      result.current.budgets.deleteBudget({ id });
+    });
+
+    // The balance moves rather than evaporating: dropping the assignment would
+    // hand the money back to the pool while the spend landed on Uncategorized,
+    // asking the user to fund the same purchase twice.
+    expect(envelopeFor(result.current.env, UNCATEGORIZED_BUDGET_ID).availableCents).toBe(30000);
+    expect(result.current.env.toBeAssignedCents).toBe(before);
+  });
+});
+
+describe("period arithmetic", () => {
+  test("stepping a month crosses the year boundary in both directions", () => {
+    expect(addMonths("2026-12", 1)).toBe("2027-01");
+    expect(addMonths("2026-01", -1)).toBe("2025-12");
+    expect(addMonths("2026-08", 0)).toBe("2026-08");
+    expect(addMonths("2026-01", 25)).toBe("2028-02");
+  });
+
+  test("a malformed date has no period rather than an arbitrary one", () => {
+    // "2026-1-5" used to slice to "2026-1-", which sorts after "2026-08" but
+    // before "2026-11" — so the record vanished, then reappeared months later.
+    expect(toPeriod("2026-1-5")).toBeNull();
+    expect(toPeriod("not a date")).toBeNull();
+    expect(toPeriod("2026-08")).toBe("2026-08");
+    expect(toPeriod("2026-08-10")).toBe("2026-08");
+  });
+
+  test("comparing periods does not fall for the null coercion", () => {
+    // `null <= null` is true in JavaScript: both sides coerce to 0. Undated
+    // records are counted deliberately elsewhere, never by accident here.
+    expect(periodLTE(null, null)).toBe(false);
+    expect(periodLTE(null, "2026-08")).toBe(false);
+    expect(periodLTE("2026-08", null)).toBe(false);
+    expect(periodLTE("2026-07", "2026-08")).toBe(true);
+    expect(periodLTE("2026-08", "2026-08")).toBe(true);
+    expect(periodLTE("2026-09", "2026-08")).toBe(false);
+  });
+});
+
+describe("assignments", () => {
+  test("one row per category per period, upserted", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    act(() => {
+      result.current.setAssignedAmount({ budgetId: "b1", period: "2026-01", amountCents: 40000 });
+    });
+    act(() => {
+      result.current.setAssignedAmount({ budgetId: "b1", period: "2026-01", amountCents: 55000 });
+    });
+    act(() => {
+      result.current.setAssignedAmount({ budgetId: "b1", period: "2026-02", amountCents: 10000 });
+    });
+
+    expect(result.current.assignments).toHaveLength(2);
+    expect(result.current.getAssignedCents("b1", "2026-01")).toBe(55000);
+    expect(result.current.getAssignedCents("b1", "2026-02")).toBe(10000);
+  });
+
+  test("a negative assignment is allowed — it is how money comes back out", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    let outcome;
+    act(() => {
+      outcome = result.current.setAssignedAmount({
+        budgetId: "b1",
+        period: "2026-02",
+        amountCents: -5000,
+      });
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(result.current.getAssignedCents("b1", "2026-02")).toBe(-5000);
+  });
+
+  test("zero is pruned rather than stored", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    act(() => {
+      result.current.setAssignedAmount({ budgetId: "b1", period: "2026-01", amountCents: 40000 });
+    });
+    act(() => {
+      result.current.setAssignedAmount({ budgetId: "b1", period: "2026-01", amountCents: 0 });
+    });
+
+    expect(result.current.assignments).toHaveLength(0);
+    expect(stored("assignments")).toEqual([]);
+  });
+
+  test("an unparseable amount is rejected, not stored as null", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    let outcome;
+    act(() => {
+      outcome = result.current.setAssignedAmount({
+        budgetId: "b1",
+        period: "2026-01",
+        amount: "abc",
+      });
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(result.current.assignments).toHaveLength(0);
+  });
+
+  test("a batch is all or nothing", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    let outcome;
+    act(() => {
+      outcome = result.current.setPeriodAssignments({
+        period: "2026-01",
+        entries: [
+          { budgetId: "b1", amountCents: 10000 },
+          { budgetId: "b2", amount: "nonsense" },
+          { budgetId: "b3", amountCents: 30000 },
+        ],
+      });
+    });
+
+    // A form that funds eight categories and fails on the third must not leave
+    // two of them committed — the user has no way to tell which.
+    expect(outcome.ok).toBe(false);
+    expect(result.current.assignments).toHaveLength(0);
+  });
+
+  test("a valid batch lands in one commit", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    act(() => {
+      result.current.setPeriodAssignments({
+        period: "2026-01",
+        entries: [
+          { budgetId: "b1", amountCents: 10000 },
+          { budgetId: "b2", amountCents: 20000 },
+        ],
+      });
+    });
+
+    expect(result.current.assignments).toHaveLength(2);
+    expect(stored("assignments")).toHaveLength(2);
+  });
+});
+
+describe("the day-one seed", () => {
+  const LEGACY = [
+    { id: "e1", description: "Shop", amount: 20, budgetId: "b1", date: "2026-01-04" },
+    { id: "e2", description: "Fuel", amount: 30, budgetId: "b2", date: null },
+  ];
+
+  test("every envelope opens at zero rather than at its lifetime spend", () => {
+    localStorage.setItem("expenses", JSON.stringify(LEGACY));
+    localStorage.setItem(
+      "budgets",
+      JSON.stringify([
+        { id: "b1", name: "Groceries" },
+        { id: "b2", name: "Fuel" },
+      ])
+    );
+    localStorage.setItem(
+      "income",
+      JSON.stringify([{ id: "i1", description: "Pay", amount: 100, date: "2026-01-02" }])
+    );
+
+    const { result } = renderHook(() => useEnvelopes(currentPeriod()), { wrapper });
+
+    // Seeding what was already spent invents no history: money the user spent
+    // was money the user had.
+    for (const row of result.current.rows) {
+      expect(row.availableCents).toBe(0);
+    }
+    // What is left over is cash on hand, waiting to be given a job.
+    expect(result.current.toBeAssignedCents).toBe(10000 - 5000);
+  });
+
+  test("a second mount does not seed again", () => {
+    localStorage.setItem("expenses", JSON.stringify(LEGACY));
+
+    renderHook(() => useAssignments(), { wrapper }).unmount();
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+
+    expect(result.current.assignments).toHaveLength(2);
+  });
+
+  test("nothing is seeded for a ledger that has never logged an expense", () => {
+    const { result } = renderHook(() => useAssignments(), { wrapper });
+    expect(result.current.assignments).toHaveLength(0);
+  });
+});
+
+/**
+ * The tripwire.
+ *
+ *   toBeAssigned + Σ available === cumulative income − cumulative spend
+ *
+ * Money is either sitting in an envelope or waiting to be put in one; it is
+ * never in both places and never in neither. The assignment terms cancel, so
+ * this does not check the arithmetic — what it catches is a row set that stops
+ * covering every budgetId, or a cascade that drops one side of a delete. Those
+ * are the failures nothing else in the suite would notice.
+ */
+function expectBalanced(env) {
+  const available = env.rows.reduce((sum, row) => sum + row.availableCents, 0);
+  expect(env.toBeAssignedCents + available).toBe(env.cumIncomeCents - env.cumSpentCents);
+}
+
+function envelopeFor(env, budgetId) {
+  return env.rows.find((row) => row.budgetId === budgetId);
+}
+
+describe("the books balance after every mutation", () => {
+  const useLedger = () => ({
+    budgets: useBudgets(),
+    income: useIncome(),
+    assignments: useAssignments(),
+    past: useEnvelopes("2026-01"),
+    now: useEnvelopes("2026-08"),
+    later: useEnvelopes("2030-12"),
+  });
+
+  function expectAllBalanced(current) {
+    expectBalanced(current.past);
+    expectBalanced(current.now);
+    expectBalanced(current.later);
+  }
+
+  test("through creation, funding, spending and every kind of delete", () => {
+    // Undated records, from before dates existed, on both sides of the books.
+    localStorage.setItem(
+      "income",
+      JSON.stringify([{ id: "i0", description: "Old", amount: 100 }])
+    );
+    localStorage.setItem(
+      "expenses",
+      JSON.stringify([{ id: "e0", description: "Old", amount: 20, budgetId: "b1" }])
+    );
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries" }]));
+
+    const { result } = renderHook(useLedger, { wrapper });
+    expectAllBalanced(result.current);
+
+    let fuelId;
+    act(() => {
+      fuelId = result.current.budgets.addBudget({ name: "Fuel" }).id;
+    });
+    expectAllBalanced(result.current);
+
+    act(() => {
+      result.current.income.addIncome({ description: "June", amount: "500", date: "2026-06-15" });
+      result.current.income.addIncome({ description: "Aug", amount: "700", date: "2026-08-05" });
+      // Dated ahead: real, but not spendable until its month comes round.
+      result.current.income.addIncome({ description: "Sep", amount: "900", date: "2026-09-20" });
+    });
+    expectAllBalanced(result.current);
+
+    // A future-dated paycheck stays out of the pool until its month arrives.
+    expect(result.current.now.toBeAssignedCents).toBeLessThan(
+      result.current.later.toBeAssignedCents
+    );
+
+    act(() => {
+      result.current.assignments.setPeriodAssignments({
+        period: "2026-08",
+        entries: [
+          { budgetId: "b1", amountCents: 40000 },
+          { budgetId: fuelId, amountCents: 20000 },
+        ],
+      });
+    });
+    expectAllBalanced(result.current);
+
+    act(() => {
+      result.current.budgets.addExpense({
+        description: "Shop",
+        amount: "150",
+        budgetId: "b1",
+        date: "2026-08-09",
+      });
+      result.current.budgets.addExpense({
+        description: "Older shop",
+        amount: "60",
+        budgetId: "b1",
+        date: "2026-06-02",
+      });
+      // An id with money against it and no category record. It still holds real
+      // money, so every total has to keep covering it.
+      result.current.budgets.addExpense({
+        description: "Ghost",
+        amount: "99",
+        budgetId: "never-a-budget",
+        date: "2026-08-01",
+      });
+    });
+    expectAllBalanced(result.current);
+    expect(envelopeFor(result.current.now, "never-a-budget").kind).toBe("orphan");
+
+    act(() => {
+      result.current.budgets.deleteBudget({ id: fuelId });
+    });
+    expectAllBalanced(result.current);
+
+    act(() => {
+      const [first] = result.current.income.income;
+      result.current.income.deleteIncome({ id: first.id });
+    });
+    expectAllBalanced(result.current);
+
+    act(() => {
+      const past = result.current.budgets.expenses.find((e) => e.date === "2026-06-02");
+      result.current.budgets.deleteExpense({ id: past.id });
+    });
+    expectAllBalanced(result.current);
+
+    act(() => {
+      result.current.assignments.setAssignedAmount({
+        budgetId: "b1",
+        period: "2026-09",
+        amountCents: -15000,
+      });
+    });
+    expectAllBalanced(result.current);
+  });
+
+  test("undated money is counted once, in every period", () => {
+    localStorage.setItem(
+      "expenses",
+      JSON.stringify([{ id: "e0", description: "Old", amount: 20, budgetId: "b1" }])
+    );
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Groceries" }]));
+
+    const { result } = renderHook(useLedger, { wrapper });
+
+    // Undated spend sits behind every period rather than inside one, so the
+    // balance moves between months only by that month's dated activity.
+    expect(result.current.past.cumSpentCents).toBe(2000);
+    expect(result.current.later.cumSpentCents).toBe(2000);
+    expect(envelopeFor(result.current.past, "b1").spentCents).toBe(0);
+    expect(envelopeFor(result.current.past, "b1").carriedInCents).toBe(-2000);
+    expectAllBalanced(result.current);
   });
 });

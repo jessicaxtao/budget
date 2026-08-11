@@ -2,11 +2,15 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useLocalStorage from "../hooks/useLocalStorage";
 import { useBudgetPlan } from "./BudgetPlanContext";
-import { isValidISODate, toCents, todayISO } from "../utils";
+import { useAssignments } from "./AssignmentsContext";
+import { UNCATEGORIZED_BUDGET_ID } from "./constants";
+import { currentPeriod, isValidISODate, toCents, todayISO } from "../utils";
 
 const BudgetsContext = React.createContext();
 
-export const UNCATEGORIZED_BUDGET_ID = "Uncategorized";
+// Re-exported from its own module so AssignmentsContext can share it without
+// importing this one back. See ./constants.js.
+export { UNCATEGORIZED_BUDGET_ID };
 
 export function useBudgets() {
   return useContext(BudgetsContext);
@@ -40,6 +44,7 @@ export const BudgetsProvider = ({ children }) => {
   const [budgets, setBudgets] = useLocalStorage("budgets", [], migrateBudgets);
   const [expenses, setExpenses] = useLocalStorage("expenses", [], migrateExpenses);
   const { deleteBudgetPlans } = useBudgetPlan();
+  const { reassignBudgetAssignments } = useAssignments();
 
   // One pass instead of a full scan per budget per render.
   const expensesByBudget = useMemo(() => {
@@ -124,7 +129,13 @@ export const BudgetsProvider = ({ children }) => {
 
   // Expenses outlive their category — they are what actually happened — so they
   // are reassigned rather than deleted. The category's plan history goes with
-  // it, since there is nothing left for it to describe.
+  // it, since there is nothing left for it to describe; but its *funding*
+  // follows the expenses onto Uncategorized, because that money was already
+  // set aside and dropping it would ask the user to fund the same spend twice.
+  //
+  // One consequence worth knowing: because every envelope figure is derived
+  // from current state, deleting a category also changes what past periods
+  // read. There is no history to preserve it in.
   const deleteBudget = useCallback(
     ({ id }) => {
       setExpenses((prevExpenses) =>
@@ -134,8 +145,13 @@ export const BudgetsProvider = ({ children }) => {
       );
       setBudgets((prevBudgets) => prevBudgets.filter((budget) => budget.id !== id));
       deleteBudgetPlans(id);
+      reassignBudgetAssignments({
+        fromBudgetId: id,
+        toBudgetId: UNCATEGORIZED_BUDGET_ID,
+        period: currentPeriod(),
+      });
     },
-    [setExpenses, setBudgets, deleteBudgetPlans]
+    [setExpenses, setBudgets, deleteBudgetPlans, reassignBudgetAssignments]
   );
 
   const deleteExpense = useCallback(

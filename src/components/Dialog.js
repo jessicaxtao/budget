@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 
-export default function Dialog({ show, handleClose, title, children }) {
+// `wide` is for the one dialog that holds a grid rather than a short form —
+// a column of inputs one per category needs room the single-field modals don't.
+export default function Dialog({ show, handleClose, title, wide, children }) {
   const dialogRef = useRef();
 
   useEffect(() => {
@@ -30,7 +32,9 @@ export default function Dialog({ show, handleClose, title, children }) {
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className="max-h-[85vh] w-full max-w-lg overflow-y-auto border border-edge bg-panel p-0 font-sans text-chalk shadow-2xl shadow-black/50 backdrop:bg-black/60"
+      className={`max-h-[85vh] w-full ${
+        wide ? "max-w-2xl" : "max-w-lg"
+      } overflow-y-auto border border-edge bg-panel p-0 font-sans text-chalk shadow-2xl shadow-black/50 backdrop:bg-black/60`}
     >
       <div className="p-6">
         <div className="mb-5 flex items-start justify-between gap-4 border-b border-edge pb-4">
