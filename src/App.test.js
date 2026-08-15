@@ -31,12 +31,13 @@ test('every navigation entry renders a page', () => {
 
 // Configuration and money movement are split across two pages: categories are
 // created where their estimates live, and funded where the income lands.
-test('the transactions page drives income, assignment and expenses', () => {
+test('the transactions page drives the ledger and the assignment of it', () => {
   renderAt('/transactions');
   expect(screen.getByRole('heading', { level: 1, name: /transactions/i })).toBeInTheDocument();
+  // One entry point for both directions — money in and money out are the same
+  // form with a toggle, not two buttons.
+  expect(screen.getByRole('button', { name: /add transaction/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /assign income/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /add income/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /add expense/i })).toBeInTheDocument();
 });
 
 test('the budget plan page is where categories are configured', () => {

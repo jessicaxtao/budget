@@ -71,10 +71,9 @@ export default function AddIncomeSourceModal({ show, handleClose }) {
         <Field
           label="Amount per payment"
           inputRef={amountRef}
-          type="number"
+          type="text"
+          inputMode="decimal"
           required
-          min={0}
-          step={0.01}
         />
         <SelectField label="How often" selectRef={cadenceRef} defaultValue={DEFAULT_CADENCE}>
           {CADENCE_KEYS.map((cadence) => (

@@ -1,0 +1,373 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import AppProviders from "../contexts/AppProviders";
+import RetirementPage from "./RetirementPage";
+import { routerFuture } from "../routerFuture";
+import { currentPeriod } from "../utils";
+
+/**
+ * The retirement page through the real stores, as the dashboard and net-worth
+ * tests are.
+ *
+ * The maths has its own test — `useRetirementProjection.test.js` drives the pure
+ * function directly. What is worth pinning down here is the wiring the maths
+ * cannot see: that the starting point really is the accounts the user ticked, at
+ * the values the net-worth page gives them; that seventy percent really is
+ * seventy percent of the income sources on the budget plan; and that a figure
+ * typed over a seeded one takes over from it without the seed leaking back.
+ */
+const PERIOD = currentPeriod();
+
+const account = (id, name, scope, openingBalanceCents, assetClass = "Cash") => ({
+  id,
+  name,
+  type: "asset",
+  scope,
+  assetClass,
+  openingBalanceCents,
+  openingDate: null,
+  reconciledOn: null,
+});
+
+function seed(overrides = {}) {
+  const data = {
+    accounts: [
+      account("acc1", "Everyday", "on-budget", 500000),
+      account("acc2", "401(k)", "off-budget", 20000000, "Stocks"),
+      account("acc3", "Brokerage", "off-budget", 10000000, "Stocks"),
+    ],
+    // $8,000 a month expected, so a year is $96,000 and seventy percent of it
+    // is $67,200 — a figure with no rounding in it, so a wrong share is visible
+    // rather than plausible.
+    incomeSources: [{ id: "inc1", name: "Salary", amountCents: 800000, cadence: "monthly" }],
+    budgetGroups: [{ id: "g1", name: "Future", bucket: "retirement" }],
+    budgets: [
+      { id: "b1", name: "Retirement", groupId: "g1", plannedCents: 100000, bucket: "retirement" },
+      { id: "b2", name: "Groceries", groupId: null, plannedCents: 60000, bucket: "essentials" },
+    ],
+    assignments: [],
+    transactions: [],
+    ...overrides,
+  };
+
+  for (const [key, value] of Object.entries(data)) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+}
+
+function renderPage() {
+  return render(
+    <AppProviders>
+      <MemoryRouter future={routerFuture}>
+        <RetirementPage />
+      </MemoryRouter>
+    </AppProviders>
+  );
+}
+
+/** Fill a blur-committed field the way the panels expect it to be filled. */
+function type(label, value) {
+  const field = screen.getByLabelText(label);
+  fireEvent.change(field, { target: { value } });
+  fireEvent.blur(field);
+}
+
+/** A plan the projection can answer, so the assertions are about wiring. */
+function statePlan({ age = 40, retireAt = 65 } = {}) {
+  type("Age today", String(age));
+  type("Retire at", String(retireAt));
+}
+
+const outlook = () => screen.getByRole("region", { name: "Retirement outlook" });
+
+/**
+ * The value beside a named figure in the outlook.
+ *
+ * Found by its term's text rather than by role and name: a `<dt>` does not take
+ * its accessible name from its own content, so there is nothing to match on.
+ * Scoped to the outlook because most of these labels also name an input further
+ * down the page — which is the point, the figure and the field that sets it say
+ * the same thing.
+ */
+const figure = (label) =>
+  within(outlook()).getByText(label).nextElementSibling.textContent;
+
+beforeEach(() => localStorage.clear());
+
+describe("a plan that cannot be answered yet", () => {
+  test("asks for what is missing instead of drawing a chart of nothing", () => {
+    seed();
+    renderPage();
+
+    expect(within(outlook()).getByText("Enter your age today.")).toBeInTheDocument();
+    expect(within(outlook()).getByText("Enter the age you want to retire.")).toBeInTheDocument();
+    expect(screen.queryByText("Year by year")).not.toBeInTheDocument();
+  });
+
+  test("the assumptions are reachable before the projection is", () => {
+    seed();
+    renderPage();
+
+    // The panel that fixes the problem has to be on screen while the problem is
+    // — a page that hid its inputs until it had a projection could never get one.
+    expect(screen.getByLabelText("Age today")).toBeInTheDocument();
+    expect(screen.getByLabelText("Retire at")).toBeInTheDocument();
+  });
+});
+
+describe("the starting point", () => {
+  test("is the accounts that are ticked, and nothing until one is", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    expect(figure("Starting from")).toBe("$0");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "401(k)" }));
+    expect(figure("Starting from")).toBe("$200,000");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Brokerage" }));
+    expect(figure("Starting from")).toBe("$300,000");
+  });
+
+  test("counts an everyday account too, if that is what the user says", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Everyday" }));
+    expect(figure("Starting from")).toBe("$5,000");
+  });
+
+  test("unticking one takes it back out", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    const holding = screen.getByRole("checkbox", { name: "401(k)" });
+    fireEvent.click(holding);
+    fireEvent.click(holding);
+
+    expect(figure("Starting from")).toBe("$0");
+  });
+
+  test("a typed figure replaces the accounts without clearing them", () => {
+    seed();
+    renderPage();
+    statePlan();
+    fireEvent.click(screen.getByRole("checkbox", { name: "401(k)" }));
+
+    fireEvent.click(screen.getByRole("radio", { name: "A balance I enter" }));
+    type("Starting balance", "250000");
+    expect(figure("Starting from")).toBe("$250,000");
+
+    // Back again: the ticks are still there. A toggle that destroyed the answer
+    // it toggled away from could only be used once.
+    fireEvent.click(screen.getByRole("radio", { name: "The accounts I tick" }));
+    expect(figure("Starting from")).toBe("$200,000");
+    expect(screen.getByRole("checkbox", { name: "401(k)" })).toBeChecked();
+  });
+
+  test("a hand-entered valuation is what the plan counts, not the opening balance", () => {
+    seed({
+      accountBalances: [
+        { id: "bal1", accountId: "acc2", period: PERIOD, amountCents: 27500000 },
+      ],
+    });
+    renderPage();
+    statePlan();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "401(k)" }));
+    expect(figure("Starting from")).toBe("$275,000");
+  });
+});
+
+describe("what retirement costs", () => {
+  test("defaults to seventy percent of the income the plan expects", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    // $96,000 a year of expected income, so seventy percent is $67,200.
+    expect(figure("Yearly spending")).toBe("$67,200");
+  });
+
+  test("the share is the user's to change", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    type("Share of income", "50");
+    expect(figure("Yearly spending")).toBe("$48,000");
+  });
+
+  test("or replaced with a figure of their own", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    fireEvent.click(screen.getByRole("radio", { name: "A yearly figure I enter" }));
+    type("Yearly spending", "40000");
+
+    expect(figure("Yearly spending")).toBe("$40,000");
+  });
+
+  test("with no income sources it asks for one rather than planning on nothing", () => {
+    seed({ incomeSources: [] });
+    renderPage();
+    statePlan();
+
+    expect(
+      within(outlook()).getByText("Say what you expect retirement to cost each year.")
+    ).toBeInTheDocument();
+  });
+});
+
+describe("what is being put away", () => {
+  test("comes from the retirement categories until it is overridden", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    // $1,000 a month in the one retirement category.
+    expect(figure("Saving each year")).toBe("$12,000");
+
+    type("Saving each year", "20000");
+    expect(figure("Saving each year")).toBe("$20,000");
+  });
+
+  test("clearing the override goes back to the budget's own figure", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    type("Saving each year", "20000");
+    type("Saving each year", "");
+
+    expect(figure("Saving each year")).toBe("$12,000");
+  });
+
+  test("pretax contributions add to the retirement categories rather than replacing them", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    // $1,000 a month from the budget, plus a $6,000 payroll deduction that
+    // never touches a category — the two have to add, not override each other.
+    type("Pretax contributions", "6000");
+    expect(figure("Saving each year")).toBe("$18,000");
+  });
+
+  test("an override still replaces the combined total, not just the after-tax half", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    type("Pretax contributions", "6000");
+    type("Saving each year", "20000");
+
+    expect(figure("Saving each year")).toBe("$20,000");
+
+    type("Saving each year", "");
+    expect(figure("Saving each year")).toBe("$18,000");
+  });
+});
+
+describe("the projection", () => {
+  test("draws the years once it has enough to answer", () => {
+    seed();
+    renderPage();
+    statePlan();
+    fireEvent.click(screen.getByRole("checkbox", { name: "401(k)" }));
+
+    expect(screen.getByText("Year by year")).toBeInTheDocument();
+    // The table twin carries every figure the chart draws, one row per year of
+    // the plan, both ends inclusive. Scoped to that table: the account picker
+    // below is a table of row headers too.
+    const years = screen.getByText("Show these figures as a table").closest("details");
+    fireEvent.click(screen.getByText("Show these figures as a table"));
+    expect(within(years).getAllByRole("rowheader")).toHaveLength(90 - 40 + 1);
+  });
+
+  test("names the age the money runs out when it does", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    // Nothing saved, nothing being put away, and a retirement to pay for.
+    type("Saving each year", "0");
+    expect(figure("Money lasts to")).toBe("age 65");
+  });
+
+  test("reports the shortfall and the contribution that would close it", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    expect(figure("Short by")).not.toBe("$0");
+    expect(within(outlook()).getByText(/would close the gap/)).toBeInTheDocument();
+  });
+
+  test("a plan that is already there says so instead", () => {
+    seed();
+    renderPage();
+    statePlan();
+    fireEvent.click(screen.getByRole("checkbox", { name: "401(k)" }));
+    type("Saving each year", "100000");
+
+    expect(within(outlook()).getByText(/On course/)).toBeInTheDocument();
+  });
+});
+
+describe("rejected input", () => {
+  test("stays on screen with the reason, and changes nothing", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    type("Age today", "500");
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter your age today as a whole number of years, 0 to 120."
+    );
+    // The projection is still the one built from the age that was accepted.
+    expect(screen.getByText("Year by year")).toBeInTheDocument();
+  });
+
+  test("a bad rate is refused the same way", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    // A number the field will actually hold — a number input in jsdom, as in a
+    // browser, simply refuses to carry "over nine thousand", so junk never
+    // reaches the store from this direction at all.
+    type("Return while saving", "80");
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter the return while you are saving as a percentage between 0 and 50."
+    );
+  });
+});
+
+test("resetting puts the plan back to its defaults", () => {
+  seed();
+  renderPage();
+  statePlan();
+
+  fireEvent.click(screen.getByRole("button", { name: "Reset plan" }));
+
+  expect(within(outlook()).getByText("Enter your age today.")).toBeInTheDocument();
+  // Text fields, not number ones: a rate is written "7%" as often as "7", and a
+  // number input refuses the sign outright.
+  expect(screen.getByLabelText("Share of income")).toHaveValue("70");
+  // The rates are nominal, and the pair is chosen so what comes out the other
+  // side is the 7% and 3% real a planner actually means. Pinned here because
+  // the two are only defensible together — changing one without the other
+  // quietly moves the target.
+  expect(screen.getByLabelText("Return while saving")).toHaveValue("10");
+  expect(screen.getByLabelText("Return once retired")).toHaveValue("5.5");
+  expect(screen.getByLabelText("Inflation")).toHaveValue("2.5");
+  expect(screen.getByText(/7\.32% a year after inflation/)).toBeInTheDocument();
+  expect(screen.getByText(/2\.93% a year after inflation/)).toBeInTheDocument();
+});

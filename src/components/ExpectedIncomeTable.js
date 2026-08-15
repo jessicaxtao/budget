@@ -24,14 +24,20 @@ function cadenceNote(cadence) {
   return `${perYear} a year`;
 }
 
-export default function ExpectedIncomeTable({ rows, expectedIncomeCents, onDelete }) {
+export default function ExpectedIncomeTable({ rows, expectedIncomeCents, onDelete, actions }) {
   return (
     <section className="border border-edge bg-panel">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
+      {/* Centred rather than baseline-aligned: the actions are buttons with a
+          border of their own, and a border sitting on a text baseline reads as
+          a misalignment. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Expected income
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">Per month</span>
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="font-mono text-label uppercase text-chalk-soft">Per month</span>
+          {actions}
+        </div>
       </div>
 
       {rows.length === 0 ? (

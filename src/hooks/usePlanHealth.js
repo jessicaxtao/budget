@@ -1,10 +1,18 @@
 import { useMemo } from "react";
-import { useBudgets } from "../contexts/BudgetsContext";
+import {
+  PLAN_BUCKET_LABELS,
+  PLAN_BUCKET_ORDER,
+  PLAN_BUCKETS,
+  useBudgets,
+} from "../contexts/BudgetsContext";
+import { monthlyCents } from "../cadence";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
+import { useRetirement } from "../contexts/RetirementContext";
 import { toSections } from "../planLayout";
+import { apportion } from "../utils";
 
 /**
- * Whether the standing configuration balances.
+ * Whether the standing configuration balances, and what it balances *into*.
  *
  *   unplanned = expected income per month − Σ category estimates per month
  *
@@ -18,27 +26,79 @@ import { toSections } from "../planLayout";
  * to "to be assigned" on the Transactions page. Not recorded income either, for
  * the same reason: a figure from one particular month has no business sitting
  * next to figures that describe every month.
+ *
+ * **Pretax retirement contributions are grossed onto both sides of the balance,
+ * equally, so "left to plan" is unmoved by a figure that never touches a real
+ * account.** `RetirementContext`'s `pretaxContributionCents` (a 401(k)
+ * deduction, typically) never becomes a transaction — it leaves a paycheque
+ * before the money reaches an on-budget account — so `expectedMonthlyCents`
+ * here is already net of it, the same way a real paycheque is. Leaving it out
+ * of this hook entirely would still balance, but it would understate both what
+ * the household earns before tax and what it is actually setting aside for
+ * retirement, and the whole reason the retirement bucket exists is to answer
+ * that second question honestly. So it is added back to both `expectedIncomeCents`
+ * and `plannedCents` — as though it were income earned and immediately spent
+ * into the retirement bucket, which, functionally, it is.
  */
 export default function usePlanHealth() {
   const { groups, budgets } = useBudgets();
   const { incomeRows, expectedMonthlyCents } = useIncomePlan();
+  const { plan } = useRetirement();
 
   return useMemo(() => {
     const sections = toSections(groups, budgets);
-    const plannedCents = budgets.reduce((sum, budget) => sum + budget.plannedCents, 0);
+    const categoryPlannedCents = budgets.reduce((sum, budget) => sum + budget.plannedCents, 0);
+
+    const pretaxMonthlyCents = monthlyCents(plan.pretaxContributionCents ?? 0, "annually");
+    const expectedIncomeCents = expectedMonthlyCents + pretaxMonthlyCents;
+    const plannedCents = categoryPlannedCents + pretaxMonthlyCents;
+
+    // Read off the sections rather than the flat list: resolving "which bucket
+    // is this category actually in" needs the group beside it, and toSections
+    // has already done it once.
+    const totals = new Map(PLAN_BUCKET_ORDER.map((bucket) => [bucket, { cents: 0, count: 0 }]));
+    for (const section of sections) {
+      for (const budget of section.budgets) {
+        const total = totals.get(budget.effectiveBucket);
+        if (!total) continue;
+        total.cents += budget.plannedCents;
+        total.count += 1;
+      }
+    }
+    // Pretax has no category of its own to be counted through the loop above —
+    // it is added straight to the retirement bucket's total, the same bucket
+    // `useRetirementProjection` reaches by adding it to that bucket's own sum.
+    totals.get(PLAN_BUCKETS.RETIREMENT).cents += pretaxMonthlyCents;
+
+    // The split is a share of what the plan spends, not of what comes in: it has
+    // to be readable before there is any income on file, and the gap between
+    // planned and expected is already the verdict's job.
+    const percents = apportion(
+      PLAN_BUCKET_ORDER.map((bucket) => totals.get(bucket).cents),
+      100
+    );
+
+    const bucketRows = PLAN_BUCKET_ORDER.map((bucket, index) => ({
+      bucket,
+      label: PLAN_BUCKET_LABELS[bucket],
+      plannedCents: totals.get(bucket).cents,
+      categoryCount: totals.get(bucket).count,
+      // Null rather than zero when there is nothing planned at all — no share
+      // exists yet, which is a different statement from a share of none.
+      percent: plannedCents > 0 ? percents[index] : null,
+    }));
 
     return {
       sections,
+      bucketRows,
       incomeRows,
-      expectedIncomeCents: expectedMonthlyCents,
+      expectedIncomeCents,
       plannedCents,
-      unplannedCents: expectedMonthlyCents - plannedCents,
+      unplannedCents: expectedIncomeCents - plannedCents,
+      pretaxMonthlyCents,
       sourceCount: incomeRows.length,
       groupCount: groups.length,
-      // A category with no estimate is not planned for at all, which is a
-      // different state from one planned at zero and worth counting separately.
       categoryCount: budgets.length,
-      estimatedCount: budgets.filter((budget) => budget.plannedCents > 0).length,
     };
-  }, [groups, budgets, incomeRows, expectedMonthlyCents]);
+  }, [groups, budgets, incomeRows, expectedMonthlyCents, plan.pretaxContributionCents]);
 }

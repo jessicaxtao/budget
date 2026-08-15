@@ -1,143 +1,96 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import BudgetCard from "../components/BudgetCard";
-import ToBeAssignedCard from "../components/ToBeAssignedCard";
-import AddExpenseModal from "../components/AddExpenseModal";
-import AddIncomeModal from "../components/AddIncomeModal";
+import { useMemo, useState } from "react";
+import AddTransactionModal from "../components/AddTransactionModal";
 import AssignIncomeModal from "../components/AssignIncomeModal";
 import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
 import PeriodStepper from "../components/PeriodStepper";
-import UncategorizedBudgetCard from "../components/UncategorizedBudgetCard";
-import TotalBudgetCard from "../components/TotalBudgetCard";
-import ViewExpensesModal from "../components/ViewExpensesModal";
-import ViewIncomeModal from "../components/ViewIncomeModal";
-import { UNCATEGORIZED_BUDGET_ID } from "../contexts/BudgetsContext";
+import ToBeAssignedBar from "../components/ToBeAssignedBar";
+import TransactionRegister from "../components/TransactionRegister";
+import { useAccounts } from "../contexts/AccountsContext";
+import { useBudgets } from "../contexts/BudgetsContext";
+import { useTransactions } from "../contexts/TransactionsContext";
 import useEnvelopes from "../hooks/useEnvelopes";
-import { currentPeriod } from "../utils";
+import { currentPeriod, toPeriod } from "../utils";
 
+/**
+ * The books, a month at a time, as the register they are.
+ *
+ * This page used to be a grid of envelope cards. What each envelope holds is a
+ * question about the *plan*, and it is answered on the dashboard, where the
+ * same figures sit in one table beside everything else that is true today. What
+ * this page is for is the other job — going through what actually happened,
+ * line by line, against a statement — and that job wants rows and columns, with
+ * every field reachable where it sits.
+ *
+ * One figure from the envelope side stays: what is left to assign. It is the
+ * reason income is worth logging promptly, it moves as the register is worked
+ * through, and the flow it opens has nowhere else to be reached from.
+ */
 export default function TransactionsPage() {
   const [period, setPeriod] = useState(currentPeriod);
-  const [viewExpensesModalBudgetId, setViewExpensesModalBudgetId] = useState();
-  const [showIncomeModal, setShowIncomeModal] = useState(false);
-  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
-  const [showAddIncomeModal, setShowAddIncomeModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [addExpenseModalBudgetId, setAddExpenseModalBudgetId] = useState();
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  // Every figure on this page comes from one derivation at one period. The
-  // all-time totals the contexts also expose are on a different clock — they
-  // count future-dated records — and mixing the two would put two figures on
-  // screen that disagree with nothing to explain why.
-  const {
-    rows,
-    toBeAssignedCents,
-    totalCarriedInCents,
-    periodIncomeCents,
-    periodAssignedCents,
-    periodSpentCents,
-  } = useEnvelopes(period);
+  const { transactions, updateTransaction, deleteTransaction } = useTransactions();
+  const { accounts } = useAccounts();
+  const { budgets } = useBudgets();
 
-  const categoryRows = rows.filter((row) => row.kind === "category");
-  const uncategorizedRow = rows.find((row) => row.kind === "uncategorized");
-  const orphanRows = rows.filter((row) => row.kind === "orphan");
+  // Only the pool figures now — the per-category rows this page used to draw
+  // are the dashboard's job. Read at the period on screen, so stepping back
+  // reports what was unassigned then rather than what is unassigned now.
+  const { toBeAssignedCents, periodIncomeCents, periodAssignedCents } = useEnvelopes(period);
 
-  function openAddExpenseModal(budgetId) {
-    setShowAddExpenseModal(true);
-    setAddExpenseModalBudgetId(budgetId);
-  }
+  // The month's rows, newest first, plus every undated one — those belong to no
+  // month, and a register that dropped them would leave money on the books with
+  // nowhere to correct it. The register bands them separately.
+  const rows = useMemo(() => {
+    const inPeriod = transactions.filter((transaction) => {
+      const at = toPeriod(transaction.date);
+      return at == null || at === period;
+    });
+    // Stable, so entries sharing a date stay in the order they were logged.
+    return [...inPeriod].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  }, [transactions, period]);
 
   return (
     <>
       <PageHeader
         eyebrow="Day to day"
         title="Transactions"
-        description="Record income and expenses as they land, give every dollar a category, and see what each envelope has left."
+        description="Every movement of money, a month at a time. Each row names the account it moved through and the category it came out of, and every cell is editable where it sits."
         actions={
           <>
             <PeriodStepper period={period} onChange={setPeriod} />
-            <Button variant="primary" onClick={() => setShowAssignModal(true)}>
-              Assign income
-            </Button>
-            <Button variant="outline" onClick={() => openAddExpenseModal()}>
-              Add expense
-            </Button>
-            <Button variant="outline" onClick={() => setShowAddIncomeModal(true)}>
-              Add income
+            <Button variant="primary" onClick={() => setShowAddModal(true)}>
+              Add transaction
             </Button>
           </>
         }
       />
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-4">
-        <ToBeAssignedCard
-          toBeAssignedCents={toBeAssignedCents}
-          periodIncomeCents={periodIncomeCents}
-          periodAssignedCents={periodAssignedCents}
-          onAssignClick={() => setShowAssignModal(true)}
-          onViewIncomeClick={() => setShowIncomeModal(true)}
-        />
-        {categoryRows.length === 0 && (
-          <div className="border border-dashed border-edge bg-panel/60 p-4 font-sans text-row text-chalk-soft">
-            Every category starts empty.{" "}
-            <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">
-              Add one on the budget plan
-            </Link>{" "}
-            to start assigning your income.
-          </div>
-        )}
-        {categoryRows.map((row) => (
-          <BudgetCard
-            key={row.budgetId}
-            name={row.name}
-            carriedInCents={row.carriedInCents}
-            assignedCents={row.assignedCents}
-            spentCents={row.spentCents}
-            plannedCents={row.plannedCents}
-            onAddExpenseClick={() => openAddExpenseModal(row.budgetId)}
-            onViewExpensesClick={() => setViewExpensesModalBudgetId(row.budgetId)}
-          />
-        ))}
-        <UncategorizedBudgetCard
-          row={uncategorizedRow}
-          onAddExpenseClick={() => openAddExpenseModal(UNCATEGORIZED_BUDGET_ID)}
-          onViewExpensesClick={() => setViewExpensesModalBudgetId(UNCATEGORIZED_BUDGET_ID)}
-        />
-        {/* Ids with money against them but no category record. They count in
-            every total, so they have to be visible somewhere too. */}
-        {orphanRows.map((row) => (
-          <BudgetCard
-            key={row.budgetId}
-            name={row.name}
-            carriedInCents={row.carriedInCents}
-            assignedCents={row.assignedCents}
-            spentCents={row.spentCents}
-            gray
-            onAddExpenseClick={() => openAddExpenseModal(row.budgetId)}
-            onViewExpensesClick={() => setViewExpensesModalBudgetId(row.budgetId)}
-          />
-        ))}
-        <TotalBudgetCard
-          carriedInCents={totalCarriedInCents}
-          assignedCents={periodAssignedCents}
-          spentCents={periodSpentCents}
-        />
-      </div>
+
+      <ToBeAssignedBar
+        toBeAssignedCents={toBeAssignedCents}
+        periodIncomeCents={periodIncomeCents}
+        periodAssignedCents={periodAssignedCents}
+        onAssignClick={() => setShowAssignModal(true)}
+      />
+
+      <TransactionRegister
+        period={period}
+        transactions={rows}
+        budgets={budgets}
+        accounts={accounts}
+        onChange={updateTransaction}
+        onDelete={deleteTransaction}
+        onAdd={() => setShowAddModal(true)}
+      />
+
       <AssignIncomeModal
         show={showAssignModal}
         period={period}
         handleClose={() => setShowAssignModal(false)}
       />
-      <AddExpenseModal
-        show={showAddExpenseModal}
-        defaultBudgetId={addExpenseModalBudgetId}
-        handleClose={() => setShowAddExpenseModal(false)}
-      />
-      <AddIncomeModal show={showAddIncomeModal} handleClose={() => setShowAddIncomeModal(false)} />
-      <ViewExpensesModal
-        budgetId={viewExpensesModalBudgetId}
-        handleClose={() => setViewExpensesModalBudgetId()}
-      />
-      <ViewIncomeModal show={showIncomeModal} handleClose={() => setShowIncomeModal(false)} />
+      <AddTransactionModal show={showAddModal} handleClose={() => setShowAddModal(false)} />
     </>
   );
 }

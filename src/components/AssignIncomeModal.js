@@ -3,7 +3,7 @@ import Dialog from "./Dialog";
 import Button from "./Button";
 import useEnvelopes from "../hooks/useEnvelopes";
 import { useAssignments } from "../contexts/AssignmentsContext";
-import { formatCents, formatPeriod, fromCents, toCents } from "../utils";
+import { amountAtRest, amountField, formatCents, formatPeriod, toCents } from "../utils";
 
 const FIELD_PREFIX = "assign:";
 
@@ -37,7 +37,7 @@ export default function AssignIncomeModal({ show, period, handleClose }) {
       row.kind === "category" ||
       row.availableCents !== 0 ||
       row.assignedCents !== 0 ||
-      row.spentCents !== 0
+      row.activityCents !== 0
   );
 
   const storedCents = editable.reduce((sum, row) => sum + row.assignedCents, 0);
@@ -65,8 +65,9 @@ export default function AssignIncomeModal({ show, period, handleClose }) {
     setError(null);
     for (const row of editable) {
       const input = form.elements[FIELD_PREFIX + row.budgetId];
-      // Left blank rather than "0" so an untouched row reads as untouched.
-      if (input) input.value = row.assignedCents === 0 ? "" : fromCents(row.assignedCents);
+      // Left blank rather than "0" so an untouched row reads as untouched, and
+      // otherwise as money — the same face the estimate beside it wears.
+      if (input) input.value = row.assignedCents === 0 ? "" : amountAtRest(row.assignedCents);
     }
     recompute();
     // `editable` is rebuilt every render; depending on it would re-seed the
@@ -76,7 +77,7 @@ export default function AssignIncomeModal({ show, period, handleClose }) {
 
   function setRowValue(budgetId, cents) {
     const input = formRef.current.elements[FIELD_PREFIX + budgetId];
-    if (input) input.value = fromCents(cents);
+    if (input) input.value = amountAtRest(cents);
   }
 
   // Fill tops a category up to its configured monthly estimate outright, rather
@@ -184,11 +185,10 @@ export default function AssignIncomeModal({ show, period, handleClose }) {
                     </td>
                     <td className="px-3 py-2 text-right">
                       <input
-                        type="number"
-                        step={0.01}
+                        {...amountField}
                         name={FIELD_PREFIX + row.budgetId}
                         aria-label={`Assign to ${row.name}`}
-                        placeholder="0"
+                        placeholder="$0"
                         className="w-24 border-0 border-b-2 border-rule bg-transparent px-0 py-1 text-right font-mono text-row text-ink outline-none transition-colors placeholder:text-ink-soft/60 focus:border-azure"
                       />
                     </td>

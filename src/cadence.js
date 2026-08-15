@@ -11,6 +11,13 @@
  * real date to count from. It belongs to whatever screen is looking at a
  * specific month, not to the standing configuration, and nothing here should
  * grow a date to answer it.
+ *
+ * `src/paySchedule.js` is the other half of that split and the two tables here
+ * and there share four names by coincidence of English, not by design: this one
+ * asks how *many* payments a year, that one asks *which days*. They are not to
+ * be consolidated — "twice a month" is 24 payments here and a pair of days of
+ * the month there, and the second answer needs a calendar the first must not
+ * have.
  */
 
 /**

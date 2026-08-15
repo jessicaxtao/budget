@@ -1,20 +1,33 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { useState } from "react";
-import AddExpenseModal from "./AddExpenseModal";
+import AddTransactionModal from "./AddTransactionModal";
 import AddBudgetModal from "./AddBudgetModal";
 import AddGroupModal from "./AddGroupModal";
-import AddIncomeModal from "./AddIncomeModal";
 import AddIncomeSourceModal from "./AddIncomeSourceModal";
+import AddAccountModal from "./AddAccountModal";
 import AssignIncomeModal from "./AssignIncomeModal";
 import AppProviders from "../contexts/AppProviders";
+import { useAccounts } from "../contexts/AccountsContext";
+import { routerFuture } from "../routerFuture";
 import { addMonths, currentPeriod, todayISO } from "../utils";
+
+// The transaction modal points at the Budget plan page when there is nothing to
+// book against, so the whole suite renders under a router as the app does.
+function Providers({ children }) {
+  return (
+    <AppProviders>
+      <MemoryRouter future={routerFuture}>{children}</MemoryRouter>
+    </AppProviders>
+  );
+}
 
 // Mirrors how TransactionsPage drives the modals: mounted once for the life of
 // the page and toggled with `show`, with the budget it was opened from varying
 // between openings. The bugs these tests cover only appear across repeated
 // open/close cycles, which is exactly what a conditionally-rendered modal would
 // have hidden.
-function ExpenseHarness({ budgetIds }) {
+function TransactionHarness({ budgetIds }) {
   const [show, setShow] = useState(false);
   const [budgetId, setBudgetId] = useState();
   return (
@@ -30,7 +43,11 @@ function ExpenseHarness({ budgetIds }) {
           open {id ?? "header"}
         </button>
       ))}
-      <AddExpenseModal show={show} defaultBudgetId={budgetId} handleClose={() => setShow(false)} />
+      <AddTransactionModal
+        show={show}
+        defaultBudgetId={budgetId}
+        handleClose={() => setShow(false)}
+      />
     </>
   );
 }
@@ -79,14 +96,32 @@ function seedIncome(dollars) {
   );
 }
 
+// Every transaction names the account it moved through, so the transaction
+// modal needs at least one on-budget account before it will show a form at all.
+function seedAccounts(accounts = [{ id: "acc1", name: "Everyday", openingBalanceCents: 100000 }]) {
+  localStorage.setItem(
+    "accounts",
+    JSON.stringify(
+      accounts.map((account) => ({
+        type: "asset",
+        scope: "on-budget",
+        assetClass: "Cash",
+        openingBalanceCents: 0,
+        openingDate: null,
+        ...account,
+      }))
+    )
+  );
+}
+
 describe("assigning income to categories", () => {
   function openWith(budgets, dollars) {
     seedBudgets(budgets);
     if (dollars != null) seedIncome(dollars);
     render(
-      <AppProviders>
+      <Providers>
         <AssignHarness />
-      </AppProviders>
+      </Providers>
     );
     fireEvent.click(screen.getByText("open"));
   }
@@ -98,7 +133,8 @@ describe("assigning income to categories", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fill" }));
 
-    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(400);
+    // Money at rest, like every figure on the row it sits in.
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$400");
     expect(screen.getByRole("status")).toHaveTextContent("$600");
   });
 
@@ -129,7 +165,7 @@ describe("assigning income to categories", () => {
     expect(JSON.parse(localStorage.getItem("assignments"))).toHaveLength(2);
 
     fireEvent.click(screen.getByText("open"));
-    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(300);
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$300");
     expect(screen.getByRole("status")).toHaveTextContent("$580");
   });
 
@@ -140,7 +176,7 @@ describe("assigning income to categories", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     fireEvent.click(screen.getByText("open"));
-    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(null);
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("");
     expect(screen.getByRole("status")).toHaveTextContent("$1,000");
   });
 
@@ -159,12 +195,12 @@ describe("assigning income to categories", () => {
     fireEvent.change(screen.getByLabelText("Assign to Groceries"), { target: { value: "300" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.click(screen.getByText("open"));
-    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(300);
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$300");
 
     fireEvent.click(screen.getByText("next month"));
 
     // Next month has its own assignment, not this month's carried over.
-    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue(null);
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("");
   });
 
   test("Uncategorized is offered when it owes money, even with no activity now", () => {
@@ -196,108 +232,195 @@ describe("assigning income to categories", () => {
   });
 });
 
-describe("expense modal budget preselection", () => {
-  test("opening from a budget card preselects that budget, and updates on reopen", () => {
+describe("one form for both directions", () => {
+  function openHarness(budgetIds = ["a"]) {
     seedBudgets(TWO_BUDGETS);
+    seedAccounts();
     render(
-      <AppProviders>
-        <ExpenseHarness budgetIds={["a", "b"]} />
-      </AppProviders>
+      <Providers>
+        <TransactionHarness budgetIds={budgetIds} />
+      </Providers>
     );
+    fireEvent.click(screen.getByText(`open ${budgetIds[0] ?? "header"}`));
+  }
 
-    fireEvent.click(screen.getByText("open a"));
-    expect(screen.getByRole("combobox")).toHaveValue("a");
+  test("money out requires a category; money in offers one and defaults to none", () => {
+    openHarness();
+
+    expect(screen.getByRole("button", { name: "Money out" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByLabelText(/^category$/i)).toBeRequired();
+    expect(screen.getByLabelText(/paid to/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+
+    // The description asks the opposite question, and the category becomes the
+    // optional one that tells a refund from income. It defaults to none, because
+    // the common inflow is a paycheque.
+    expect(screen.getByLabelText(/received from/i)).toBeInTheDocument();
+    const category = screen.getByLabelText(/refund to category/i);
+    expect(category).not.toBeRequired();
+    expect(category).toHaveValue("");
+  });
+
+  test("a category picked for an expense does not follow the toggle into money in", () => {
+    openHarness();
+
+    // The select is remounted per direction for exactly this reason: reusing it
+    // would turn the next paycheque into a refund against whatever was picked.
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    expect(screen.getByLabelText(/refund to category/i)).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Money out" }));
+    expect(screen.getByLabelText(/^category$/i)).not.toHaveValue("");
+  });
+
+  test("an expense is stored against its account and category", () => {
+    openHarness();
+
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Coffee" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "4.50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([
+      {
+        id: expect.any(String),
+        kind: "outflow",
+        description: "Coffee",
+        amountCents: 450,
+        date: todayISO(),
+        accountId: "acc1",
+        budgetId: "a",
+      },
+    ]);
+  });
+
+  test("income is stored with no category at all", () => {
+    openHarness();
+
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    fireEvent.change(screen.getByLabelText(/received from/i), { target: { value: "Salary" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "3000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("transactions"))[0]).toMatchObject({
+      kind: "inflow",
+      amountCents: 300000,
+      accountId: "acc1",
+      budgetId: null,
+    });
+  });
+
+  test("the account select shows what each account currently holds", () => {
+    openHarness();
+
+    // $1,000 opening, so the first expense has to come out of something.
+    expect(screen.getByRole("option", { name: "Everyday — $1,000" })).toBeInTheDocument();
+  });
+
+  test("opening from a budget card preselects that budget, and updates on reopen", () => {
+    openHarness(["a", "b"]);
+    expect(screen.getByLabelText(/category/i)).toHaveValue("a");
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByText("open b"));
-    expect(screen.getByRole("combobox")).toHaveValue("b");
+    expect(screen.getByLabelText(/category/i)).toHaveValue("b");
   });
 
-  test("opening from the page header falls back to Uncategorized", () => {
-    seedBudgets(TWO_BUDGETS);
-    render(
-      <AppProviders>
-        <ExpenseHarness budgetIds={["a", undefined]} />
-      </AppProviders>
-    );
-
-    fireEvent.click(screen.getByText("open a"));
-    expect(screen.getByRole("combobox")).toHaveValue("a");
+  test("opening from the page header falls back to the first category", () => {
+    openHarness(["b", undefined]);
+    expect(screen.getByLabelText(/category/i)).toHaveValue("b");
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByText("open header"));
-    expect(screen.getByRole("combobox")).toHaveValue("Uncategorized");
+    // Never blank: a transaction cannot be saved without one, so the form does
+    // not open on a choice the user has to make before anything else.
+    expect(screen.getByLabelText(/category/i)).toHaveValue("a");
   });
 
-  test("a budget deleted since the modal last opened falls back to Uncategorized", () => {
-    seedBudgets([{ id: "a", name: "Groceries", max: 400 }]);
-    render(
-      <AppProviders>
-        <ExpenseHarness budgetIds={["gone"]} />
-      </AppProviders>
-    );
+  test("a budget deleted since the modal last opened falls back to the first", () => {
+    openHarness(["gone"]);
+    expect(screen.getByLabelText(/category/i)).toHaveValue("a");
+  });
 
-    fireEvent.click(screen.getByText("open gone"));
-    expect(screen.getByRole("combobox")).toHaveValue("Uncategorized");
+  test("with no account there is no form, only the way to make one", () => {
+    seedBudgets(TWO_BUDGETS);
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    // A form whose submit could only ever fail is worse than no form.
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /add an account/i })).toHaveAttribute("href", "/plan");
   });
 });
 
 describe("forms do not keep stale input", () => {
-  test("the expense form is empty when reopened after a submit", () => {
+  test("the transaction form is empty when reopened after a submit", () => {
     seedBudgets(TWO_BUDGETS);
+    seedAccounts();
     render(
-      <AppProviders>
-        <ExpenseHarness budgetIds={["a"]} />
-      </AppProviders>
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open a"));
-    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: "Coffee" } });
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Coffee" } });
     fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "4.50" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     fireEvent.click(screen.getByText("open a"));
-    expect(screen.getByLabelText(/description/i)).toHaveValue("");
-    expect(screen.getByLabelText(/amount/i)).toHaveValue(null);
+    expect(screen.getByLabelText(/paid to/i)).toHaveValue("");
+    expect(screen.getByLabelText(/amount/i)).toHaveValue("");
   });
 
-  test("the expense form is empty when reopened after a cancel", () => {
+  test("the transaction form is empty when reopened after a cancel", () => {
     seedBudgets(TWO_BUDGETS);
+    seedAccounts();
     render(
-      <AppProviders>
-        <ExpenseHarness budgetIds={["a"]} />
-      </AppProviders>
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open a"));
-    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: "Abandoned" } });
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Abandoned" } });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     fireEvent.click(screen.getByText("open a"));
-    expect(screen.getByLabelText(/description/i)).toHaveValue("");
+    expect(screen.getByLabelText(/paid to/i)).toHaveValue("");
   });
 
-  test("the income form is empty when reopened after a submit", () => {
+  test("the direction resets to money out on reopen", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
     render(
-      <AppProviders>
-        <SimpleHarness Modal={AddIncomeModal} />
-      </AppProviders>
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
     );
 
-    fireEvent.click(screen.getByText("open"));
-    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: "Salary" } });
-    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "3000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByText("open a"));
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
-    fireEvent.click(screen.getByText("open"));
-    expect(screen.getByLabelText(/description/i)).toHaveValue("");
+    fireEvent.click(screen.getByText("open a"));
+    // The toggle is state, not a form field, so `form.reset()` does not reach
+    // it — the re-seed effect has to say so explicitly.
+    expect(screen.getByLabelText(/category/i)).toBeInTheDocument();
   });
 
   test("the budget form is empty when reopened after a submit", () => {
     render(
-      <AppProviders>
+      <Providers>
         <SimpleHarness Modal={AddBudgetModal} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open"));
@@ -314,9 +437,9 @@ describe("duplicate budget names", () => {
   test("a clashing name reports the problem instead of closing silently", () => {
     seedBudgets([{ id: "a", name: "Groceries", max: 400 }]);
     render(
-      <AppProviders>
+      <Providers>
         <SimpleHarness Modal={AddBudgetModal} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open"));
@@ -333,9 +456,9 @@ describe("duplicate budget names", () => {
   test("a fresh name saves and closes", () => {
     seedBudgets([{ id: "a", name: "Groceries", max: 400 }]);
     render(
-      <AppProviders>
+      <Providers>
         <SimpleHarness Modal={AddBudgetModal} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open"));
@@ -388,9 +511,9 @@ describe("filing a new category under a group", () => {
 
   test("the group preselects from where it was opened, and updates on reopen", () => {
     render(
-      <AppProviders>
+      <Providers>
         <GroupChoiceHarness groupIds={["g1", "g2"]} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open g1"));
@@ -403,9 +526,9 @@ describe("filing a new category under a group", () => {
 
   test("opening from the page header, or from a group since deleted, falls back to ungrouped", () => {
     render(
-      <AppProviders>
+      <Providers>
         <GroupChoiceHarness groupIds={["gone", undefined]} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open gone"));
@@ -418,9 +541,9 @@ describe("filing a new category under a group", () => {
 
   test("the chosen group is stored as an id, and ungrouped as null", () => {
     render(
-      <AppProviders>
+      <Providers>
         <GroupChoiceHarness groupIds={["g1", undefined]} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open g1"));
@@ -431,14 +554,55 @@ describe("filing a new category under a group", () => {
     fireEvent.click(screen.getByText("open header"));
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Travel" } });
     fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "100" } });
+    // The one optional figure on the form. Typed here and left blank above, so
+    // both answers go through the same modal on the same open-and-close cycle.
+    fireEvent.change(screen.getByLabelText(/goal/i), { target: { value: "3000" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     // "" is what the ungrouped option is worth in the DOM; it must not reach
-    // storage, where it would be a group id matching nothing.
+    // storage, where it would be a group id matching nothing. The bucket is a
+    // real one either way — the form arrives on the group's default and stores
+    // whatever it is left showing, never a "same as my group" marker.
     expect(JSON.parse(localStorage.getItem("budgets"))).toEqual([
-      { id: expect.any(String), name: "Rent", plannedCents: 120000, groupId: "g1" },
-      { id: expect.any(String), name: "Travel", plannedCents: 10000, groupId: null },
+      {
+        id: expect.any(String),
+        name: "Rent",
+        plannedCents: 120000,
+        // Blank is no goal, not a goal of nothing — the only field on this form
+        // where an empty box is an answer rather than an omission.
+        goalCents: null,
+        groupId: "g1",
+        bucket: "essentials",
+      },
+      {
+        id: expect.any(String),
+        name: "Travel",
+        plannedCents: 10000,
+        goalCents: 300000,
+        groupId: null,
+        bucket: "essentials",
+      },
     ]);
+  });
+
+  test("a goal typed into one category is not still in the box for the next", () => {
+    render(
+      <Providers>
+        <GroupChoiceHarness groupIds={["g1", undefined]} />
+      </Providers>
+    );
+
+    fireEvent.click(screen.getByText("open g1"));
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: "Car fund" } });
+    fireEvent.change(screen.getByLabelText(/monthly estimate/i), { target: { value: "200" } });
+    fireEvent.change(screen.getByLabelText(/goal/i), { target: { value: "5000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // The modal never unmounts, so a figure left in an uncontrolled field is
+    // still there on the next open — and a goal inherited by the next category
+    // is one the user never set.
+    fireEvent.click(screen.getByText("open header"));
+    expect(screen.getByLabelText(/goal/i)).toHaveValue("");
   });
 });
 
@@ -472,9 +636,9 @@ describe("the group modal adds and renames with one form", () => {
   test("renaming seeds the existing name, and adding afterwards starts empty", () => {
     localStorage.setItem("budgetGroups", JSON.stringify([{ id: "g1", name: "Fixed" }]));
     render(
-      <AppProviders>
+      <Providers>
         <GroupHarness />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open rename"));
@@ -484,7 +648,7 @@ describe("the group modal adds and renames with one form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(JSON.parse(localStorage.getItem("budgetGroups"))).toEqual([
-      { id: "g1", name: "Essentials" },
+      { id: "g1", name: "Essentials", bucket: "essentials" },
     ]);
 
     // The rename left a name in the field; opening it to add must not offer it
@@ -496,9 +660,9 @@ describe("the group modal adds and renames with one form", () => {
   test("a clashing name reports the problem instead of closing silently", () => {
     localStorage.setItem("budgetGroups", JSON.stringify([{ id: "g1", name: "Fixed" }]));
     render(
-      <AppProviders>
+      <Providers>
         <GroupHarness />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open new"));
@@ -513,9 +677,9 @@ describe("the group modal adds and renames with one form", () => {
 describe("adding an income source", () => {
   test("the monthly average is previewed as the amount and cadence are set", () => {
     render(
-      <AppProviders>
+      <Providers>
         <SimpleHarness Modal={AddIncomeSourceModal} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open"));
@@ -532,9 +696,9 @@ describe("adding an income source", () => {
 
   test("the cadence resets to monthly on reopen, and so does the preview", () => {
     render(
-      <AppProviders>
+      <Providers>
         <SimpleHarness Modal={AddIncomeSourceModal} />
-      </AppProviders>
+      </Providers>
     );
 
     fireEvent.click(screen.getByText("open"));
@@ -551,5 +715,438 @@ describe("adding an income source", () => {
     expect(screen.getByLabelText(/name/i)).toHaveValue("");
     expect(screen.getByLabelText(/how often/i)).toHaveValue("monthly");
     expect(screen.getByRole("status")).toHaveTextContent("$0");
+  });
+});
+
+describe("adding an account", () => {
+  // Mirrors the page: one modal, opened from either the on-budget panel or the
+  // off-budget one, so the panel it was opened from varies between openings.
+  // Asset or liability is chosen in the form, since either can sit in either
+  // panel.
+  function AccountHarness() {
+    const [show, setShow] = useState(false);
+    const [scope, setScope] = useState("on-budget");
+    return (
+      <>
+        {["on-budget", "credit-card", "off-budget"].map((panel) => (
+          <button
+            key={panel}
+            onClick={() => {
+              setScope(panel);
+              setShow(true);
+            }}
+          >
+            open {panel}
+          </button>
+        ))}
+        <AddAccountModal show={show} defaultScope={scope} handleClose={() => setShow(false)} />
+      </>
+    );
+  }
+
+  function renderHarness() {
+    render(
+      <Providers>
+        <AccountHarness />
+      </Providers>
+    );
+  }
+
+  test("the scope preselects from the panel it was opened from, and updates on reopen", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open on-budget"));
+    expect(screen.getByLabelText(/budgeting/i)).toHaveValue("on-budget");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByText("open off-budget"));
+    expect(screen.getByLabelText(/budgeting/i)).toHaveValue("off-budget");
+  });
+
+  test("asset class is asked for on an asset and not on a debt", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open on-budget"));
+    expect(screen.getByLabelText(/kind/i)).toHaveValue("asset");
+    expect(screen.getByLabelText(/asset class/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/kind/i), { target: { value: "liability" } });
+    expect(screen.queryByLabelText(/asset class/i)).not.toBeInTheDocument();
+  });
+
+  test("an asset stores its class and scope, and a liability stores unclassified", () => {
+    renderHarness();
+
+    // An off-budget asset: the 401(k) case this split exists for.
+    fireEvent.click(screen.getByText("open off-budget"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "Brokerage" } });
+    fireEvent.change(screen.getByLabelText(/asset class/i), { target: { value: "Stocks" } });
+    fireEvent.change(screen.getByLabelText(/starting balance/i), { target: { value: "12000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // An on-budget liability: the card the groceries go on.
+    fireEvent.click(screen.getByText("open on-budget"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "Visa" } });
+    fireEvent.change(screen.getByLabelText(/kind/i), { target: { value: "liability" } });
+    fireEvent.change(screen.getByLabelText(/balance owed/i), { target: { value: "450" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("accounts"))).toEqual([
+      {
+        id: expect.any(String),
+        name: "Brokerage",
+        type: "asset",
+        scope: "off-budget",
+        assetClass: "Stocks",
+        openingBalanceCents: 1200000,
+        openingDate: todayISO(),
+        // Never reconciled, not reconciled today: the figure the user just
+        // typed from memory is the one most worth checking against a statement.
+        reconciledOn: null,
+      },
+      {
+        id: expect.any(String),
+        name: "Visa",
+        type: "liability",
+        scope: "on-budget",
+        assetClass: "Other",
+        // Entered as the amount owed, stored as what it is worth. A debt
+        // counted as an asset is the one mistake that silently doubles net
+        // worth, so the sign is settled at the boundary rather than trusted.
+        openingBalanceCents: -45000,
+        openingDate: todayISO(),
+        reconciledOn: null,
+      },
+    ]);
+  });
+
+  test("a credit card stops asking what kind of account it is, and stores a debt", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open credit-card"));
+    // Picking the card answers the kind question, so the question goes away —
+    // leaving it on screen would offer a combination the store refuses.
+    expect(screen.queryByLabelText(/kind/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/asset class/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "Visa" } });
+    fireEvent.change(screen.getByLabelText(/balance owed/i), { target: { value: "450" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("accounts"))[0]).toMatchObject({
+      name: "Visa",
+      type: "liability",
+      scope: "credit-card",
+      assetClass: "Other",
+      openingBalanceCents: -45000,
+    });
+  });
+
+  test("switching away from a card puts the kind question back on its default", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open on-budget"));
+    fireEvent.change(screen.getByLabelText(/kind/i), { target: { value: "liability" } });
+    expect(screen.queryByLabelText(/asset class/i)).not.toBeInTheDocument();
+
+    // The select is unmounted while the card is chosen and comes back holding
+    // its default, so what the form thinks was chosen has to come back with it.
+    fireEvent.change(screen.getByLabelText(/budgeting/i), { target: { value: "credit-card" } });
+    fireEvent.change(screen.getByLabelText(/budgeting/i), { target: { value: "on-budget" } });
+
+    expect(screen.getByLabelText(/kind/i)).toHaveValue("asset");
+    expect(screen.getByLabelText(/asset class/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/starting balance/i)).toBeInTheDocument();
+  });
+
+  test("an account with no starting balance opens at zero rather than being refused", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open on-budget"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "Everyday" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("accounts"))[0].openingBalanceCents).toBe(0);
+  });
+
+  test("the form does not keep the previous account", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open off-budget"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "Brokerage" } });
+    fireEvent.change(screen.getByLabelText(/asset class/i), { target: { value: "Stocks" } });
+    fireEvent.change(screen.getByLabelText(/starting balance/i), { target: { value: "12000" } });
+    fireEvent.change(screen.getByLabelText(/kind/i), { target: { value: "liability" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    fireEvent.click(screen.getByText("open on-budget"));
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("");
+    expect(screen.getByLabelText(/starting balance/i)).toHaveValue("");
+    // The selects are re-seeded through their refs: `defaultValue` on a modal
+    // that never unmounts only ever applies once.
+    expect(screen.getByLabelText(/kind/i)).toHaveValue("asset");
+    expect(screen.getByLabelText(/budgeting/i)).toHaveValue("on-budget");
+    expect(screen.getByLabelText(/asset class/i)).toHaveValue("Cash");
+    expect(screen.getByLabelText(/balance as of/i)).toHaveValue(todayISO());
+  });
+
+  test("an account saved before scopes and opening balances existed reads back whole", () => {
+    localStorage.setItem(
+      "accounts",
+      JSON.stringify([
+        { id: "a1", name: "Everyday", type: "asset", assetClass: "Cash", institution: "Bendigo" },
+      ])
+    );
+    renderHarness();
+
+    // Adding writes the whole list back, so the migrated record is what lands.
+    fireEvent.click(screen.getByText("open off-budget"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "401(k)" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("accounts"))[0]).toEqual({
+      id: "a1",
+      name: "Everyday",
+      type: "asset",
+      scope: "on-budget",
+      assetClass: "Cash",
+      // The institution it was saved with is dropped rather than carried
+      // forward: the field is gone, and a record still holding one would leave
+      // storage half on each side of the change.
+      // Opens at zero on an unknown date. Backfilling what it holds today would
+      // put money in the pool the user never said they had.
+      openingBalanceCents: 0,
+      openingDate: null,
+      // Same rule for the same reason: an account that predates reconciliation
+      // has never been reconciled, rather than having been at the moment the
+      // field appeared.
+      reconciledOn: null,
+    });
+  });
+
+  test("a clashing name reports the problem instead of closing silently", () => {
+    localStorage.setItem(
+      "accounts",
+      JSON.stringify([
+        {
+          id: "a1",
+          name: "Everyday",
+          type: "asset",
+          scope: "on-budget",
+          assetClass: "Cash",
+        },
+      ])
+    );
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open on-budget"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "everyday" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("everyday");
+    expect(JSON.parse(localStorage.getItem("accounts"))).toHaveLength(1);
+  });
+});
+
+describe("editing an account", () => {
+  // The same modal the panels add through, opened on a row instead. Which job it
+  // is doing is the `account` prop, so the harness has to be able to go back and
+  // forth between them and between one account and the next: a form that keeps
+  // what the last opening put in it is the whole class of bug this shape exists
+  // to catch, and here it would rename the wrong account.
+  function EditHarness() {
+    const [show, setShow] = useState(false);
+    const [account, setAccount] = useState(null);
+    const { accounts } = useAccounts();
+    return (
+      <>
+        <button
+          onClick={() => {
+            setAccount(null);
+            setShow(true);
+          }}
+        >
+          add
+        </button>
+        {accounts.map((existing) => (
+          <button
+            key={existing.id}
+            onClick={() => {
+              setAccount(existing);
+              setShow(true);
+            }}
+          >
+            edit {existing.name}
+          </button>
+        ))}
+        <AddAccountModal show={show} account={account} handleClose={() => setShow(false)} />
+      </>
+    );
+  }
+
+  // One of each shape the form has to seed: an everyday account, a card, a
+  // hand-valued holding with a class of its own, and a debt that is only
+  // watched.
+  function renderHarness() {
+    seedAccounts([
+      { id: "a1", name: "Everyday", openingBalanceCents: 250000 },
+      {
+        id: "a2",
+        name: "Visa",
+        type: "liability",
+        scope: "credit-card",
+        assetClass: "Other",
+        openingBalanceCents: -45000,
+      },
+      {
+        id: "a3",
+        name: "Brokerage",
+        scope: "off-budget",
+        assetClass: "Stocks",
+        openingBalanceCents: 1200000,
+      },
+      {
+        id: "a4",
+        name: "Mortgage",
+        type: "liability",
+        scope: "off-budget",
+        assetClass: "Other",
+        openingBalanceCents: -30000000,
+        openingDate: "2021-06-01",
+      },
+    ]);
+    render(
+      <Providers>
+        <EditHarness />
+      </Providers>
+    );
+  }
+
+  const stored = (id) =>
+    JSON.parse(localStorage.getItem("accounts")).find((account) => account.id === id);
+
+  test("the form opens holding the account, with a debt shown as the amount owed", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("edit Mortgage"));
+
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("Mortgage");
+    expect(screen.getByLabelText(/budgeting/i)).toHaveValue("off-budget");
+    expect(screen.getByLabelText(/kind/i)).toHaveValue("liability");
+    // Stored at -$300,000 and asked for as what is owed, the way a statement
+    // reads it — the same conversion the monthly update and the backfill grid
+    // apply, so the three cannot come to disagree about which way it points.
+    expect(screen.getByLabelText(/balance owed/i)).toHaveValue("300000");
+    expect(screen.getByLabelText(/balance as of/i)).toHaveValue("2021-06-01");
+    expect(screen.queryByLabelText(/asset class/i)).not.toBeInTheDocument();
+  });
+
+  test("a rename lands and moves nothing else about the account", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("edit Everyday"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), {
+      target: { value: "Everyday checking" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    // The same record under a new name, not a second account: renaming through
+    // delete-and-re-add would take the account's balance history with it.
+    expect(JSON.parse(localStorage.getItem("accounts"))).toHaveLength(4);
+    expect(stored("a1")).toEqual({
+      id: "a1",
+      name: "Everyday checking",
+      type: "asset",
+      scope: "on-budget",
+      assetClass: "Cash",
+      openingBalanceCents: 250000,
+      openingDate: null,
+      reconciledOn: null,
+    });
+  });
+
+  test("a retyped balance replaces the stored one rather than being swallowed by it", () => {
+    renderHarness();
+
+    // The figure on the record would otherwise stand in front of the string the
+    // form just sent, and the edit would be taken and quietly discarded.
+    fireEvent.click(screen.getByText("edit Everyday"));
+    fireEvent.change(screen.getByLabelText(/starting balance/i), { target: { value: "900" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(stored("a1").openingBalanceCents).toBe(90000);
+
+    // And a debt is signed on the way back in, as it was on the way out.
+    fireEvent.click(screen.getByText("edit Mortgage"));
+    fireEvent.change(screen.getByLabelText(/balance owed/i), { target: { value: "250000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(stored("a4").openingBalanceCents).toBe(-25000000);
+  });
+
+  test("a card moved on budget stays a debt", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("edit Visa"));
+    // The card answered the kind question, so it was not asked.
+    expect(screen.queryByLabelText(/kind/i)).not.toBeInTheDocument();
+
+    // Moving it off the card scope puts the question back — holding the
+    // account's own answer, not the form's default. Coming back as an asset
+    // would flip the sign of the balance and add the debt to net worth.
+    fireEvent.change(screen.getByLabelText(/budgeting/i), { target: { value: "on-budget" } });
+    expect(screen.getByLabelText(/kind/i)).toHaveValue("liability");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(stored("a2")).toMatchObject({
+      scope: "on-budget",
+      type: "liability",
+      openingBalanceCents: -45000,
+    });
+  });
+
+  test("an account keeps its own name, and a clash with another is reported", () => {
+    renderHarness();
+
+    // Saving a record unchanged must not read as clashing with itself.
+    fireEvent.click(screen.getByText("edit Brokerage"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("edit Brokerage"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "everyday" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("everyday");
+    expect(stored("a3").name).toBe("Brokerage");
+  });
+
+  test("each opening re-seeds from what it was opened on", () => {
+    renderHarness();
+
+    // A debt takes the asset-class select off screen, so the next opening
+    // remounts it — and what it comes back holding is a `defaultValue`, which is
+    // why the seeded class is mirrored in state rather than only written to the
+    // DOM. Without it the brokerage would read as cash.
+    fireEvent.click(screen.getByText("edit Mortgage"));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    fireEvent.click(screen.getByText("edit Brokerage"));
+    expect(screen.getByLabelText(/asset class/i)).toHaveValue("Stocks");
+    expect(screen.getByLabelText(/starting balance/i)).toHaveValue("12000");
+
+    // And adding after editing is a blank form again, on the defaults.
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByText("add"));
+    expect(screen.getByLabelText(/^name$/i)).toHaveValue("");
+    expect(screen.getByLabelText(/budgeting/i)).toHaveValue("on-budget");
+    expect(screen.getByLabelText(/kind/i)).toHaveValue("asset");
+    expect(screen.getByLabelText(/asset class/i)).toHaveValue("Cash");
+    expect(screen.getByLabelText(/starting balance/i)).toHaveValue("");
+    expect(screen.getByLabelText(/balance as of/i)).toHaveValue(todayISO());
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
   });
 });

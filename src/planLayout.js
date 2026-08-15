@@ -1,4 +1,4 @@
-import { UNGROUPED_ID } from "./contexts/BudgetsContext";
+import { DEFAULT_BUCKET, UNGROUPED_ID } from "./contexts/BudgetsContext";
 
 /**
  * Categories arranged under the headings they are filed under.
@@ -40,13 +40,31 @@ export function toSections(groups, budgets) {
   const sections = groups.map((group) => ({
     groupId: group.id,
     name: group.name,
+    bucket: group.bucket ?? DEFAULT_BUCKET,
     budgets: byGroup.get(group.id),
   }));
 
-  sections.push({ groupId: UNGROUPED_ID, name: "Ungrouped", budgets: ungrouped });
+  // No heading out here to take a default from, so the ungrouped section carries
+  // the app default as its own — which keeps `bucket` a real bucket on every
+  // section and spares every caller a null check that means the same thing.
+  sections.push({
+    groupId: UNGROUPED_ID,
+    name: "Ungrouped",
+    bucket: DEFAULT_BUCKET,
+    budgets: ungrouped,
+  });
 
+  // `effectiveBucket` is what the category counts as, which since buckets stopped
+  // being inheritable is simply the one on its record. The section is a fallback
+  // for storage edited by hand, not a resolution step — nothing in the app writes
+  // a category without a bucket — and it is kept because a split that silently
+  // drops a category is worse than one that files it under its heading's default.
   return sections.map((section) => ({
     ...section,
+    budgets: section.budgets.map((budget) => ({
+      ...budget,
+      effectiveBucket: budget.bucket ?? section.bucket,
+    })),
     plannedCents: section.budgets.reduce((sum, budget) => sum + budget.plannedCents, 0),
   }));
 }

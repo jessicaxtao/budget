@@ -1,4 +1,5 @@
 import DashboardPage from "./pages/DashboardPage";
+import DonationsPage from "./pages/DonationsPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ConfigurationPage from "./pages/ConfigurationPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -15,6 +16,12 @@ import RetirementPage from "./pages/RetirementPage";
 // class names it can see as literal strings.
 export const navigation = [
   {
+    path: "/plan",
+    label: "Configuration",
+    Component: ConfigurationPage,
+    accent: { text: "text-sulfur", border: "border-sulfur" },
+  },
+  {
     path: "/",
     label: "Dashboard",
     Component: DashboardPage,
@@ -27,15 +34,15 @@ export const navigation = [
     accent: { text: "text-vermilion", border: "border-vermilion" },
   },
   {
-    path: "/plan",
-    label: "Configuration",
-    Component: ConfigurationPage,
-    accent: { text: "text-sulfur", border: "border-sulfur" },
-  },
-  {
     path: "/reports",
     label: "Reports",
     Component: ReportsPage,
+    accent: { text: "text-azure", border: "border-azure" },
+  },
+  {
+    path: "/donations",
+    label: "Donations",
+    Component: DonationsPage,
     accent: { text: "text-azure", border: "border-azure" },
   },
   {

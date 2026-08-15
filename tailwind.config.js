@@ -47,6 +47,24 @@ module.exports = {
         // carry text on the light data rows, so destructive actions inside the
         // sheet surface use a darkened Gotham red instead.
         "vermilion-ink": "#8F2119",
+
+        // The net-worth series, and the only colours in the app chosen by
+        // measurement rather than by picking them off the Gotham ramp: a stacked
+        // chart is read by telling its bands apart, so the four have to clear a
+        // colour-vision separation gate against each other on `panel`, which no
+        // four of the accents above do. Cash and debt keep `verdant` and
+        // `vermilion` — money held and money owed mean the same here as
+        // everywhere else in the app — so only the two the palette had no hue
+        // for are new, stepped to pass alongside them.
+        //
+        // Validated all-pairs on #0A3749: worst normal-vision ΔE 16.3, worst
+        // simulated protan/deutan ΔE 6.4. That last figure sits in the band that
+        // is only legal with a second, non-colour channel, which is why the
+        // chart ships a legend, a direct label on the net, and a table view of
+        // the same figures — none of them optional. **Changing one of these four
+        // means re-running the check on all four.**
+        invested: "#5A8FEA", // stocks, bonds, and the like
+        property: "#C173B8", // the house, and anything owned that is neither
       },
       fontFamily: {
         // One family for structure, one for figures. The spreadsheet's own

@@ -2,13 +2,21 @@
 // surface it belongs on — the app runs a dark chrome with inverted light data
 // rows inside it, so a button that reads well in one is often illegible in the
 // other.
+//
+// Every variant carries a border, transparent where it is not drawn: the
+// bordered ones would otherwise stand 2px taller than the rest, and these sit
+// side by side in headers and toolbars where that shows.
 const variants = {
   // On dark chrome.
-  primary: "bg-azure text-panel hover:bg-chalk",
+  primary: "border border-transparent bg-azure text-panel hover:bg-chalk",
   outline: "border border-edge text-chalk hover:border-chalk-soft hover:bg-panel-raised",
   danger: "border border-vermilion/60 text-vermilion hover:bg-vermilion hover:text-panel",
-  // On light data rows.
-  row: "text-ink-soft hover:bg-band hover:text-vermilion-ink",
+  // On light data rows. `row` is the quiet one that turns red under the pointer
+  // — it is what "Remove" wears, and the hover colour is the warning. Anything
+  // that is not destructive needs `row-action`, which is drawn as a button
+  // rather than as bare text and stays in the ink range throughout.
+  row: "border border-transparent text-ink-soft hover:bg-band hover:text-vermilion-ink",
+  "row-action": "border border-rule text-ink-soft hover:border-ink-soft hover:bg-band hover:text-ink",
 };
 
 const sizes = {
