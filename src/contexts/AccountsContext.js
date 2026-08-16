@@ -227,6 +227,51 @@ function applyPeriodBalances(balances, period, validated) {
   }, balances);
 }
 
+/**
+ * An off-budget account's opening balance, folded into `accountBalances` as a
+ * real snapshot dated to `openingDate` — so stating (or restating) it writes
+ * the same record "Update balances" would, rather than a fact only
+ * `useNetWorth`'s `openingAsSnapshot` knows how to read back. On-budget
+ * accounts are never written here: their balance is the ledger's own
+ * arithmetic, and a snapshot beside it would read as a reconciliation nobody
+ * entered. Undated (`openingDate: null`) has no period to anchor a snapshot
+ * to and is left alone, exactly as it already was.
+ *
+ * **Restating the date, not just the figure, is the case that needs care.**
+ * The account record holds exactly one opening date at a time, so moving it
+ * forward — "the balance I typed in January was really August's figure" —
+ * would otherwise erase January everywhere that reads the account's own
+ * fields: `accountBalancesAt`'s fallback gates the opening balance on
+ * `openedIn <= period`, so once `openedIn` becomes August, January has no
+ * ledger activity of its own and no snapshot behind it either, and reads as
+ * zero instead of what was actually recorded — a month of real history
+ * quietly disappearing from every chart that covers it. `previous` is the
+ * account as it stood before this patch; when its opening date is about to
+ * change, its old date and figure are written as a real snapshot first —
+ * unless one already sits on file for that exact month — so the new date
+ * competes purely on when it happened rather than deleting what came before
+ * it.
+ */
+function withOpeningSnapshot(balances, previous, { scope, openingDate, openingBalanceCents }, accountId) {
+  const period = toPeriod(openingDate);
+  if (!isOffBudget({ scope }) || period == null) return balances;
+
+  let next = balances;
+  if (previous && isOffBudget(previous) && previous.openingDate !== openingDate) {
+    const priorPeriod = toPeriod(previous.openingDate);
+    const alreadyReal =
+      priorPeriod != null &&
+      balances.some((balance) => balance.accountId === accountId && balance.period === priorPeriod);
+    if (priorPeriod != null && !alreadyReal) {
+      next = applyPeriodBalances(next, priorPeriod, [
+        { accountId, cents: previous.openingBalanceCents },
+      ]);
+    }
+  }
+
+  return applyPeriodBalances(next, period, [{ accountId, cents: openingBalanceCents }]);
+}
+
 export const AccountsProvider = ({ children }) => {
   const [accounts, setAccounts] = useLocalStorage("accounts", [], migrateAccounts);
   const [balances, setBalances] = useLocalStorage("accountBalances", [], migrateBalances);
@@ -329,9 +374,17 @@ export const AccountsProvider = ({ children }) => {
           reconciledOn: null,
         },
       ]);
+      setBalances((prevBalances) =>
+        withOpeningSnapshot(
+          prevBalances,
+          null,
+          { scope, openingDate, openingBalanceCents: checked.openingBalanceCents },
+          id
+        )
+      );
       return { ok: true, id };
     },
-    [validate, setAccounts]
+    [validate, setAccounts, setBalances]
   );
 
   const updateAccount = useCallback(
@@ -365,9 +418,10 @@ export const AccountsProvider = ({ children }) => {
       setAccounts((prevAccounts) =>
         prevAccounts.map((account) => (account.id === id ? patch : account))
       );
+      setBalances((prevBalances) => withOpeningSnapshot(prevBalances, existing, patch, id));
       return { ok: true };
     },
-    [accounts, validate, setAccounts]
+    [accounts, validate, setAccounts, setBalances]
   );
 
   /**

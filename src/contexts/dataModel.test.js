@@ -12,6 +12,8 @@ import { TRANSACTION_KINDS, useTransactions } from "./TransactionsContext";
 import { useAccounts } from "./AccountsContext";
 import { useAssignments } from "./AssignmentsContext";
 import { useRetirement } from "./RetirementContext";
+import { useSavingsGoals } from "./SavingsGoalsContext";
+import { useSavingsGoalAssignments } from "./SavingsGoalAssignmentsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
 import useEnvelopes from "../hooks/useEnvelopes";
 import usePlanHealth from "../hooks/usePlanHealth";
@@ -1183,6 +1185,42 @@ describe("what a category is for", () => {
     expect(bucketRows.map((row) => row.categoryCount)).toEqual([1, 1, 1, 0]);
   });
 
+  test("a pretax retirement contribution is grossed onto both income and the retirement bucket", () => {
+    const { result } = renderPlan();
+
+    act(() => {
+      result.current.addBudget({ name: "Rent", planned: "100", bucket: PLAN_BUCKETS.ESSENTIALS });
+      result.current.addBudget({
+        name: "Roth IRA",
+        planned: "50",
+        bucket: PLAN_BUCKETS.RETIREMENT,
+      });
+    });
+
+    const before = result.current.health;
+    expect(before.pretaxMonthlyCents).toBe(0);
+
+    // $1,200 a year of payroll deduction is $100 a month. `setRetirementPlan`
+    // takes the figure the way a user types it, like every other amount field.
+    act(() => {
+      result.current.setRetirementPlan({ pretaxContributionCents: "1200" });
+    });
+
+    const after = result.current.health;
+    expect(after.pretaxMonthlyCents).toBe(10000);
+    // Added to both sides equally, so the gap between them is untouched by a
+    // figure that never reaches a real account.
+    expect(after.expectedIncomeCents).toBe(before.expectedIncomeCents + 10000);
+    expect(after.plannedCents).toBe(before.plannedCents + 10000);
+    expect(after.unplannedCents).toBe(before.unplannedCents);
+
+    // The pretax figure has no category of its own, so it lands in the
+    // retirement bucket's total without adding to its category count.
+    const retirementRow = after.bucketRows.find((row) => row.bucket === PLAN_BUCKETS.RETIREMENT);
+    expect(retirementRow.plannedCents).toBe(5000 + 10000);
+    expect(retirementRow.categoryCount).toBe(1);
+  });
+
   test("with nothing planned there is no split to state", () => {
     const { result } = renderPlan();
 
@@ -1359,6 +1397,137 @@ describe("accounts hold the money the ledger moves", () => {
     // A retirement account is not grocery money.
     expect(result.current.env.toBeAssignedCents).toBe(0);
     expect(result.current.balances.offBudgetCents).toBe(5000000);
+  });
+
+  test("a dated off-budget opening balance also lands in accountBalances, as a real snapshot", () => {
+    const { result } = renderHook(useBooks, { wrapper });
+
+    let id;
+    act(() => {
+      id = result.current.accounts.addAccount({
+        name: "401(k)",
+        scope: "off-budget",
+        assetClass: "Stocks",
+        opening: "50000",
+        openingDate: "2026-01-15",
+      }).id;
+    });
+
+    // Stating the opening balance writes the same kind of record "Update
+    // balances" would, so it shows up on the balance-history grid and takes
+    // its place among any other snapshots by date, rather than being a fact
+    // only the opening-balance fallback can see.
+    const written = result.current.accounts.getAccountBalances(id);
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatchObject({ accountId: id, period: "2026-01", amountCents: 5000000 });
+  });
+
+  test("an undated off-budget opening writes no snapshot — there is no month to anchor it to", () => {
+    const { result } = renderHook(useBooks, { wrapper });
+
+    let id;
+    act(() => {
+      id = result.current.accounts.addAccount({
+        name: "401(k)",
+        scope: "off-budget",
+        assetClass: "Stocks",
+        opening: "50000",
+      }).id;
+    });
+
+    expect(result.current.accounts.getAccountBalances(id)).toHaveLength(0);
+  });
+
+  test("an on-budget opening balance writes no snapshot — its balance is the ledger's, never hand-entered", () => {
+    const { result } = renderHook(useBooks, { wrapper });
+
+    let id;
+    act(() => {
+      id = result.current.accounts.addAccount({
+        name: "Everyday",
+        opening: "1000",
+        openingDate: "2026-01-15",
+      }).id;
+    });
+
+    expect(result.current.accounts.getAccountBalances(id)).toHaveLength(0);
+  });
+
+  test("restating an off-budget account's opening balance, dated later, replaces what an old snapshot said", () => {
+    const { result } = renderHook(useBooks, { wrapper });
+
+    let id;
+    act(() => {
+      id = result.current.accounts.addAccount({
+        name: "401(k)",
+        scope: "off-budget",
+        assetClass: "Stocks",
+        opening: "9000",
+        openingDate: "2026-01-15",
+      }).id;
+    });
+
+    // Restated in August at the real current figure — exactly what editing
+    // the account's starting balance on Configuration does.
+    act(() => {
+      result.current.accounts.updateAccount({
+        id,
+        opening: "14000",
+        openingDate: "2026-08-01",
+      });
+    });
+
+    // The January figure stays on file as its own real snapshot — restating
+    // later adds a new fact rather than rewriting history — but August now
+    // has its own, more recent one.
+    const written = result.current.accounts.getAccountBalances(id);
+    expect(written).toHaveLength(2);
+    expect(written).toContainEqual(
+      expect.objectContaining({ accountId: id, period: "2026-01", amountCents: 900000 })
+    );
+    expect(written).toContainEqual(
+      expect.objectContaining({ accountId: id, period: "2026-08", amountCents: 1400000 })
+    );
+  });
+
+  test("restating an account added before real snapshots existed still preserves its old date", () => {
+    // A record with no `accountBalances` entry behind it at all — exactly what
+    // an account created before this write-through existed looks like on disk.
+    seedAccounts([
+      ACCOUNT,
+      {
+        id: "acc-401k",
+        name: "401(k)",
+        type: "asset",
+        scope: "off-budget",
+        assetClass: "Stocks",
+        openingBalanceCents: 900000,
+        openingDate: "2026-01-15",
+      },
+    ]);
+    const { result } = renderHook(useBooks, { wrapper });
+    expect(result.current.accounts.getAccountBalances("acc-401k")).toHaveLength(0);
+
+    // Restated in August, as editing the account's starting balance on
+    // Configuration does. Without backing January's old fact up first, moving
+    // the account's own opening date to August would leave January (and every
+    // month before August) with nothing behind it at all.
+    act(() => {
+      result.current.accounts.updateAccount({
+        id: "acc-401k",
+        opening: "14000",
+        openingDate: "2026-08-01",
+      });
+    });
+
+    const written = result.current.accounts.getAccountBalances("acc-401k");
+    expect(written).toHaveLength(2);
+    expect(written).toContainEqual(
+      expect.objectContaining({ accountId: "acc-401k", period: "2026-01", amountCents: 900000 })
+    );
+    expect(written).toContainEqual(
+      expect.objectContaining({ accountId: "acc-401k", period: "2026-08", amountCents: 1400000 })
+    );
   });
 
   test("a debt is entered as what is owed and counts against the pool", () => {
@@ -1762,7 +1931,11 @@ describe("the day-one seed", () => {
  */
 function expectBalanced(env) {
   const available = env.rows.reduce((sum, row) => sum + row.availableCents, 0);
-  expect(env.toBeAssignedCents + available).toBe(
+  // A goal's cumulative assignment came out of the same pool a budget's did,
+  // so it has to land back on this side of the identity the same way — see
+  // the comment on goalRows in useEnvelopes.
+  const goalAvailable = env.goalRows.reduce((sum, row) => sum + row.availableCents, 0);
+  expect(env.toBeAssignedCents + available + goalAvailable).toBe(
     env.openingCents + env.cumIncomeCents - env.cumSpentCents
   );
 }
@@ -1771,12 +1944,18 @@ function envelopeFor(env, budgetId) {
   return env.rows.find((row) => row.budgetId === budgetId);
 }
 
+function goalEnvelopeFor(env, goalId) {
+  return env.goalRows.find((row) => row.goalId === goalId);
+}
+
 describe("the books balance after every mutation", () => {
   const useLedger = () => ({
     accounts: useAccounts(),
     budgets: useBudgets(),
     ledger: useTransactions(),
     assignments: useAssignments(),
+    goals: useSavingsGoals(),
+    goalAssignments: useSavingsGoalAssignments(),
     past: useEnvelopes("2026-01"),
     now: useEnvelopes("2026-08"),
     later: useEnvelopes("2030-12"),
@@ -1966,5 +2145,77 @@ describe("the books balance after every mutation", () => {
     expect(envelopeFor(result.current.past, "b1").spentCents).toBe(0);
     expect(envelopeFor(result.current.past, "b1").carriedInCents).toBe(-2000);
     expectAllBalanced(result.current);
+  });
+
+  test("a savings goal draws from the same pool a category does", () => {
+    seedAccounts();
+    const { result } = renderHook(useLedger, { wrapper });
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        earn({ description: "Aug", amount: "1000", date: "2026-08-05" })
+      );
+    });
+    expectAllBalanced(result.current);
+
+    let goalId;
+    act(() => {
+      goalId = result.current.goals.addSavingsGoal({ name: "Camera", target: "500" }).id;
+    });
+    expectAllBalanced(result.current);
+
+    const poolBefore = result.current.now.toBeAssignedCents;
+    act(() => {
+      result.current.goalAssignments.setAssignedAmount({
+        goalId,
+        period: "2026-08",
+        amountCents: 20000,
+      });
+    });
+    expectAllBalanced(result.current);
+    // The pool moved by exactly what the goal took, the same as funding a
+    // category would — it is the same dollar, spoken for either way.
+    expect(result.current.now.toBeAssignedCents).toBe(poolBefore - 20000);
+    expect(goalEnvelopeFor(result.current.now, goalId).availableCents).toBe(20000);
+
+    // Carries forward into a later period, on the same rule an envelope's
+    // balance does — and has not accrued yet in one further back.
+    expect(goalEnvelopeFor(result.current.later, goalId).availableCents).toBe(20000);
+    expect(goalEnvelopeFor(result.current.past, goalId)).toBeUndefined();
+
+    // Pulling money back out is allowed, the same as it is for a category
+    // that was over-funded under rollover.
+    act(() => {
+      result.current.goalAssignments.setAssignedAmount({
+        goalId,
+        period: "2026-09",
+        amountCents: -5000,
+      });
+    });
+    expectAllBalanced(result.current);
+    expect(goalEnvelopeFor(result.current.later, goalId).availableCents).toBe(15000);
+  });
+
+  test("setAssignedAmount on a goal validates like a category's does", () => {
+    const { result } = renderHook(useLedger, { wrapper });
+
+    let bad;
+    act(() => {
+      bad = result.current.goalAssignments.setAssignedAmount({
+        goalId: "g1",
+        period: "2026-08",
+        amount: "not a number",
+      });
+    });
+    expect(bad.ok).toBe(false);
+
+    act(() => {
+      bad = result.current.goalAssignments.setAssignedAmount({
+        goalId: "g1",
+        period: "not a period",
+        amountCents: 100,
+      });
+    });
+    expect(bad.ok).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import AddAccountModal from "../components/AddAccountModal";
 import AddBudgetModal from "../components/AddBudgetModal";
 import AddGroupModal from "../components/AddGroupModal";
 import AddIncomeSourceModal from "../components/AddIncomeSourceModal";
+import AssignIncomeModal from "../components/AssignIncomeModal";
 import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
 import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
@@ -11,13 +12,16 @@ import ExpectedIncomeTable from "../components/ExpectedIncomeTable";
 import PageHeader from "../components/PageHeader";
 import PlanHealthSummary from "../components/PlanHealthSummary";
 import PaySchedulePanel from "../components/PaySchedulePanel";
-import { DEFAULT_SCOPE, useAccounts } from "../contexts/AccountsContext";
+import { DEFAULT_SCOPE, isOffBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
 import { usePaySchedule } from "../contexts/PayScheduleContext";
+import { useRetirement } from "../contexts/RetirementContext";
 import useAccountBalances from "../hooks/useAccountBalances";
+import useNetWorth from "../hooks/useNetWorth";
 import useNextPaycheck from "../hooks/useNextPaycheck";
 import usePlanHealth from "../hooks/usePlanHealth";
+import useStartingBalances from "../hooks/useStartingBalances";
 import { currentPeriod } from "../utils";
 
 /**
@@ -65,6 +69,7 @@ export default function ConfigurationPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showAddIncomeSourceModal, setShowAddIncomeSourceModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showAssignStartingModal, setShowAssignStartingModal] = useState(false);
   // The group a category is being added to, and the group being renamed. Held
   // separately: adding files the new category under a heading, renaming edits
   // the heading itself.
@@ -83,19 +88,32 @@ export default function ConfigurationPage() {
   // with its own fields, and a message about a pay period belongs beside them
   // rather than at the top of a page about categories.
   const [payError, setPayError] = useState(null);
+  // Same reason again: the pretax field lives inside Plan health, not beside
+  // the categories, so its own rejection message has to stay with it.
+  const [pretaxError, setPretaxError] = useState(null);
 
   const { updateBudget, deleteBudget, deleteGroup, setCategoryLayout } = useBudgets();
   const { deleteIncomeSource } = useIncomePlan();
   const { accounts, deleteAccount } = useAccounts();
   const { schedule, setPaySchedule } = usePaySchedule();
+  const { plan, setRetirementPlan } = useRetirement();
 
   const health = usePlanHealth();
+  const { period: startingPeriod, poolCentsOverride: startingPoolCents } = useStartingBalances();
   const paycheck = useNextPaycheck();
-  // What each account holds as things stand. Derived from the ledger, so it
-  // belongs on a page with no month on it in a way a hand-entered figure never
-  // could — there is nothing here to go stale.
+  // What each account holds as things stand. On-budget figures are the
+  // ledger's own arithmetic, so they belong on a page with no month on it in a
+  // way a hand-entered figure never could — there is nothing here to go
+  // stale. An off-budget holding has no ledger activity to derive from, so it
+  // is read from `useNetWorth` instead — the same snapshot-aware figure the
+  // Net worth page shows — or this panel would show a 401(k) frozen at its
+  // opening balance while the other page shows what it is actually worth.
   const { rows: balanceRows } = useAccountBalances(currentPeriod());
+  const { rows: netWorthRows } = useNetWorth(currentPeriod());
   const balanceById = new Map(balanceRows.map((row) => [row.account.id, row.balanceCents]));
+  for (const row of netWorthRows) {
+    if (isOffBudget(row.account)) balanceById.set(row.account.id, row.valueCents);
+  }
 
   // The store validates; the page has to say so. Silently swallowing a rejected
   // figure would leave the row showing an amount the plan is not using.
@@ -168,6 +186,17 @@ export default function ConfigurationPage() {
     return result;
   }
 
+  // Writes the same `RetirementContext` field `RetirementAssumptionsPanel`
+  // does — there is one figure, editable from either page, never two that
+  // could disagree. Putting it here too is the point: a 401(k) deduction has
+  // no category to be typed from, and before this the only door to it was the
+  // Retirement page.
+  function handlePretaxChange(pretaxContributionCents) {
+    const result = setRetirementPlan({ pretaxContributionCents });
+    setPretaxError(result.ok ? null : result.error);
+    return result;
+  }
+
   return (
     <>
       <PageHeader
@@ -186,6 +215,9 @@ export default function ConfigurationPage() {
         bucketRows={health.bucketRows}
         sourceCount={health.sourceCount}
         pretaxMonthlyCents={health.pretaxMonthlyCents}
+        pretaxContributionCents={plan.pretaxContributionCents}
+        pretaxError={pretaxError}
+        onPretaxChange={handlePretaxChange}
       />
 
       {error && (
@@ -256,6 +288,7 @@ export default function ConfigurationPage() {
             <ExpectedIncomeTable
               rows={health.incomeRows}
               expectedIncomeCents={health.expectedIncomeCents}
+              pretaxMonthlyCents={health.pretaxMonthlyCents}
               onDelete={deleteIncomeSource}
               actions={
                 <Button
@@ -279,7 +312,15 @@ export default function ConfigurationPage() {
         </div>
 
         <div>
-          <ColumnHeading title="Accounts" />
+          <ColumnHeading title="Accounts">
+            {/* Onboarding's door into the assign flow: an opening balance is
+                money the household already had, and it wants a home in the
+                categories below before the month it happens to be entered in
+                claims it as new income. See `startingBalancePeriod`. */}
+            <Button variant="outline" size="sm" onClick={() => setShowAssignStartingModal(true)}>
+              Assign starting balances
+            </Button>
+          </ColumnHeading>
           <AccountList
             accounts={accounts}
             balanceById={balanceById}
@@ -320,6 +361,13 @@ export default function ConfigurationPage() {
         account={editingAccount}
         defaultScope={addAccountScope}
         handleClose={() => setShowAddAccountModal(false)}
+      />
+      <AssignIncomeModal
+        show={showAssignStartingModal}
+        period={startingPeriod}
+        poolCentsOverride={startingPoolCents}
+        title="Assign starting balances"
+        handleClose={() => setShowAssignStartingModal(false)}
       />
     </>
   );

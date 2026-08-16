@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAccounts, isOffBudget } from "../contexts/AccountsContext";
 import { useAssignments } from "../contexts/AssignmentsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
+import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import { periodLTE, toPeriod } from "../utils";
@@ -18,17 +19,25 @@ import { periodLTE, toPeriod } from "../utils";
  *   activity(b, p)  = refunded(b,p) − spent(b,p)
  *   available(b, P) = Σ over p ≤ P of [ assigned(b,p) + activity(b,p) ]
  *   carriedIn(b, P) = the same sum over p < P
- *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) − Σ over b of assigned(b,p) ]
+ *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ]
  *
  * so that, at every period:
  *
- *   toBeAssigned + Σ available === opening + cumulative inflow − cumulative spend
+ *   toBeAssigned + Σ available + Σ goal available === opening + cumulative inflow − cumulative spend
  *
  * which is cash on hand. That identity is the tripwire the tests assert after
  * every mutation. It holds only if the row set below covers *every* budgetId
  * that appears anywhere — including ids with no matching budget record — and
  * if both sides use the same period filter. Filtering what the grid displays
  * is fine; filtering what these sums cover is not.
+ *
+ * **A savings goal draws from this same pool.** Money diverted to a goal is
+ * money that cannot also fund a category — it is the same paycheck — so a
+ * goal's cumulative assignment subtracts from `toBeAssigned` exactly as a
+ * budget's does. What keeps the identity true on the other side is `goalRows`
+ * below: a goal has no ledger of its own, so its `availableCents` is nothing
+ * but that same cumulative assignment, and the two terms cancel the way a
+ * budget's assignment and activity do.
  *
  * **An inflow with a category is a refund, not income.** Money paid back into a
  * category — a friend's half of dinner, a returned jacket — was already assigned
@@ -58,6 +67,7 @@ export default function useEnvelopes(period) {
   const { budgets } = useBudgets();
   const { transactions } = useTransactions();
   const { assignments } = useAssignments();
+  const { assignments: goalAssignments } = useSavingsGoalAssignments();
   const { accounts } = useAccounts();
 
   return useMemo(() => {
@@ -132,6 +142,44 @@ export default function useEnvelopes(period) {
         entry.assignedBefore += assignment.assignedCents;
       }
     }
+
+    // A goal's own tally, in the same before/now shape — but never spend or
+    // refund, since a goal has no ledger of its own to move money out of.
+    // `availableCents` here is exactly its cumulative assignment for that
+    // reason.
+    const goalTally = new Map();
+    const goalBucket = (goalId) => {
+      let entry = goalTally.get(goalId);
+      if (!entry) {
+        entry = { assignedBefore: 0, assignedNow: 0 };
+        goalTally.set(goalId, entry);
+      }
+      return entry;
+    };
+    for (const assignment of goalAssignments) {
+      const inPeriod = assignment.period === period;
+      const before = !inPeriod && periodLTE(assignment.period, period);
+      // Unlike a budget row, a goal has no union with a real-record list to
+      // fall back on — its row set *is* the tally — so a future-dated
+      // assignment must not seed a zero-valued entry for a period it has not
+      // reached yet.
+      if (!inPeriod && !before) continue;
+      const entry = goalBucket(assignment.goalId);
+      if (inPeriod) entry.assignedNow += assignment.assignedCents;
+      else entry.assignedBefore += assignment.assignedCents;
+    }
+
+    const goalRows = [...goalTally.entries()].map(([goalId, entry]) => ({
+      goalId,
+      carriedInCents: entry.assignedBefore,
+      assignedCents: entry.assignedNow,
+      availableCents: entry.assignedBefore + entry.assignedNow,
+    }));
+
+    const goalAssignedThroughCents = [...goalTally.values()].reduce(
+      (sum, entry) => sum + entry.assignedBefore + entry.assignedNow,
+      0
+    );
 
     const budgetsById = new Map(budgets.map((budget) => [budget.id, budget]));
     // The union, not `budgets`: an id with spend but no budget record still
@@ -225,7 +273,9 @@ export default function useEnvelopes(period) {
     return {
       period,
       rows,
-      toBeAssignedCents: openingCents + cumPoolIncomeCents - assignedThroughCents,
+      goalRows,
+      toBeAssignedCents:
+        openingCents + cumPoolIncomeCents - assignedThroughCents - goalAssignedThroughCents,
       totalAvailableCents: totals.available,
       totalCarriedInCents: totals.carriedIn,
       periodIncomeCents,
@@ -237,5 +287,5 @@ export default function useEnvelopes(period) {
       cumIncomeCents,
       cumSpentCents,
     };
-  }, [budgets, transactions, assignments, accounts, period]);
+  }, [budgets, transactions, assignments, goalAssignments, accounts, period]);
 }

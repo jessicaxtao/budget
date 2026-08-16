@@ -24,7 +24,13 @@ function cadenceNote(cadence) {
   return `${perYear} a year`;
 }
 
-export default function ExpectedIncomeTable({ rows, expectedIncomeCents, onDelete, actions }) {
+export default function ExpectedIncomeTable({
+  rows,
+  expectedIncomeCents,
+  pretaxMonthlyCents = 0,
+  onDelete,
+  actions,
+}) {
   return (
     <section className="border border-edge bg-panel">
       {/* Centred rather than baseline-aligned: the actions are buttons with a
@@ -106,6 +112,13 @@ export default function ExpectedIncomeTable({ rows, expectedIncomeCents, onDelet
               <tr className="bg-band">
                 <td colSpan={3} className="px-4 py-2 font-mono text-label uppercase text-ink">
                   Expected each month
+                  {/* The rows above are the sources on file; this total is
+                      bigger than their sum by exactly the pretax figure once
+                      one is set (see PlanHealthSummary), and that gap has to
+                      be named here too or the footer reads as miscounted. */}
+                  {pretaxMonthlyCents > 0 && (
+                    <span className="normal-case text-ink-soft"> + {formatCents(pretaxMonthlyCents)} pretax</span>
+                  )}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-right font-mono text-row font-medium tabular-nums text-ink">
                   {formatCents(expectedIncomeCents)}

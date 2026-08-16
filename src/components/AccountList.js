@@ -22,13 +22,12 @@ import { formatCents } from "../utils";
  * once a section actually holds a debt, since a list of three bank accounts
  * needs no heading telling it that it is not a mortgage.
  *
- * `balanceById` is what each account currently holds — opening balance plus
- * every transaction through it, derived in useAccountBalances. Optional: the
- * component takes its rows as props and renders the figures only for accounts
- * the caller has a balance for, so a caller that has none simply gets the
- * names. Nothing here is hand-entered, which is what makes it safe to show a
- * figure on a page with no month on it: it cannot go stale, because it is not
- * stored.
+ * `balanceById` is what each account currently holds: opening balance plus
+ * every transaction through it for an on-budget account or a card, and the
+ * same snapshot-aware figure the Net worth page shows for an off-budget
+ * holding — see `ConfigurationPage`. Optional: the component takes its rows
+ * as props and renders the figures only for accounts the caller has a
+ * balance for, so a caller that has none simply gets the names.
  */
 
 /** "Cash" — the asset class, where the account has one worth stating. */

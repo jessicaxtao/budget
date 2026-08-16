@@ -5,6 +5,7 @@ import ConfigurationPage from "./pages/ConfigurationPage";
 import ReportsPage from "./pages/ReportsPage";
 import NetWorthPage from "./pages/NetWorthPage";
 import RetirementPage from "./pages/RetirementPage";
+import SavingsGoalsPage from "./pages/SavingsGoalsPage";
 
 // Single source of truth for both the route table (App.js) and the tab bar
 // (AppShell.js). Adding a page means adding one entry here.
@@ -55,6 +56,12 @@ export const navigation = [
     path: "/retirement",
     label: "Retirement",
     Component: RetirementPage,
+    accent: { text: "text-azure", border: "border-azure" },
+  },
+  {
+    path: "/savings-goals",
+    label: "Savings goals",
+    Component: SavingsGoalsPage,
     accent: { text: "text-azure", border: "border-azure" },
   },
 ];

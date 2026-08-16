@@ -1,4 +1,3 @@
-import SegmentedControl from "./SegmentedControl";
 import { formatBps, formatCents, formatPeriod } from "../utils";
 
 /**
@@ -7,10 +6,8 @@ import { formatBps, formatCents, formatPeriod } from "../utils";
  *
  * A hero figure rather than a fifth chart: net worth is one number, and the one
  * the page is named after. Beside it sits the only figure that says whether that
- * number is any good — the change — and because "good" depends entirely on the
- * span, the span is a control rather than a fixed pair of columns. A month, the
- * year so far, a year, five, ten: the same books read at five different
- * distances.
+ * number is any good — the change, over the same span `NetWorthPage`'s one
+ * control has the chart drawing.
  *
  * **The percentage leads and the dollar figure follows.** Over a decade the
  * dollar change is a number nobody has an intuition for; the percentage is the
@@ -54,8 +51,7 @@ function Band({ label, swatch, cents, tone = "text-chalk" }) {
   );
 }
 
-export default function NetWorthSummary({ period, current, changes, range, onRangeChange }) {
-  const change = changes.find((entry) => entry.key === range) ?? changes[0];
+export default function NetWorthSummary({ period, current, change }) {
   const tone = changeTone(change.changeCents);
 
   return (
@@ -81,14 +77,7 @@ export default function NetWorthSummary({ period, current, changes, range, onRan
         </div>
 
         <div className="sm:text-right">
-          <SegmentedControl
-            label="Measure the change over"
-            options={changes.map((entry) => ({ value: entry.key, label: entry.label }))}
-            value={change.key}
-            onChange={onRangeChange}
-          />
-
-          <dl className="mt-2.5">
+          <dl>
             {/* The term before the figures rather than under them, so what is
                 being measured is read before the measurement — and so the base
                 month and the base figure travel together. */}

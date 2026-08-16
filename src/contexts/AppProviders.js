@@ -6,6 +6,8 @@ import { PayScheduleProvider } from "./PayScheduleContext";
 import { AssignmentsProvider } from "./AssignmentsContext";
 import { AccountsProvider } from "./AccountsContext";
 import { RetirementProvider } from "./RetirementContext";
+import { SavingsGoalsProvider } from "./SavingsGoalsContext";
+import { SavingsGoalAssignmentsProvider } from "./SavingsGoalAssignmentsContext";
 
 // Composes every store in one place so index.js and the tests wrap the app the
 // same way, and adding a store does not mean editing both.
@@ -39,6 +41,15 @@ import { RetirementProvider } from "./RetirementContext";
 // cascade into the other. PaySchedule is independent of both again — it is one
 // record saying when the next paycheque lands, and nothing deletes into it — so
 // its position in the cascade is free.
+//
+// SavingsGoals is independent of everything: a goal names no category, no
+// account, and no transaction, so nothing deletes into or out of it. Its
+// position in the cascade is free for the same reason PaySchedule's is.
+// SavingsGoalAssignments sits beside it for the same reason AssignmentsContext
+// sits beside BudgetsContext: it is the money-actually-put-in half of a goal,
+// keyed on the goal's id. It draws from the *same* to-be-assigned pool a
+// category does — see useEnvelopes — but nothing yet deletes a goal, so
+// there is no cascade to order it against.
 export default function AppProviders({ children }) {
   return (
     <DonationsProvider>
@@ -48,7 +59,11 @@ export default function AppProviders({ children }) {
             <IncomePlanProvider>
               <PayScheduleProvider>
                 <AccountsProvider>
-                  <RetirementProvider>{children}</RetirementProvider>
+                  <RetirementProvider>
+                    <SavingsGoalsProvider>
+                      <SavingsGoalAssignmentsProvider>{children}</SavingsGoalAssignmentsProvider>
+                    </SavingsGoalsProvider>
+                  </RetirementProvider>
                 </AccountsProvider>
               </PayScheduleProvider>
             </IncomePlanProvider>

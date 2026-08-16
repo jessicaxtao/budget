@@ -104,16 +104,50 @@ test("the chart's span is the reader's, and the table twin follows it", () => {
   ).not.toBeInTheDocument();
 
   fireEvent.click(
-    within(screen.getByRole("group", { name: /how far back the chart reaches/i })).getByRole(
-      "button",
-      { name: "5Y" }
-    )
+    within(screen.getByRole("group", { name: /^how far back$/i })).getByRole("button", {
+      name: "5Y",
+    })
   );
 
   // Sixty months, ending where it always did — the month on screen.
   expect(screen.getByRole("rowheader", { name: formatPeriod(PERIOD) })).toBeInTheDocument();
   expect(
     screen.getByRole("rowheader", { name: formatPeriod(addMonths(PERIOD, -59)) })
+  ).toBeInTheDocument();
+});
+
+test("the span control offers the short spans and the whole history alongside the year and beyond", () => {
+  seed();
+  renderPage();
+
+  const spans = within(screen.getByRole("group", { name: /^how far back$/i }));
+  for (const label of ["3M", "6M", "YTD", "1Y", "5Y", "10Y", "ALL"]) {
+    expect(spans.getByRole("button", { name: label })).toBeInTheDocument();
+  }
+  // A one-column chart is not a shape worth drawing, so the month-scale span
+  // offered everywhere else in the app is left off here.
+  expect(spans.queryByRole("button", { name: "1M" })).not.toBeInTheDocument();
+});
+
+test("\"all\" reaches back to the first month anything is known about the books, and moves the chart with it", () => {
+  seed({
+    accounts: [{ ...BROKERAGE, openingDate: `${addMonths(PERIOD, -200)}-01` }],
+    accountBalances: [{ id: "bal1", accountId: "acc-401k", period: PERIOD, amountCents: 1250000 }],
+  });
+  renderPage();
+
+  fireEvent.click(
+    within(screen.getByRole("group", { name: /^how far back$/i })).getByRole("button", {
+      name: "ALL",
+    })
+  );
+  fireEvent.click(screen.getByText(/show these figures as a table/i));
+
+  // Capped at a hundred and twenty months, the same ceiling "10Y" sits at,
+  // even though the account opened further back than that.
+  expect(screen.getByRole("rowheader", { name: formatPeriod(PERIOD) })).toBeInTheDocument();
+  expect(
+    screen.getByRole("rowheader", { name: formatPeriod(addMonths(PERIOD, -119)) })
   ).toBeInTheDocument();
 });
 
@@ -147,36 +181,36 @@ test("the columns are the accounts, with everything spent through as one", () =>
   expect(within(row).getByText("$3,000")).toBeInTheDocument();
 });
 
-test("the headline change is a percentage, over a span the reader picks", () => {
+test("the headline change tracks the one span control, same as the chart", () => {
   seed({
     accounts: [BROKERAGE],
     accountBalances: [
-      { id: "bal1", accountId: "acc-401k", period: addMonths(PERIOD, -12), amountCents: 500000 },
-      { id: "bal2", accountId: "acc-401k", period: addMonths(PERIOD, -1), amountCents: 1000000 },
+      { id: "bal1", accountId: "acc-401k", period: addMonths(PERIOD, -60), amountCents: 250000 },
+      { id: "bal2", accountId: "acc-401k", period: addMonths(PERIOD, -12), amountCents: 500000 },
       { id: "bal3", accountId: "acc-401k", period: PERIOD, amountCents: 1250000 },
     ],
   });
   renderPage();
 
   const summary = within(screen.getByRole("region", { name: "Net worth summary" }));
-  const spans = within(summary.getByRole("group", { name: /measure the change over/i }));
+  const spans = within(screen.getByRole("group", { name: /^how far back$/i }));
 
   // Twelve months, the span the page opens on: $5,000 then against $12,500 now.
   expect(spans.getByRole("button", { name: "1Y" })).toHaveAttribute("aria-pressed", "true");
   expect(summary.getByText("+150%")).toBeInTheDocument();
   expect(summary.getByText("+$7,500")).toBeInTheDocument();
 
-  fireEvent.click(spans.getByRole("button", { name: "1M" }));
+  fireEvent.click(spans.getByRole("button", { name: "5Y" }));
 
-  // The same books read at a different distance. A month is a quarter up, which
-  // the year's figure gives no way of seeing.
-  expect(spans.getByRole("button", { name: "1M" })).toHaveAttribute("aria-pressed", "true");
-  expect(summary.getByText("+25%")).toBeInTheDocument();
-  expect(summary.getByText("+$2,500")).toBeInTheDocument();
-  // The base is named and printed, because "up 25%" is only a fact once the
-  // reader knows 25% of what, measured from when.
+  // The same one control also moved the chart's window — there is no second
+  // dial left to disagree with it. $2,500 five years ago against $12,500 now.
+  expect(spans.getByRole("button", { name: "5Y" })).toHaveAttribute("aria-pressed", "true");
+  expect(summary.getByText("+400%")).toBeInTheDocument();
+  expect(summary.getByText("+$10,000")).toBeInTheDocument();
+  // The base is named and printed, because "up 400%" is only a fact once the
+  // reader knows 400% of what, measured from when.
   expect(
-    summary.getByText(`Change since ${formatPeriod(addMonths(PERIOD, -1))} · was $10,000`)
+    summary.getByText(`Change since ${formatPeriod(addMonths(PERIOD, -60))} · was $2,500`)
   ).toBeInTheDocument();
 });
 
@@ -190,8 +224,8 @@ test("a percentage nobody can compute reads as a dash, and the dollars still sho
 
   const summary = within(screen.getByRole("region", { name: "Net worth summary" }));
   fireEvent.click(
-    within(summary.getByRole("group", { name: /measure the change over/i })).getByRole("button", {
-      name: "1M",
+    within(screen.getByRole("group", { name: /^how far back$/i })).getByRole("button", {
+      name: "5Y",
     })
   );
 

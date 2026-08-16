@@ -41,6 +41,16 @@ import { addMonths, formatCents, formatPeriod, periodLTE, toPeriod } from "../ut
  * be resolved here: it is the gap between the books and the bank, which is
  * exactly what a reconciliation is for, and the pages that show it say so.
  *
+ * **For an off-budget holding, the "else the derived balance" above is really
+ * "else the opening balance treated as a snapshot dated `openingDate`" — and
+ * it competes with the real ones on the same footing, by date, not by kind.**
+ * An account is normally opened before it is ever snapshotted, which is what
+ * makes "a snapshot always wins" read as the rule — but restating the opening
+ * balance itself, dated later, is exactly as much new information as a fresh
+ * snapshot would be, and a stale one entered months ago must not permanently
+ * shadow a correction with no error and no way to notice. See
+ * `openingAsSnapshot` and `snapshotInForce`.
+ *
  * **Snapshots never carry back.** A holding last valued in May is worth May's
  * figure in June, but in April it is worth its opening balance. Propagating the
  * earliest figure backwards would draw a flat line across years nobody recorded
@@ -237,11 +247,41 @@ export function snapshotFor(index, accountId, period) {
   return index.get(accountId)?.find((balance) => balance.period === period) ?? null;
 }
 
-/** Which of the two answers an account takes at `period`, by the rule above. */
+/**
+ * An off-budget account's own opening balance, read as though it were a
+ * snapshot dated `openingDate` — which is what restating it after the fact
+ * means. Undated (`openingDate: null`) returns null rather than some
+ * "beginning of time" sentinel: an undated opening is deliberately the
+ * lowest-precedence fact there is, so it must never outrank a real snapshot,
+ * however old.
+ */
+function openingAsSnapshot(account) {
+  const period = toPeriod(account.openingDate);
+  return period == null ? null : { period, amountCents: account.openingBalanceCents ?? 0 };
+}
+
+/**
+ * Which of the two answers an account takes at `period`, by the rule above —
+ * except that for an off-budget holding, the account's own opening balance
+ * competes with its real snapshots on the same footing a snapshot does:
+ * **whichever fact is dated later, at or before `period`, wins.**
+ *
+ * The asymmetric rule ("a snapshot always beats the opening balance") holds
+ * only because an account is normally opened before it is ever snapshotted —
+ * but nothing stops a user from going back and restating the opening balance
+ * itself, dated later, to correct or update it. Without this, a stale
+ * snapshot entered once, months ago, would permanently shadow a corrected
+ * opening balance no matter how much later it was dated, which is silent and
+ * has no fix short of deleting the old snapshot.
+ */
 function snapshotInForce(index, account, period) {
-  return isOffBudget(account)
-    ? snapshotAt(index, account.id, period)
-    : snapshotFor(index, account.id, period);
+  if (!isOffBudget(account)) return snapshotFor(index, account.id, period);
+
+  const real = snapshotAt(index, account.id, period);
+  const opening = openingAsSnapshot(account);
+  if (opening == null || !periodLTE(opening.period, period)) return real;
+  if (real == null || opening.period > real.period) return opening;
+  return real;
 }
 
 /**
@@ -506,30 +546,114 @@ function smoothedEntry(entry, snapshots, savingsByPeriod) {
 }
 
 /**
- * The spans a net-worth change is worth quoting over, and what each measures
- * from.
+ * The ceiling on how far back a span reaches, in months — "5y", "10y" and
+ * "all" all top out here. Past a hundred and twenty columns a month stops
+ * being resolvable at the width the chart card gets, the same reason
+ * `useSpendingReport` caps its own "all" at the same number.
+ */
+const MAX_WINDOW_MONTHS = 120;
+
+/**
+ * The earliest month anything is known about the books — an account's stated
+ * opening, a balance snapshot, a transaction — or `null` on a file with none
+ * of the three. What "all" reaches back to, on both sides of the one control:
+ * the chart's window and the headline change measure from the same month.
+ */
+function firstKnownPeriod(accounts, transactions, balances) {
+  let first = null;
+  const consider = (candidate) => {
+    if (candidate != null && (first == null || candidate < first)) first = candidate;
+  };
+  for (const account of accounts) consider(toPeriod(account.openingDate));
+  for (const balance of balances) consider(toPeriod(balance.period));
+  for (const transaction of transactions) consider(toPeriod(transaction.date));
+  return first;
+}
+
+/**
+ * The spans the page offers, and the one thing that makes them a single
+ * control rather than two: **each entry names both how far the chart's window
+ * reaches (`months`) and which month the headline change measures from
+ * (`from`)** — pick "5Y" and both move together, because there is nowhere
+ * left for a second dial to disagree with the first.
  *
- * Deliberately not tied to the chart window: how far back the picture reaches
- * and how far back the headline measures are two different questions, and a
- * reader looking at a year of detail may still want the decade's figure beside
- * it. Every one of them names the month it measures from on screen, because "up
- * 8%" is only a fact once the reader knows 8% of what.
+ * The two questions are still allowed to answer differently for the same
+ * span, and by design: "1y"'s window is the twelve columns ending at `period`
+ * while its `from` reaches one month earlier, to the month *before* the
+ * window opens, which is what a change "since a year ago" has always meant
+ * here. `netAt` (below) is what lets the headline reach outside the window it
+ * shares a key with.
  *
- * Year to date measures from **December of the previous year** rather than from
- * January, because a year-to-date change is the movement since the books closed
- * on the old year — measuring from January's close would silently drop January.
+ * Every `from` names the month it measures from on screen, because "up 8%" is
+ * only a fact once the reader knows 8% of what. Year to date measures from
+ * **December of the previous year** rather than from January, because a
+ * year-to-date change is the movement since the books closed on the old year
+ * — measuring from January's close would silently drop January, and its
+ * `months` is the same count: however many months of this year have happened,
+ * one in January and twelve in December.
+ *
+ * "All" is the only pair that needs the ledger itself: both its `months` and
+ * its `from` fall back to `period` on a file with no history at all, which is
+ * the one span the empty state can still render without dividing by zero.
  */
 export const CHANGE_RANGES = [
-  { key: "1m", label: "1M", name: "1 month", from: (period) => addMonths(period, -1) },
+  {
+    key: "1m",
+    label: "1M",
+    name: "1 month",
+    from: (period) => addMonths(period, -1),
+    months: () => 1,
+  },
+  {
+    key: "3m",
+    label: "3M",
+    name: "3 months",
+    from: (period) => addMonths(period, -3),
+    months: () => 3,
+  },
+  {
+    key: "6m",
+    label: "6M",
+    name: "6 months",
+    from: (period) => addMonths(period, -6),
+    months: () => 6,
+  },
   {
     key: "ytd",
     label: "YTD",
     name: "year to date",
     from: (period) => addMonths(period, -Number(period.slice(5, 7))),
+    months: (period) => Number(period.slice(5, 7)),
   },
-  { key: "1y", label: "1Y", name: "12 months", from: (period) => addMonths(period, -12) },
-  { key: "5y", label: "5Y", name: "5 years", from: (period) => addMonths(period, -60) },
-  { key: "10y", label: "10Y", name: "10 years", from: (period) => addMonths(period, -120) },
+  {
+    key: "1y",
+    label: "1Y",
+    name: "12 months",
+    from: (period) => addMonths(period, -12),
+    months: () => 12,
+  },
+  {
+    key: "5y",
+    label: "5Y",
+    name: "5 years",
+    from: (period) => addMonths(period, -60),
+    months: () => 60,
+  },
+  {
+    key: "10y",
+    label: "10Y",
+    name: "10 years",
+    from: (period) => addMonths(period, -120),
+    months: () => MAX_WINDOW_MONTHS,
+  },
+  {
+    key: "all",
+    label: "ALL",
+    name: "every month on the books",
+    from: (period, firstPeriod) => firstPeriod ?? period,
+    months: (period, firstPeriod) =>
+      firstPeriod ? Math.min(MAX_WINDOW_MONTHS, monthsBetween(firstPeriod, period) + 1) : 1,
+  },
 ];
 
 export const DEFAULT_CHANGE_RANGE = "1y";
@@ -561,12 +685,15 @@ export function percentChangeBps(fromCents, toCents) {
 }
 
 /**
- * `months` of history ending at `period`, inclusive.
- *
- * Twelve by default, which is the window that makes a year-on-year change
- * readable off the chart itself rather than only off a figure beside it.
+ * `months` of history ending at `period`, inclusive — or, in place of a bare
+ * number, `spanKey` to size the window the same way `CHANGE_RANGES` sizes it,
+ * which is what lets a page drive the chart and the headline change off one
+ * control. `months` wins when both are given; `spanKey` defaults to
+ * `DEFAULT_CHANGE_RANGE`, the twelve-month window that makes a year-on-year
+ * change readable off the chart itself rather than only off a figure beside
+ * it.
  */
-export default function useNetWorth(period, { months = 12 } = {}) {
+export default function useNetWorth(period, { months, spanKey = DEFAULT_CHANGE_RANGE } = {}) {
   const { accounts, balances } = useAccounts();
   const { transactions } = useTransactions();
   const { budgets } = useBudgets();
@@ -574,9 +701,18 @@ export default function useNetWorth(period, { months = 12 } = {}) {
   return useMemo(() => {
     const snapshots = indexSnapshots(balances);
     const savingsByPeriod = indexSavingsSpend(transactions, budgets);
+    const firstPeriod = firstKnownPeriod(accounts, transactions, balances);
+
+    const range =
+      CHANGE_RANGES.find((entry) => entry.key === spanKey) ??
+      CHANGE_RANGES.find((entry) => entry.key === DEFAULT_CHANGE_RANGE);
+    // Floored at one: a future-dated opening or transaction can put
+    // `firstPeriod` on the other side of `period`, and a window has to have
+    // at least the current month in it or there is no "current" to read below.
+    const windowMonths = Math.max(1, months ?? range.months(period, firstPeriod));
 
     const series = [];
-    for (let back = months - 1; back >= 0; back -= 1) {
+    for (let back = windowMonths - 1; back >= 0; back -= 1) {
       series.push(holdingsAt(accounts, transactions, snapshots, addMonths(period, -back)));
     }
 
@@ -600,7 +736,7 @@ export default function useNetWorth(period, { months = 12 } = {}) {
       inWindow.get(at) ?? holdingsAt(accounts, transactions, snapshots, at).netCents;
 
     const changes = CHANGE_RANGES.map((range) => {
-      const fromPeriod = range.from(period);
+      const fromPeriod = range.from(period, firstPeriod);
       const fromCents = netAt(fromPeriod);
       return {
         key: range.key,
@@ -657,9 +793,13 @@ export default function useNetWorth(period, { months = 12 } = {}) {
       changes,
       // The left edge of the chart, which is what its axis and its caption say.
       windowStartPeriod: first.period,
+      // The earliest month anything is known about the books — what "all"
+      // resolves both `months` and `from` against, and null on a file with
+      // none of the three sources `firstKnownPeriod` reads.
+      firstPeriod,
       // Whether there is a shape to plot at all, as opposed to one figure
       // repeated across the window because nothing has ever been recorded.
       hasHistory: series.some((entry) => entry.netCents !== current.netCents),
     };
-  }, [accounts, balances, transactions, budgets, period, months]);
+  }, [accounts, balances, transactions, budgets, period, months, spanKey]);
 }

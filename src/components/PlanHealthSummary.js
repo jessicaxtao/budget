@@ -36,6 +36,16 @@ import { formatCents } from "../utils";
  * comparing this "Expected income" against a payslip has no other way to learn
  * why the two disagree, so both stay suppressed at zero and appear only when
  * they are true.
+ *
+ * **The pretax figure is typed here, not just read here.** It has no category
+ * to be derived from — a 401(k) deduction never reaches an on-budget account
+ * — so before this field existed the only door to it was the Retirement
+ * page, and a plan built from this page alone had no way to state it. The
+ * field writes the same `RetirementContext` record `RetirementAssumptionsPanel`
+ * does: one figure, two doors, never two figures that could disagree. It sits
+ * outside the "Where it goes" split below, which is hidden while nothing is
+ * planned yet — typing a pretax figure is itself how a plan with nothing
+ * planned becomes one with something planned.
  */
 
 // One colour per bucket, carried by the meter, the key's swatch and the figure
@@ -57,6 +67,11 @@ const BUCKET_TONES = {
   [PLAN_BUCKETS.RETIREMENT]: { fill: "bg-invested", text: "text-invested" },
 };
 
+/** Cents as the dollars the field asks for, and blank for a figure nobody has
+ *  stated — matching `RetirementAssumptionsPanel`'s own `asDollars`, since the
+ *  two fields seed from and write to the same stored value. */
+const asDollars = (cents) => (cents == null ? "" : cents / 100);
+
 export default function PlanHealthSummary({
   expectedIncomeCents,
   plannedCents,
@@ -64,6 +79,9 @@ export default function PlanHealthSummary({
   bucketRows,
   sourceCount,
   pretaxMonthlyCents = 0,
+  pretaxContributionCents = null,
+  pretaxError = null,
+  onPretaxChange,
 }) {
   // With nothing expected to come in there is no verdict to give: every plan
   // would read as over-allocated, which says more about the empty income side
@@ -135,6 +153,39 @@ export default function PlanHealthSummary({
           </dd>
         </div>
       </dl>
+
+      {/* Unconditional, unlike the split below: this is the one field on the
+          page that writes rather than reads, and it has to be reachable
+          before there is anything else planned — typing a figure here is
+          itself what turns "nothing planned yet" into a plan with something
+          in it. */}
+      <div className="border-t border-edge px-4 py-3">
+        <label className="block sm:w-72">
+          <span className="font-mono text-label uppercase text-chalk-soft">
+            Pretax retirement contributions
+          </span>
+          <input
+            key={`pretax-${pretaxContributionCents ?? ""}`}
+            defaultValue={asDollars(pretaxContributionCents)}
+            type="text"
+            inputMode="decimal"
+            placeholder="0.00"
+            aria-describedby="pretax-contribution-note"
+            className="mt-1.5 w-full border-0 border-b-2 border-edge bg-transparent px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure"
+            onBlur={(event) => onPretaxChange(event.target.value)}
+          />
+        </label>
+        <p id="pretax-contribution-note" className="mt-1.5 font-sans text-row text-chalk-soft">
+          A year's worth — a 401(k) or other payroll deduction that never reaches an on-budget
+          account, so there is no category here to read it off. Also set on the Retirement page,
+          where it feeds the projection; the two are the same figure.
+        </p>
+        {pretaxError && (
+          <p role="alert" className="mt-1.5 font-sans text-row text-vermilion">
+            {pretaxError}
+          </p>
+        )}
+      </div>
 
       {/* A status region rather than an alert: this is on screen from the moment
           the page loads, and an assertive announcement on every keystroke into

@@ -218,7 +218,7 @@ export default function RetirementAssumptionsPanel({
             placeholder="0.00"
             seed={asDollars(plan.pretaxContributionCents)}
             onCommit={(pretaxContributionCents) => onChange({ pretaxContributionCents })}
-            note="A 401(k) or other payroll deduction never reaches an on-budget account, so there is no category for the books to read it off — this is the one figure here you have to type. Added to what your retirement categories add up to, to make up the default below."
+            note="A 401(k) or other payroll deduction never reaches an on-budget account, so there is no category for the books to read it off — this is the one figure here you have to type. Added to what your retirement categories add up to, to make up the default below. Also set on the budget plan's Plan health panel, where it grosses up expected income and planned expenses by the same amount; the two are the same figure."
           />
           <Field
             label="Saving each year"

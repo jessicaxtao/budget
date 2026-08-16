@@ -9,7 +9,7 @@ import PeriodStepper from "../components/PeriodStepper";
 import Placeholder from "../components/Placeholder";
 import SegmentedControl from "../components/SegmentedControl";
 import UpdateBalancesModal from "../components/UpdateBalancesModal";
-import useNetWorth, { DEFAULT_CHANGE_RANGE } from "../hooks/useNetWorth";
+import useNetWorth, { CHANGE_RANGES, DEFAULT_CHANGE_RANGE } from "../hooks/useNetWorth";
 import { currentPeriod, formatCents, formatPeriod } from "../utils";
 
 /**
@@ -25,13 +25,10 @@ import { currentPeriod, formatCents, formatPeriod } from "../utils";
  * separate mode, because a month entered late and a month entered on time are
  * the same record.
  *
- * **Three controls, three different questions, and none of them is the others.**
- * The stepper picks the month everything on the page is *as of*. The chart's
- * span picks how much history is drawn behind it. The summary's span picks how
- * far back the headline change measures. Tying any two together would be tidier
- * and wrong: a reader comparing this month against a decade ago is not asking
- * for a decade of columns, and one studying a year of detail still wants the
- * ten-year figure beside it.
+ * **Two controls, two different questions.** The stepper picks the month
+ * everything on the page is *as of*. The span picks how far back both the chart
+ * and the summary's headline change look — one dial, so "how far back am I
+ * looking" has one answer on screen instead of two that can disagree.
  *
  * Allocation across asset classes is still a placeholder. The band split in the
  * summary — cash, investments, property, debt — is the coarse cut that answers
@@ -40,31 +37,30 @@ import { currentPeriod, formatCents, formatPeriod } from "../utils";
  */
 
 /**
- * How much history the chart can draw.
+ * How far back the page looks — both the chart's columns and the summary's
+ * headline change, which is what makes this one control instead of two.
  *
- * Years rather than months, because past a year nobody thinks in months — and
- * the steps are the ones a household measures itself in: this year, since the
- * car, since the mortgage, since the start. Ten is the ceiling because a
- * hundred and twenty columns is where a month stops being resolvable at the
- * width this card gets.
+ * The full list a span could be is `CHANGE_RANGES` in `useNetWorth`, keyed the
+ * same way on both sides of the pairing; this page offers the subset a
+ * household actually reaches for — the short spans for "did this month's
+ * moves show up", the year for the one everyone measures against, five and
+ * ten years for the long view, and all of it for the whole history. "1M" is
+ * left off: at a one-month window the chart is a single column, which is not
+ * a shape worth drawing.
  */
-const CHART_SPANS = [
-  { value: 1, label: "1Y" },
-  { value: 2, label: "2Y" },
-  { value: 5, label: "5Y" },
-  { value: 10, label: "10Y" },
-];
+const SPAN_KEYS = ["3m", "6m", "ytd", "1y", "5y", "10y", "all"];
+const SPANS = CHANGE_RANGES.filter((range) => SPAN_KEYS.includes(range.key));
 
 export default function NetWorthPage() {
   const [period, setPeriod] = useState(currentPeriod);
-  const [years, setYears] = useState(1);
-  const [range, setRange] = useState(DEFAULT_CHANGE_RANGE);
+  const [spanKey, setSpanKey] = useState(DEFAULT_CHANGE_RANGE);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const { chartSeries, slices, current, rows, tracked, changes, windowStartPeriod } = useNetWorth(
     period,
-    { months: years * 12 }
+    { spanKey }
   );
+  const change = changes.find((entry) => entry.key === spanKey) ?? changes[0];
 
   const hasAccounts = rows.length > 0;
 
@@ -110,13 +106,7 @@ export default function NetWorthPage() {
         </section>
       ) : (
         <div className="space-y-4">
-          <NetWorthSummary
-            period={period}
-            current={current}
-            changes={changes}
-            range={range}
-            onRangeChange={setRange}
-          />
+          <NetWorthSummary period={period} current={current} change={change} />
 
           {staleCount > 0 && (
             <p className="border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
@@ -139,10 +129,10 @@ export default function NetWorthPage() {
                 </span>
               </div>
               <SegmentedControl
-                label="How far back the chart reaches"
-                options={CHART_SPANS}
-                value={years}
-                onChange={setYears}
+                label="How far back"
+                options={SPANS.map((entry) => ({ value: entry.key, label: entry.label }))}
+                value={spanKey}
+                onChange={setSpanKey}
               />
             </div>
 

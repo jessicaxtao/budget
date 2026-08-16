@@ -141,6 +141,28 @@ test("an off-budget holding takes its snapshot, and carries it forward but never
   expect(read(AFTER).current.investedCents).toBe(1250000);
 });
 
+test("a restated opening balance, dated later, outranks an older snapshot", () => {
+  const stale = addMonths(PERIOD, -6);
+  seed({
+    // The account was opened long ago with a stale snapshot on file — then its
+    // opening balance was edited to restate what it is worth now, dated to
+    // the current month, the way a user correcting a starting balance would.
+    accounts: [{ ...BROKERAGE, openingBalanceCents: 1400000, openingDate: `${PERIOD}-01` }],
+    accountBalances: [{ id: "bal1", accountId: "acc-401k", period: stale, amountCents: 900000 }],
+  });
+
+  // The restated opening is the newer fact and wins, not the six-month-old
+  // snapshot underneath it.
+  expect(read(PERIOD).current.investedCents).toBe(1400000);
+  const [row] = read(PERIOD).rows;
+  expect(row.hand).toBe(true);
+  expect(row.asOf).toBe(PERIOD);
+
+  // Before the restated date, the old snapshot is still the newest fact on
+  // file and answers as before — restating later does not rewrite history.
+  expect(read(stale).current.investedCents).toBe(900000);
+});
+
 test("the chart series draws a straight line between two real snapshots, unlike the exact one", () => {
   const from = addMonths(PERIOD, -6);
   const mid = addMonths(PERIOD, -3);
@@ -378,6 +400,83 @@ test("the change is offered over several spans, each measured from a named month
   expect(changes["1y"].fromCents).toBe(1000000);
   expect(changes["1y"].changeCents).toBe(250000);
   expect(changes["1y"].changeBps).toBe(2500);
+});
+
+test("a spanKey sizes the window the same way it measures the change, and an explicit months wins over it", () => {
+  seed({
+    accounts: [BROKERAGE],
+    accountBalances: [{ id: "bal1", accountId: "acc-401k", period: PERIOD, amountCents: 1250000 }],
+  });
+
+  const withSpan = (spanKey) =>
+    renderHook(() => useNetWorth(PERIOD, { spanKey }), { wrapper: AppProviders }).result.current;
+
+  expect(withSpan("3m").series).toHaveLength(3);
+  expect(withSpan("3m").windowStartPeriod).toBe(addMonths(PERIOD, -2));
+  expect(withSpan("6m").series).toHaveLength(6);
+  // August is the 8th month, so year-to-date is eight columns: January through
+  // the month on screen.
+  expect(withSpan("ytd").series).toHaveLength(8);
+  expect(withSpan("ytd").windowStartPeriod).toBe(`${PERIOD.slice(0, 4)}-01`);
+
+  // An explicit `months` still overrides whatever the span would have picked —
+  // the numeric option is not removed, only given a default it can beat.
+  const explicit = renderHook(() => useNetWorth(PERIOD, { spanKey: "3m", months: 5 }), {
+    wrapper: AppProviders,
+  }).result.current;
+  expect(explicit.series).toHaveLength(5);
+});
+
+test("\"all\" reaches back to the first month anything is known about the books, on both sides of the pairing", () => {
+  seed({
+    accounts: [BROKERAGE],
+    // The earliest fact on file is the account's own opening, well outside any
+    // fixed span — which is the whole point of "all" over "10y".
+    accountBalances: [{ id: "bal1", accountId: "acc-401k", period: PERIOD, amountCents: 1250000 }],
+  });
+
+  const result = renderHook(() => useNetWorth(PERIOD, { spanKey: "all" }), {
+    wrapper: AppProviders,
+  }).result.current;
+
+  // BROKERAGE opens with `openingDate: null` from the shared fixture, so the
+  // earliest known fact is the balance snapshot itself: nothing to reach
+  // further back for, so the window is one column.
+  expect(result.firstPeriod).toBe(PERIOD);
+  expect(result.series).toHaveLength(1);
+  const changes = Object.fromEntries(result.changes.map((entry) => [entry.key, entry]));
+  expect(changes.all.fromPeriod).toBe(PERIOD);
+});
+
+test("\"all\" reads an account's own opening as the start of the books, capped at the same ceiling as \"10y\"", () => {
+  seed({
+    accounts: [{ ...BROKERAGE, openingDate: `${addMonths(PERIOD, -200)}-01` }],
+    accountBalances: [{ id: "bal1", accountId: "acc-401k", period: PERIOD, amountCents: 1250000 }],
+  });
+
+  const result = renderHook(() => useNetWorth(PERIOD, { spanKey: "all" }), {
+    wrapper: AppProviders,
+  }).result.current;
+
+  expect(result.firstPeriod).toBe(addMonths(PERIOD, -200));
+  // A hundred and twenty columns is where a month stops being resolvable at
+  // the chart's width — the same ceiling "10y" already sits at.
+  expect(result.series).toHaveLength(120);
+  const changes = Object.fromEntries(result.changes.map((entry) => [entry.key, entry]));
+  expect(changes.all.fromPeriod).toBe(addMonths(PERIOD, -200));
+});
+
+test("\"all\" on a file with no history at all falls back to the month on screen rather than dividing by zero", () => {
+  seed({ accounts: [] });
+
+  const result = renderHook(() => useNetWorth(PERIOD, { spanKey: "all" }), {
+    wrapper: AppProviders,
+  }).result.current;
+
+  expect(result.firstPeriod).toBeNull();
+  expect(result.series).toHaveLength(1);
+  const changes = Object.fromEntries(result.changes.map((entry) => [entry.key, entry]));
+  expect(changes.all.fromPeriod).toBe(PERIOD);
 });
 
 test("a percentage is refused where the base cannot carry one", () => {
