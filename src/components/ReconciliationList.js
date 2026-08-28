@@ -13,9 +13,9 @@ import { formatCents, formatDateMedium, formatDayDelta } from "../utils";
  * balance with no date beside it invites more confidence than the books have
  * earned.
  *
- * Off-budget accounts are listed too, unlike in the transaction form. Nothing is
- * assigned out of them, but a brokerage nobody has looked at since last year is
- * precisely the account whose figure has quietly gone wrong.
+ * The caller hands this only the accounts the budget spends through — an
+ * off-budget holding is reconciled from the Net worth page instead, where its
+ * balance is actually used.
  */
 
 // A month. Long enough that an account checked at the last statement is not

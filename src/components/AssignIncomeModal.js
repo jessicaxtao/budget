@@ -226,6 +226,9 @@ export default function AssignIncomeModal({
                     Estimate
                   </th>
                   <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                    Goal
+                  </th>
+                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
                     Assign
                   </th>
                   <th className="w-12 px-3 py-2">
@@ -244,6 +247,9 @@ export default function AssignIncomeModal({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row text-ink-soft">
                       {row.plannedCents ? formatCents(row.plannedCents) : "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row text-ink-soft">
+                      {row.goalCents == null ? "—" : formatCents(row.goalCents)}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <input

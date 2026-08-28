@@ -104,7 +104,10 @@ test("clearing a goal is sent as the blank it is", () => {
   renderPlanner({ budgets: [budget({ name: "Car fund", goalCents: 500000 })], onGoalChange });
 
   const field = screen.getByLabelText("Goal for Car fund");
-  expect(field).toHaveValue("5000");
+  // Both decimal places, the raw-under-the-caret face every money field wears:
+  // a bare `fromCents` would seed "5000" here and "12340.5" for a figure with
+  // cents on it, and the column would stop lining up on its decimal point.
+  expect(field).toHaveValue("5000.00");
 
   fireEvent.change(field, { target: { value: "" } });
   fireEvent.blur(field);
@@ -121,7 +124,7 @@ test("a goal the store refuses is put back rather than left on screen", () => {
   fireEvent.blur(field);
 
   // The plan is still saving towards $5,000, so the row has to say so.
-  expect(field).toHaveValue("5000");
+  expect(field).toHaveValue("5000.00");
 });
 
 test("the two figure columns are named, since a row now carries both", () => {

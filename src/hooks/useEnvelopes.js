@@ -10,8 +10,11 @@ import { periodLTE, toPeriod } from "../utils";
 /**
  * Every figure the envelope view needs, for one period.
  *
- * One of two places that read across stores — the other is useAccountBalances,
- * which answers the balance-sheet question this one deliberately does not.
+ * The first of the seven hooks that read across stores — this,
+ * useAccountBalances, useNetWorth, useRetirementProjection, useSpendingReport,
+ * useGiving, useSavingsGoalEnvelopes. The second of them answers the
+ * balance-sheet question this one deliberately does not, and the last reads
+ * this one's own `goalRows` rather than the assignment store directly.
  * Each context references the others by id and never reads them back, which is
  * what keeps the provider graph acyclic; the moment derived maths moves into a
  * provider, that stops being true. See src/contexts/AppProviders.js.

@@ -42,14 +42,14 @@ import { SavingsGoalAssignmentsProvider } from "./SavingsGoalAssignmentsContext"
 // record saying when the next paycheque lands, and nothing deletes into it — so
 // its position in the cascade is free.
 //
-// SavingsGoals is independent of everything: a goal names no category, no
-// account, and no transaction, so nothing deletes into or out of it. Its
-// position in the cascade is free for the same reason PaySchedule's is.
-// SavingsGoalAssignments sits beside it for the same reason AssignmentsContext
-// sits beside BudgetsContext: it is the money-actually-put-in half of a goal,
-// keyed on the goal's id. It draws from the *same* to-be-assigned pool a
-// category does — see useEnvelopes — but nothing yet deletes a goal, so
-// there is no cascade to order it against.
+// SavingsGoals is independent of every other store: a goal names no category,
+// no account, and no transaction, so nothing outside this pair deletes into or
+// out of it. SavingsGoalAssignments is the money-actually-put-in half of a
+// goal, keyed on the goal's id, the same split AssignmentsContext keeps with
+// BudgetsContext — and it sits *outside* SavingsGoalsContext for the same
+// cascade reason Transactions sits outside Budgets: deleting a goal drops
+// every assignment to it, and the store doing that cleanup has to wrap the
+// one whose delete triggers it.
 export default function AppProviders({ children }) {
   return (
     <DonationsProvider>
@@ -60,9 +60,9 @@ export default function AppProviders({ children }) {
               <PayScheduleProvider>
                 <AccountsProvider>
                   <RetirementProvider>
-                    <SavingsGoalsProvider>
-                      <SavingsGoalAssignmentsProvider>{children}</SavingsGoalAssignmentsProvider>
-                    </SavingsGoalsProvider>
+                    <SavingsGoalAssignmentsProvider>
+                      <SavingsGoalsProvider>{children}</SavingsGoalsProvider>
+                    </SavingsGoalAssignmentsProvider>
                   </RetirementProvider>
                 </AccountsProvider>
               </PayScheduleProvider>

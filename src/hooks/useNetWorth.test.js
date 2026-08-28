@@ -188,7 +188,7 @@ test("the chart series draws a straight line between two real snapshots, unlike 
   expect(smoothed.assetsCents - smoothed.debtCents).toBe(smoothed.netCents);
 });
 
-test("the chart reads the ledger for a spend-through account, never the reconciled snapshot", () => {
+test("the chart reads a backdated statement for a spend-through account, same as the exact figure", () => {
   seed({
     accounts: [EVERYDAY],
     accountBalances: [
@@ -196,16 +196,167 @@ test("the chart reads the ledger for a spend-through account, never the reconcil
     ],
   });
 
-  // The exact figure still shows the reconciliation, same as `current` above.
+  // The exact figure shows the reconciliation, same as `current` above.
   const exact = read().series.find((entry) => entry.period === PERIOD);
   expect(exact.cashCents).toBe(220000);
 
-  // The chart draws the ledger's own figure instead — a statement that
-  // disagrees with the books for one month is drift to report, not a real
-  // dip-and-recover in what the account held.
+  // And so does the chart — a household whose ledger only starts recently
+  // leans on statements like this one for its whole history, and a chart
+  // that silently swapped the entered figure for an empty ledger would erase
+  // exactly the history it was entered to supply.
   const smoothed = read().chartSeries.find((entry) => entry.period === PERIOD);
-  expect(smoothed.cashCents).toBe(200000);
-  expect(smoothed.values[SPENDING_SLICE]).toBe(200000);
+  expect(smoothed.cashCents).toBe(220000);
+  expect(smoothed.values[SPENDING_SLICE]).toBe(220000);
+});
+
+test("the chart bridges a gap between two backdated statements for a spend-through account", () => {
+  const from = addMonths(PERIOD, -6);
+  const mid = addMonths(PERIOD, -3);
+  seed({
+    accounts: [EVERYDAY],
+    accountBalances: [
+      { id: "bal1", accountId: "acc-cash", period: from, amountCents: 100000 },
+      { id: "bal2", accountId: "acc-cash", period: PERIOD, amountCents: 220000 },
+    ],
+  });
+
+  const { series, chartSeries } = read();
+  const exact = series.find((entry) => entry.period === mid);
+  const smoothed = chartSeries.find((entry) => entry.period === mid);
+
+  // The exact figure has no statement of its own for this month, so — unlike
+  // an off-budget holding — it hands back to the ledger rather than carrying
+  // the earlier statement forward: no transactions are seeded here, so it
+  // reads the unchanged opening balance.
+  expect(exact.cashCents).toBe(200000);
+  // The chart bridges the two statements regardless of what the ledger
+  // reads in between. With no recorded activity anywhere in the gap to bend
+  // the ramp toward, it falls back to the even, month-by-month one.
+  expect(smoothed.cashCents).toBe(160000);
+});
+
+test("a spend-through account's ramp stays even even when its only recorded activity sits at the very end of the gap", () => {
+  const from = addMonths(PERIOD, -6);
+  const mid = addMonths(PERIOD, -3);
+
+  seed({
+    accounts: [EVERYDAY],
+    accountBalances: [
+      { id: "bal1", accountId: "acc-cash", period: from, amountCents: 100000 },
+      { id: "bal2", accountId: "acc-cash", period: PERIOD, amountCents: 220000 },
+    ],
+    // All of the account's own recorded activity lands in the very last
+    // month of the gap — the shape a ledger that only started tracking
+    // recently always takes. Weighting the ramp by this account's own
+    // activity would credit the whole change to this one month and draw
+    // every month before it flat — a staircase, not the fix smoothing exists
+    // to provide — which is exactly why the ramp does not use it.
+    transactions: [
+      {
+        id: "t1",
+        kind: TRANSACTION_KINDS.INFLOW,
+        accountId: "acc-cash",
+        budgetId: null,
+        amountCents: 120000,
+        date: `${PERIOD}-05`,
+      },
+    ],
+  });
+
+  const smoothed = read().chartSeries.find((entry) => entry.period === mid);
+  // Evenly ramped, halfway across the six-month gap — not flat at the first
+  // statement's figure until the month the activity happens to land in.
+  expect(smoothed.cashCents).toBe(160000);
+});
+
+test("a spend-through account's chart never carries a backdated statement forward past its own month", () => {
+  seed({
+    accounts: [EVERYDAY],
+    accountBalances: [
+      { id: "bal1", accountId: "acc-cash", period: PERIOD, amountCents: 220000 },
+    ],
+    // Real ledger activity the month after the statement — the ledger, not
+    // the frozen statement, has to answer for it, exactly as `series` does.
+    transactions: [
+      {
+        id: "t1",
+        kind: TRANSACTION_KINDS.OUTFLOW,
+        accountId: "acc-cash",
+        budgetId: null,
+        amountCents: 50000,
+        date: `${AFTER}-05`,
+      },
+    ],
+  });
+
+  const smoothed = read(AFTER).chartSeries.find((entry) => entry.period === AFTER);
+  expect(smoothed.cashCents).toBe(150000);
+});
+
+test("the chart bridges toward the ledger's own current figure when nothing at all is recorded since the last statement", () => {
+  const from = addMonths(PERIOD, -6);
+  const mid = addMonths(PERIOD, -3);
+
+  seed({
+    accounts: [EVERYDAY],
+    accountBalances: [{ id: "bal1", accountId: "acc-cash", period: from, amountCents: 100000 }],
+    // The ledger for this account only starts this month — nothing at all
+    // is recorded for it in the whole gap since the backdated statement.
+    transactions: [
+      {
+        id: "t1",
+        kind: TRANSACTION_KINDS.INFLOW,
+        accountId: "acc-cash",
+        budgetId: null,
+        amountCents: 120000,
+        date: `${PERIOD}-05`,
+      },
+    ],
+  });
+
+  const { chartSeries, current } = read();
+  const currentRow = current.rows.find((row) => row.account.id === "acc-cash");
+  // The ledger's own figure this month: opening plus the one deposit.
+  expect(currentRow.derivedCents).toBe(320000);
+
+  const smoothed = chartSeries.find((entry) => entry.period === mid);
+  // Bridged evenly between the backdated statement and the ledger's current
+  // figure — not left flat at the statement's figure until the month the
+  // ledger happens to start, and no reconciliation had to be typed in to
+  // get it.
+  expect(smoothed.cashCents).toBe(210000);
+});
+
+test("the chart does not bridge toward the ledger's current figure once the ledger has anything recorded since the last statement", () => {
+  const from = addMonths(PERIOD, -6);
+  const mid = addMonths(PERIOD, -3);
+
+  seed({
+    accounts: [EVERYDAY],
+    accountBalances: [{ id: "bal1", accountId: "acc-cash", period: from, amountCents: 100000 }],
+    // A single transaction landing partway through the gap is real evidence
+    // the ledger is tracking this account — the bridge to `period` must not
+    // override its own, already-accurate reading of the months around it.
+    transactions: [
+      {
+        id: "t1",
+        kind: TRANSACTION_KINDS.OUTFLOW,
+        accountId: "acc-cash",
+        budgetId: null,
+        amountCents: 30000,
+        date: `${mid}-10`,
+      },
+    ],
+  });
+
+  const { chartSeries, series } = read();
+  const exact = series.find((entry) => entry.period === mid);
+  const smoothed = chartSeries.find((entry) => entry.period === mid);
+
+  // Opening minus the one outflow — the ledger's own, accurate reading,
+  // left untouched on both the exact side and the chart.
+  expect(exact.cashCents).toBe(170000);
+  expect(smoothed.cashCents).toBe(170000);
 });
 
 test("the chart ramp is weighted toward when a savings-bucket transfer left the spending accounts", () => {

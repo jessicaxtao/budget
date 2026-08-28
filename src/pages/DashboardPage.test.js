@@ -107,7 +107,7 @@ test("categories are grouped, with the figures on each row", () => {
 
   const rent = within(row("Rent"));
   expect(rent.getByText("$300")).toBeInTheDocument(); // available
-  expect(rent.getAllByText("$1,500")).toHaveLength(2); // budgeted, and target
+  expect(rent.getByText("$1,500")).toBeInTheDocument(); // budgeted
   // Signed, so the row adds up as it reads: $0 carried in + $1,500 − $1,200.
   expect(rent.getByText("-$1,200")).toBeInTheDocument();
   // Nothing being saved towards here, which is a dash rather than $0.
@@ -116,7 +116,6 @@ test("categories are grouped, with the figures on each row", () => {
   // A category with no funding and no spend still appears, at zero.
   const groceries = within(row("Groceries"));
   expect(groceries.getAllByText("$0").length).toBeGreaterThan(0);
-  expect(groceries.getByText("$600")).toBeInTheDocument(); // its target
   // The goal set for it on the budget plan, carried through to the row.
   expect(groceries.getByText("$2,500")).toBeInTheDocument();
 
@@ -173,6 +172,28 @@ test("reconciling stamps today without touching the balance", () => {
   expect(screen.getByText(new RegExp(formatDateMedium(TODAY)))).toBeInTheDocument();
   expect(screen.getByText("All up to date")).toBeInTheDocument();
   expect(screen.getByText("$800")).toBeInTheDocument();
+});
+
+test("off-budget accounts sit on Net worth, not the dashboard's account panel", () => {
+  seed({
+    accounts: [
+      ACCOUNT,
+      {
+        id: "acc2",
+        name: "401(k)",
+        type: "asset",
+        scope: "off-budget",
+        assetClass: "Invested",
+        openingBalanceCents: 500000,
+        openingDate: null,
+        reconciledOn: null,
+      },
+    ],
+  });
+  renderPage();
+
+  expect(screen.getByText("Everyday")).toBeInTheDocument();
+  expect(screen.queryByText("401(k)")).not.toBeInTheDocument();
 });
 
 test("the paycheck tile counts down once a schedule is set", () => {

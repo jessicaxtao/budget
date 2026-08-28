@@ -2,7 +2,7 @@ import CategoryLedgerTable from "../components/CategoryLedgerTable";
 import DashboardSummary from "../components/DashboardSummary";
 import PageHeader from "../components/PageHeader";
 import ReconciliationList from "../components/ReconciliationList";
-import { useAccounts } from "../contexts/AccountsContext";
+import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
 import useDashboard from "../hooks/useDashboard";
 import useNextPaycheck from "../hooks/useNextPaycheck";
@@ -31,7 +31,7 @@ export default function DashboardPage() {
   const today = todayISO();
   const period = currentPeriod();
 
-  const { accounts, reconcileAccount } = useAccounts();
+  const { reconcileAccount } = useAccounts();
   const { rows: balanceRows } = useAccountBalances(period);
   const paycheck = useNextPaycheck(today);
   const dashboard = useDashboard(period);
@@ -45,11 +45,16 @@ export default function DashboardPage() {
     0
   );
 
-  const accountRows = balanceRows.map((row) => ({
-    ...row,
-    daysSince:
-      row.account.reconciledOn == null ? null : daysBetween(row.account.reconciledOn, today),
-  }));
+  // Off-budget holdings sit on Net worth, not here: nothing on this page is
+  // assigned out of them, and the dashboard's accounts panel is about what the
+  // budget can spend.
+  const accountRows = balanceRows
+    .filter((row) => spendsThroughBudget(row.account))
+    .map((row) => ({
+      ...row,
+      daysSince:
+        row.account.reconciledOn == null ? null : daysBetween(row.account.reconciledOn, today),
+    }));
 
   return (
     <>
@@ -98,7 +103,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {accounts.length > 0 && (
+      {accountRows.length > 0 && (
         <p className="mt-3 font-sans text-row text-chalk-soft">
           Balances are the opening figure plus every transaction through the account, so they
           follow the ledger — reconciling records that they agreed with the bank today.

@@ -158,6 +158,14 @@ const emptyCategory = (budgetId) => ({
   // Which months this category moved money in, so the average below can be read
   // as the rate it is or the artefact it is not.
   months: new Set(),
+  // Per-month spent/refund, for the drill-in's own chart — the same split the
+  // headline carries, just kept one level deeper rather than collapsed into the
+  // window total the rest of this hook wants.
+  monthly: new Map(),
+  // The dated, in-window transactions that fed this category's figures, for the
+  // drill-in's transaction list. Nothing here is derived twice: it is the same
+  // records the loop below already visits to build every other figure on the row.
+  transactions: [],
 });
 
 /**
@@ -235,6 +243,22 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       month[field] += amountCents;
       entry[field] += amountCents;
       entry.months.add(period);
+
+      let entryMonth = entry.monthly.get(period);
+      if (!entryMonth) {
+        entryMonth = { spentCents: 0, refundCents: 0 };
+        entry.monthly.set(period, entryMonth);
+      }
+      entryMonth[field] += amountCents;
+
+      entry.transactions.push({
+        id: transaction.id,
+        date: transaction.date,
+        description: transaction.description,
+        amountCents,
+        kind: transaction.kind,
+        accountId: transaction.accountId,
+      });
     }
 
     // How many months the per-month average is honestly divided by.
@@ -324,6 +348,20 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
           targetCents: filed?.targetCents ? filed.targetCents : null,
           shareBps: shareBps(netCents, netSpentCents),
           monthsWithSpend: entry.months.size,
+          // The window, month by month, for this category alone — the drill-in's
+          // chart. Aligned to `months` exactly as `series` is, so a month with
+          // nothing against it is a real zero rather than a gap.
+          monthly: months.map((period) => {
+            const m = entry.monthly.get(period);
+            const spent = m?.spentCents ?? 0;
+            const refund = m?.refundCents ?? 0;
+            return { period, spentCents: spent, refundCents: refund, netCents: spent - refund };
+          }),
+          // Newest first — the drill-in reads as a register scrolled to the
+          // window's own end, not as an accession log.
+          transactions: [...entry.transactions].sort((a, b) =>
+            a.date === b.date ? 0 : a.date < b.date ? 1 : -1
+          ),
         };
       })
       .sort((a, b) => b.netSpentCents - a.netSpentCents);

@@ -96,6 +96,22 @@ export const SavingsGoalAssignmentsProvider = ({ children }) => {
   );
 
   /**
+   * A goal has no spend of its own to reassign anywhere, so deleting one drops
+   * every period's assignment to it outright rather than moving them the way
+   * a deleted category's funding moves to Uncategorized — there is no
+   * catch-all goal for the money to land in, and the "to be assigned" pool is
+   * exactly where a dollar with nowhere left to go belongs.
+   */
+  const removeGoalAssignments = useCallback(
+    ({ goalId }) => {
+      setAssignments((prevAssignments) =>
+        prevAssignments.filter((assignment) => assignment.goalId !== goalId)
+      );
+    },
+    [setAssignments]
+  );
+
+  /**
    * The whole batch is validated before anything is written — the same
    * all-or-nothing rule setPeriodAssignments keeps for budgets, so that
    * AssignIncomeModal can commit categories and goals off one submit without
@@ -129,8 +145,14 @@ export const SavingsGoalAssignmentsProvider = ({ children }) => {
   // Memoised so a change in any other store does not re-render every
   // consumer of this one.
   const value = useMemo(
-    () => ({ assignments, getAssignedCents, setAssignedAmount, setPeriodAssignments }),
-    [assignments, getAssignedCents, setAssignedAmount, setPeriodAssignments]
+    () => ({
+      assignments,
+      getAssignedCents,
+      setAssignedAmount,
+      setPeriodAssignments,
+      removeGoalAssignments,
+    }),
+    [assignments, getAssignedCents, setAssignedAmount, setPeriodAssignments, removeGoalAssignments]
   );
 
   return (

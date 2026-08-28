@@ -1038,7 +1038,7 @@ describe("editing an account", () => {
     // Stored at -$300,000 and asked for as what is owed, the way a statement
     // reads it — the same conversion the monthly update and the backfill grid
     // apply, so the three cannot come to disagree about which way it points.
-    expect(screen.getByLabelText(/balance owed/i)).toHaveValue("300000");
+    expect(screen.getByLabelText(/balance owed/i)).toHaveValue("300000.00");
     expect(screen.getByLabelText(/balance as of/i)).toHaveValue("2021-06-01");
     expect(screen.queryByLabelText(/asset class/i)).not.toBeInTheDocument();
   });
@@ -1136,7 +1136,7 @@ describe("editing an account", () => {
 
     fireEvent.click(screen.getByText("edit Brokerage"));
     expect(screen.getByLabelText(/asset class/i)).toHaveValue("Stocks");
-    expect(screen.getByLabelText(/starting balance/i)).toHaveValue("12000");
+    expect(screen.getByLabelText(/starting balance/i)).toHaveValue("12000.00");
 
     // And adding after editing is a blank form again, on the defaults.
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

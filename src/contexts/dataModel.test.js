@@ -2196,6 +2196,43 @@ describe("the books balance after every mutation", () => {
     expect(goalEnvelopeFor(result.current.later, goalId).availableCents).toBe(15000);
   });
 
+  test("updating a goal that is not on file is refused, not silently dropped", () => {
+    const { result } = renderHook(useLedger, { wrapper });
+
+    let goalId;
+    act(() => {
+      goalId = result.current.goals.addSavingsGoal({ name: "Camera", target: "500" }).id;
+    });
+
+    // A goal deleted in another tab syncs in through the `storage` event, so
+    // the edit modal can be sitting on a record the store no longer has. The
+    // write matches nothing, and reporting that as success would close the
+    // modal as though it had landed.
+    act(() => {
+      result.current.goals.deleteSavingsGoal({ id: goalId });
+    });
+
+    let gone;
+    act(() => {
+      gone = result.current.goals.updateSavingsGoal({
+        id: goalId,
+        name: "Camera",
+        target: "600",
+      });
+    });
+    expect(gone.ok).toBe(false);
+    expect(gone.error).toMatch(/no longer exists/);
+    expect(result.current.goals.goals).toHaveLength(0);
+
+    // An id that was never on file is refused the same way.
+    let never;
+    act(() => {
+      never = result.current.goals.updateSavingsGoal({ id: "nope", name: "Ring", target: "900" });
+    });
+    expect(never.ok).toBe(false);
+    expect(result.current.goals.goals).toHaveLength(0);
+  });
+
   test("setAssignedAmount on a goal validates like a category's does", () => {
     const { result } = renderHook(useLedger, { wrapper });
 

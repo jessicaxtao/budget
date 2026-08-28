@@ -1,4 +1,6 @@
-import { formatCents, formatPeriod, fromCents, toCents } from "../utils";
+import { useState } from "react";
+import Button from "./Button";
+import { amountEditing, formatCents, formatDateMedium, formatPeriod, toCents } from "../utils";
 
 /**
  * The goals recorded so far, in the envelope shape: what each is saving
@@ -42,64 +44,161 @@ function GoalMeter({ ratio, label }) {
 
 const figureClass = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
 
-function GoalRow({ row, striped, onAssign }) {
+const headClass = "whitespace-nowrap py-2 font-mono text-label uppercase text-chalk";
+
+/**
+ * Every column the table has, in order, so the header and the full-width error
+ * row below a rejected edit cannot come to disagree about how many there are —
+ * the same rule `TransactionRegister`'s `COLUMNS` list keeps, and the reason the
+ * actions column added here later could not leave a stale colspan behind.
+ *
+ * The label is a function of the period because one column names itself from the
+ * month on screen: what has been assigned is a figure *for* a month, unlike the
+ * target and the balance beside it, which are standing facts.
+ */
+const COLUMNS = [
+  { key: "goal", label: () => "Goal", className: "px-4 text-left" },
+  { key: "target", label: () => "Target", className: "px-3 text-right" },
+  { key: "available", label: () => "Available", className: "px-3 text-right" },
+  { key: "assigned", label: (period) => formatPeriod(period), className: "px-3 text-right" },
+  { key: "remaining", label: () => "Remaining", className: "px-3 text-right" },
+  // Edit and Remove, which head nothing a reader needs to see.
+  {
+    key: "actions",
+    label: () => <span className="sr-only">Actions</span>,
+    className: "w-32 px-3",
+  },
+];
+
+const FULL_SPAN = COLUMNS.length;
+
+const rowBg = (striped) => (striped ? "bg-sheet-alt" : "bg-sheet");
+
+/**
+ * The raw-under-the-caret face of the period's contribution, and blank for a
+ * goal nothing has been put into this month — an untouched row reads as
+ * untouched against the "$0" placeholder rather than as a stored zero, which is
+ * exactly the row the store prunes. Through `amountEditing` rather than a bare
+ * `fromCents` so $1,250.50 seeds as "1250.50" and the column keeps its decimal
+ * point; a negative — money pulled back out of an over-funded goal — round-trips
+ * through `toCents` unchanged as "-12.50".
+ */
+const assignedValue = (row) => (row.assignedCents ? amountEditing(row.assignedCents) : "");
+
+function GoalRow({ row, striped, error, onAssign, onEdit, onDelete }) {
   const ratio = row.targetCents > 0 ? row.availableCents / row.targetCents : 0;
 
   function handleBlur(e) {
     const raw = e.target.value;
     const cents = raw.trim() === "" ? 0 : toCents(raw);
     const result = onAssign(row, cents);
-    if (!result.ok) e.target.value = row.assignedCents ? fromCents(row.assignedCents) : "";
+    // Put the stored figure back when the store refuses the typed one — and say
+    // why, under the row: a figure that reverts with no explanation reads as the
+    // app having lost the edit rather than having refused it.
+    if (!result.ok) e.target.value = assignedValue(row);
   }
 
   return (
-    <tr className={striped ? "bg-sheet-alt" : "bg-sheet"}>
-      <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
-        {row.name}
-        {row.targetDate && (
-          <div className="mt-0.5 font-mono text-label uppercase text-ink-soft">
-            By {row.targetDate}
+    <>
+      <tr className={rowBg(striped)}>
+        <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
+          {row.name}
+          {/* Through `formatDateMedium`, carrying the year, like every other
+              date in the app that can be a long way from today — a goal's
+              target date is years out as often as it is months. */}
+          {row.targetDate && (
+            <div className="mt-0.5 font-mono text-label uppercase text-ink-soft">
+              By {formatDateMedium(row.targetDate)}
+            </div>
+          )}
+        </th>
+        <td className={`${figureClass} text-ink-soft`}>{formatCents(row.targetCents)}</td>
+        <td className={figureClass}>
+          <div className="font-medium text-ink">{formatCents(row.availableCents)}</div>
+          <div className="mt-1 flex justify-end">
+            <GoalMeter
+              ratio={ratio}
+              label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the way to ${row.name}`}
+            />
           </div>
-        )}
-      </th>
-      <td className={`${figureClass} text-ink-soft`}>{formatCents(row.targetCents)}</td>
-      <td className={figureClass}>
-        <div className="font-medium text-ink">{formatCents(row.availableCents)}</div>
-        <div className="mt-1 flex justify-end">
-          <GoalMeter
-            ratio={ratio}
-            label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the way to ${row.name}`}
+        </td>
+        <td className="px-3 py-2 text-right">
+          {/* Keyed on the stored figure, like every other blur-commit field
+              here: a rejected edit is put back, and a change made elsewhere
+              (there is nowhere else yet, but the contract is the same one
+              every other row-level field in the app keeps) re-seeds it. */}
+          <input
+            key={row.assignedCents}
+            type="text"
+            inputMode="decimal"
+            defaultValue={assignedValue(row)}
+            placeholder="$0"
+            aria-label={`Assign to ${row.name} this period`}
+            onBlur={handleBlur}
+            className="w-24 border-0 border-b-2 border-rule bg-transparent px-0 py-1 text-right font-mono text-row tabular-nums text-ink outline-none transition-colors placeholder:text-ink-soft/60 focus:border-azure"
           />
-        </div>
-      </td>
-      <td className="px-3 py-2 text-right">
-        {/* Keyed on the stored figure, like every other blur-commit field
-            here: a rejected edit is put back, and a change made elsewhere
-            (there is nowhere else yet, but the contract is the same one
-            every other row-level field in the app keeps) re-seeds it. */}
-        <input
-          key={row.assignedCents}
-          type="text"
-          inputMode="decimal"
-          defaultValue={row.assignedCents ? fromCents(row.assignedCents) : ""}
-          placeholder="$0"
-          aria-label={`Assign to ${row.name} this period`}
-          onBlur={handleBlur}
-          className="w-24 border-0 border-b-2 border-rule bg-transparent px-0 py-1 text-right font-mono text-row tabular-nums text-ink outline-none transition-colors placeholder:text-ink-soft/60 focus:border-azure"
-        />
-      </td>
-      <td
-        className={`${figureClass} ${
-          row.remainingCents === 0 ? "font-medium text-verdant" : "text-ink-soft"
-        }`}
-      >
-        {row.remainingCents === 0 ? "Funded" : formatCents(row.remainingCents)}
-      </td>
-    </tr>
+        </td>
+        <td
+          className={`${figureClass} ${
+            row.remainingCents === 0 ? "font-medium text-verdant" : "text-ink-soft"
+          }`}
+        >
+          {row.remainingCents === 0 ? "Funded" : formatCents(row.remainingCents)}
+        </td>
+        {/* Editing before removing, and drawn as a button where Remove is bare
+            text, the same reading order AccountList gives the same pair: the
+            quiet one is the destructive one. */}
+        <td className="px-3 py-2 text-right">
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="row-action"
+              size="sm"
+              aria-label={`Edit goal: ${row.name}`}
+              onClick={() => onEdit(row)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="row"
+              size="sm"
+              aria-label={`Remove goal: ${row.name}`}
+              onClick={() => onDelete(row)}
+            >
+              Remove
+            </Button>
+          </div>
+        </td>
+      </tr>
+      {/* Under the row rather than beside it, so a rejected edit does not change
+          the width of a column the eye is reading down. `vermilion-ink`, not
+          `vermilion`: this sits on the light sheet, where the dark-chrome
+          accents are too pale to read. */}
+      {error && (
+        <tr className={rowBg(striped)}>
+          <td colSpan={FULL_SPAN} className="px-3 pb-2">
+            <p role="alert" className="font-sans text-row text-vermilion-ink">
+              {error}
+            </p>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
-export default function SavingsGoalList({ rows, period, onAssign }) {
+export default function SavingsGoalList({ rows, period, onAssign, onEdit, onDelete }) {
+  // One at a time, keyed on the row it belongs to: a rejection is a reply to the
+  // edit just made, and a page of stale messages from earlier attempts would say
+  // nothing about the cell the user is in. The same contract
+  // `TransactionRegister` and `DonationList` keep.
+  const [error, setError] = useState(null);
+
+  function commit(row, cents) {
+    const result = onAssign(row, cents);
+    setError(result.ok ? null : { id: row.goalId, message: result.error });
+    return result;
+  }
+
   return (
     <section aria-label="Savings goals" className="border border-edge bg-panel">
       <div className="border-b border-edge px-4 py-3">
@@ -116,36 +215,11 @@ export default function SavingsGoalList({ rows, period, onAssign }) {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-panel-raised">
-                <th
-                  scope="col"
-                  className="px-4 py-2 text-left font-mono text-label uppercase text-chalk"
-                >
-                  Goal
-                </th>
-                <th
-                  scope="col"
-                  className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk"
-                >
-                  Target
-                </th>
-                <th
-                  scope="col"
-                  className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk"
-                >
-                  Available
-                </th>
-                <th
-                  scope="col"
-                  className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk"
-                >
-                  {formatPeriod(period)}
-                </th>
-                <th
-                  scope="col"
-                  className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk"
-                >
-                  Remaining
-                </th>
+                {COLUMNS.map((column) => (
+                  <th key={column.key} scope="col" className={`${headClass} ${column.className}`}>
+                    {column.label(period)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -154,7 +228,10 @@ export default function SavingsGoalList({ rows, period, onAssign }) {
                   key={row.goalId}
                   row={row}
                   striped={index % 2 === 1}
-                  onAssign={onAssign}
+                  error={error?.id === row.goalId ? error.message : null}
+                  onAssign={commit}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
                 />
               ))}
             </tbody>

@@ -108,8 +108,13 @@ export default function ConfigurationPage() {
   // is read from `useNetWorth` instead — the same snapshot-aware figure the
   // Net worth page shows — or this panel would show a 401(k) frozen at its
   // opening balance while the other page shows what it is actually worth.
+  //
+  // One month, not the chart's twelve: `rows` is `current.rows` and nothing
+  // here reads the series, so the default `spanKey` window would derive eleven
+  // further months of holdings, smooth all twelve, and resolve every change
+  // range through them for a figure that is only ever the last column.
   const { rows: balanceRows } = useAccountBalances(currentPeriod());
-  const { rows: netWorthRows } = useNetWorth(currentPeriod());
+  const { rows: netWorthRows } = useNetWorth(currentPeriod(), { months: 1 });
   const balanceById = new Map(balanceRows.map((row) => [row.account.id, row.balanceCents]));
   for (const row of netWorthRows) {
     if (isOffBudget(row.account)) balanceById.set(row.account.id, row.valueCents);

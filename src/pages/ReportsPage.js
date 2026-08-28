@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import CashflowChart from "../components/CashflowChart";
+import CategoryDetailPanel from "../components/CategoryDetailPanel";
 import PageHeader from "../components/PageHeader";
 import Placeholder from "../components/Placeholder";
 import ReportSummary from "../components/ReportSummary";
 import SegmentedControl from "../components/SegmentedControl";
 import SpendingByCategoryTable from "../components/SpendingByCategoryTable";
+import { useAccounts } from "../contexts/AccountsContext";
 import useSpendingReport, {
   DEFAULT_REPORT_RANGE,
   REPORT_RANGES,
@@ -58,9 +60,21 @@ export default function ReportsPage() {
   // Read once, so the window's end and every month in it come from the same
   // reading of the calendar.
   const [endPeriod] = useState(currentPeriod);
+  // Which row the ranking below has open, if any. Owned here rather than by
+  // the table so it survives the table re-rendering when the range changes.
+  const [selectedBudgetId, setSelectedBudgetId] = useState(null);
 
   const report = useSpendingReport(endPeriod, rangeKey);
+  const { accounts } = useAccounts();
   const coverage = coverageNote(report);
+  // A category can drop out of the ranking entirely when the range moves — it
+  // simply did not spend in the new window — so the selection is resolved
+  // against the current rows rather than trusted to still name one.
+  const selectedRow = report.rows.find((row) => row.budgetId === selectedBudgetId) ?? null;
+
+  function toggleCategory(budgetId) {
+    setSelectedBudgetId((current) => (current === budgetId ? null : budgetId));
+  }
 
   return (
     <>
@@ -235,13 +249,24 @@ export default function ReportsPage() {
             </details>
           </section>
 
-          <SpendingByCategoryTable report={report} />
+          <SpendingByCategoryTable
+            report={report}
+            selectedBudgetId={selectedBudgetId}
+            onSelectCategory={toggleCategory}
+          />
+
+          {selectedRow && (
+            <CategoryDetailPanel
+              row={selectedRow}
+              months={report.months}
+              accounts={accounts}
+              onClose={() => setSelectedBudgetId(null)}
+            />
+          )}
 
           <Placeholder
             title="Still to come"
             items={[
-              "Drill into a category to see the transactions behind its figure",
-              "A category against its own history, month by month",
               "A custom start and end month, for a report that does not run to today",
               "Filter by whether a transaction is recurring",
               "Export the underlying rows as CSV",

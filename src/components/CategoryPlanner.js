@@ -20,7 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import Button from "./Button";
 import { PLAN_BUCKET_LABELS, PLAN_BUCKET_ORDER } from "../contexts/BudgetsContext";
 import { toLayout } from "../planLayout";
-import { formatCents, fromCents, toCents } from "../utils";
+import { amountEditing, formatCents, toCents } from "../utils";
 
 /**
  * The categories, filed under their groups, in the order the user arranged
@@ -150,8 +150,22 @@ function ColumnHeadings() {
   );
 }
 
-/** An empty field is a category saving towards nothing, which is most of them. */
-const goalValue = (budget) => (budget.goalCents == null ? "" : fromCents(budget.goalCents));
+/**
+ * What each figure column holds when nothing is being typed into it, and both
+ * are the raw-under-the-caret face rather than a bare `fromCents`: $1,250.50 has
+ * to seed as "1250.50", or the column stops lining up on its decimal point —
+ * which is the whole reason none of these is a `type="number"`.
+ *
+ * One function per column because the two blanks mean different things. An empty
+ * estimate is a category nobody has made their mind up about, which reads as
+ * zero against the "0" placeholder; an empty goal is a category saving towards
+ * nothing, which is most of them, and the "None" placeholder is what tells the
+ * two apart. Both the seed and the put-back go through these, so a refused edit
+ * cannot restore a figure in a shape the field would never have shown.
+ */
+const estimateValue = (budget) => (budget.plannedCents ? amountEditing(budget.plannedCents) : "");
+
+const goalValue = (budget) => amountEditing(budget.goalCents);
 
 /**
  * What a category is for, chosen on the row itself.
@@ -214,8 +228,11 @@ function CategoryRow({
     const cents = raw.trim() === "" ? 0 : toCents(raw);
     const result = onEstimateChange(budget, cents);
     // Put the stored figure back when the store refuses the typed one, so the
-    // row never shows an amount the plan is not actually using.
-    if (!result.ok) e.target.value = fromCents(budget.plannedCents);
+    // row never shows an amount the plan is not actually using — through the
+    // same `estimateValue` the field was seeded with, so a category estimated
+    // at nothing goes back to the blank its placeholder explains rather than to
+    // a typed "0" the user never wrote.
+    if (!result.ok) e.target.value = estimateValue(budget);
   }
 
   /**
@@ -288,7 +305,7 @@ function CategoryRow({
       <input
         type="text"
         inputMode="decimal"
-        defaultValue={budget.plannedCents ? fromCents(budget.plannedCents) : ""}
+        defaultValue={estimateValue(budget)}
         placeholder="0"
         aria-label={`Monthly estimate for ${budget.name}`}
         onBlur={handleBlur}

@@ -13,7 +13,9 @@ import { addMonths, formatCents, formatPeriod, periodLTE, toPeriod } from "../ut
 /**
  * What the household is worth, month by month, split by what kind of money it is.
  *
- * The third of the five hooks that read across stores, and the one that joins the app's two
+ * The third of the seven hooks that read across stores — useEnvelopes,
+ * useAccountBalances, this, useRetirementProjection, useSpendingReport,
+ * useGiving, useSavingsGoalEnvelopes — and the one that joins the app's two
  * ways of knowing what an account holds: the ledger's arithmetic, and the figure
  * the user read off a statement. **Every account can carry both.** A month's
  * snapshot is what that account was worth at the end of that month, whoever it
@@ -76,17 +78,30 @@ import { addMonths, formatCents, formatPeriod, periodLTE, toPeriod } from "../ut
  * questions about the real snapshots, not a guess at the months between them.
  * `chartSeries` answers a different question — what the shape of this account
  * probably was — by drawing a line between the two real snapshots that bracket
- * a gap, bent toward the months a savings- or retirement-bucket outflow
- * suggests the money actually moved rather than spread evenly across every
- * month in between. See
- * `interpolatedOffBudgetCents` and `smoothedEntry`.
+ * a gap, whichever kind of account they belong to. A household whose ledger
+ * for an on-budget account only starts partway through its history leans on
+ * backdated statements for the months before that, the same way an
+ * off-budget holding always does, and the chart bridges those the same way —
+ * a straight ledger read for that stretch would erase exactly the history
+ * the statements were entered to supply. Only an off-budget holding bends
+ * that line toward *where* the evidence says the money moved (a savings- or
+ * retirement-bucket outflow elsewhere in the books, since it has no ledger of
+ * its own); a spend-through account always takes the even, month-by-month
+ * ramp, because its own recorded activity is exactly the wrong signal to
+ * bend toward — see `interpolatedCents` for why. See also `smoothedEntry`.
  *
- * `chartSeries` also reads a spend-through account differently: it always
- * takes the ledger's own figure, never a snapshot entered for it. That
- * account has no gap to smooth — the books answer for every month — so a
- * statement that disagrees with them is drift, not new information about the
- * shape of the account, and belongs on `driftCents` rather than as a spike
- * the chart draws and un-draws a month later.
+ * An account with no bracketing pair of real snapshots is untouched — the
+ * common case for a spend-through account whose ledger already answers for
+ * every month, where a lone reconciliation still shows as `driftCents` on
+ * `rows` and `HoldingsTable` rather than being smoothed away.
+ *
+ * A spend-through account gets one further bracket besides its own typed
+ * statements: `withCurrentBridge` reaches from its last statement toward
+ * `period`'s own live ledger figure automatically, but only where the
+ * ledger has nothing at all recorded in between — so a household backfilling
+ * a partially-tracked account gets a smoothed line to the present without
+ * re-typing a reconciliation every month just to keep it alive, while an
+ * account the ledger is actually tracking is never second-guessed by it.
  */
 
 /**
@@ -427,52 +442,97 @@ function indexSavingsSpend(transactions, budgets) {
   return byPeriod;
 }
 
-/** Savings-bucket spend in the months after `fromExclusive` and at or before
- *  `toInclusive` — walked month by month rather than summed over the whole
- *  map, since a gap between two snapshots is usually a handful of months and
- *  never the app's whole history. */
-function savingsSpendBetween(savingsByPeriod, fromExclusive, toInclusive) {
+/**
+ * accountId -> the set of periods with at least one transaction against
+ * that account — presence, not amount. What decides whether
+ * `withCurrentBridge` treats a spend-through account's trailing stretch (its
+ * last backdated statement up to `period`) as ledger silence worth bridging,
+ * or as a ledger that is genuinely tracking the account and must not be
+ * second-guessed. Built once per render and walked by (account, period), the
+ * same shape as `indexSnapshots`.
+ */
+function indexAccountActivePeriods(transactions) {
+  const byAccount = new Map();
+  for (const transaction of transactions) {
+    if (transaction.accountId == null) continue;
+    const period = toPeriod(transaction.date);
+    if (period == null) continue;
+    let periods = byAccount.get(transaction.accountId);
+    if (!periods) {
+      periods = new Set();
+      byAccount.set(transaction.accountId, periods);
+    }
+    periods.add(period);
+  }
+  return byAccount;
+}
+
+/** A generic period -> cents map summed over the months after `fromExclusive`
+ *  and at or before `toInclusive` — walked month by month rather than summed
+ *  over the whole map, since a gap between two snapshots is usually a
+ *  handful of months and never the app's whole history. Shared by both
+ *  weighting signals below: the map is the only thing that differs between
+ *  "money left toward some holding" and "this account had activity". */
+function sumBetween(byPeriod, fromExclusive, toInclusive) {
   let sum = 0;
   for (
     let p = addMonths(fromExclusive, 1);
     periodLTE(p, toInclusive);
     p = addMonths(p, 1)
   ) {
-    sum += savingsByPeriod.get(p) ?? 0;
+    sum += byPeriod.get(p) ?? 0;
   }
   return sum;
 }
 
+const EMPTY_PERIOD_MAP = new Map();
+
 /**
- * An off-budget holding's value at `period`, for the chart only: a line
- * between the two real snapshots that bracket it, rather than the flat step
- * `holdingsAt` draws. A holding entered in January and not touched again
- * until June currently shows January's figure flat through May and jumps at
- * June — a staircase that makes it look like nothing happened for four months
- * and then everything happened at once.
+ * An account's value at `period`, for the chart only: a line between the two
+ * real snapshots that bracket it, rather than the flat step `holdingsAt`
+ * draws. A holding entered in January and not touched again until June
+ * currently shows January's figure flat through May and jumps at June — a
+ * staircase that makes it look like nothing happened for four months and
+ * then everything happened at once. Applies to any account with a bracketing
+ * pair of real snapshots — a hand-valued off-budget holding, and a
+ * spend-through account whose ledger doesn't reach back far enough to answer
+ * every month itself, backdated statements standing in for the missing
+ * history exactly as they do for a 401(k).
  *
  * **The line is bent toward where the money actually moved, not drawn
- * straight.** An even, month-by-month ramp is the right guess when a holding
- * simply grew — but when most of the rise between two snapshots was a lump
- * transfer out of a spending account (a house down payment routed through a
- * "Savings" category, say), an even ramp under-credits the holding for
- * however long the gap runs, and the total net worth line reads as though
- * that money briefly went missing before "catching up" — the account it was
- * really always in just hadn't been revalued yet. Weighting the ramp by
- * `indexSavingsSpend`'s figures moves the credit to roughly when the transfer
- * happened instead of spreading it evenly across months that may have seen no
- * transfer at all. **Only a proxy** — it cannot tell a transfer bound for
- * *this* holding from one bound for another, or from money that was actually
- * spent and simply miscategorised — so where the gap holds no savings- or
- * retirement-bucket spend at all (the whole change was market movement, most
- * gaps), it falls back to the even, month-by-month ramp exactly as before.
+ * straight, for an off-budget holding.** An even, month-by-month ramp is the
+ * right guess when a balance simply grew — but when most of the change
+ * between two snapshots was a lump transfer out of a spending account, an
+ * even ramp under-credits the holding for however long the gap runs, and the
+ * total net worth line reads as though that money briefly went missing
+ * before "catching up". `weightByPeriod` (`indexSavingsSpend`) is the best
+ * evidence available for *when*: money leaving a spending account toward
+ * some holding, since nothing here names which holding a transfer was headed
+ * for. **Only a proxy** — it cannot tell a transfer bound for *this* holding
+ * from one bound for another — so where the gap holds no savings- or
+ * retirement-bucket spend at all, it falls back to the even ramp.
+ *
+ * **A spend-through account always takes the even ramp** — `weightByPeriod`
+ * is passed empty for one. Its own transaction activity looks like the
+ * obvious signal, but it is exactly the wrong one: the whole reason this gap
+ * needs bridging is usually that the ledger for this account is left-censored
+ * — it only starts partway through the gap — so its recorded activity is
+ * concentrated wherever tracking happened to begin, not wherever the balance
+ * actually moved. Weighting by it would credit the *first tracked month*
+ * with the whole change and draw every month before that flat, which is the
+ * exact staircase this function exists to remove. The off-budget signal
+ * above does not have this problem because it reads a *different* account's
+ * ledger, one presumed continuously tracked throughout.
  *
  * Bridges **only real data** — where a `next` snapshot exists to draw
  * toward. Before the first snapshot or after the last, there is nothing on
  * the far side of the gap, so the same fallback `holdingsAt` already uses
  * stands: the opening balance before, the last figure carried flat after.
  * That is the "carry forward, never back" rule this hook documents, and this
- * function narrows it rather than replacing it.
+ * function narrows it rather than replacing it. An account with no snapshots
+ * at all — the common case for a spend-through account whose ledger answers
+ * for every month — returns `exactCents` immediately and never reaches the
+ * bracketing logic.
  *
  * The figure this returns never reaches `rows`, `tracked`, `driftCents`, or
  * `needsUpdate` — everywhere a snapshot's exact, real-entered value is what
@@ -480,7 +540,7 @@ function savingsSpendBetween(savingsByPeriod, fromExclusive, toInclusive) {
  * reading `holdingsAt`'s own figure. Only the chart, and its table twin, read
  * a smoothed line.
  */
-function interpolatedOffBudgetCents(snapshots, savingsByPeriod, account, period, exactCents) {
+function interpolatedCents(snapshots, weightByPeriod, account, period, exactCents) {
   const list = snapshots.get(account.id);
   if (!list || list.length === 0) return exactCents;
 
@@ -493,48 +553,108 @@ function interpolatedOffBudgetCents(snapshots, savingsByPeriod, account, period,
       break;
     }
   }
-  if (!prev || !next || prev.period === next.period) return prev?.amountCents ?? exactCents;
+  // No bracket to bridge — before the first snapshot, at or after the last,
+  // or (defensively) two snapshots sharing a period. `exactCents` is already
+  // the right answer in every one of those: for an off-budget holding it is
+  // `prev`'s own figure, carried forward by `snapshotInForce` the same way
+  // this function would; for a spend-through account past its last
+  // statement it is the ledger's, which must win here exactly as it does in
+  // `series` — a spend-through account never carries a snapshot forward.
+  if (!prev || !next || prev.period === next.period) return exactCents;
 
   const totalDelta = next.amountCents - prev.amountCents;
-  const totalWeight = savingsSpendBetween(savingsByPeriod, prev.period, next.period);
-  // With no savings-bucket spend recorded anywhere in the gap, there is
-  // nothing to bend the line toward — an even ramp across the months is the
-  // only guess left, exactly the one drawn before this weighting existed.
+  const totalWeight = sumBetween(weightByPeriod, prev.period, next.period);
+  // With no weight recorded anywhere in the gap, there is nothing to bend
+  // the line toward — an even ramp across the months is the only guess
+  // left, exactly the one drawn before this weighting existed.
   const t =
     totalWeight > 0
-      ? savingsSpendBetween(savingsByPeriod, prev.period, period) / totalWeight
+      ? sumBetween(weightByPeriod, prev.period, period) / totalWeight
       : monthsBetween(prev.period, period) / monthsBetween(prev.period, next.period);
 
   return Math.round(prev.amountCents + totalDelta * t);
 }
 
-/** A `holdingsAt` entry re-read for the chart: every off-budget row's figure
- *  smoothed toward the next real snapshot, every spend-through row read off
- *  the ledger regardless of a snapshot, and the bands and slice values
- *  re-totalled from that — the chart and its table twin's own reading of a
- *  month, kept beside but never mixed into the exact one everything else on
- *  the page reads.
+/** Whether any period in `(fromExclusive, toInclusive]` has recorded
+ *  activity for an account — the presence check `withCurrentBridge` needs,
+ *  walked the same way `sumBetween` walks a magnitude. */
+function hasActivityBetween(periods, fromExclusive, toInclusive) {
+  if (!periods) return false;
+  for (
+    let p = addMonths(fromExclusive, 1);
+    periodLTE(p, toInclusive);
+    p = addMonths(p, 1)
+  ) {
+    if (periods.has(p)) return true;
+  }
+  return false;
+}
+
+/**
+ * `snapshots`, plus one further entry for the chart only: a spend-through
+ * account that already carries at least one backdated statement, with no
+ * ledger activity at all between its last statement and `period`, gets a
+ * virtual statement dated `period` at the ledger's own figure there —
+ * `current`'s `derivedCents` for that account, already computed once for
+ * the whole window rather than re-derived here.
  *
- *  A spend-through account has a real, continuous answer for *every* month —
- *  the ledger's own arithmetic — so there is no gap for it to bridge the way
- *  an off-budget holding has between snapshots. A statement entered for one
- *  month there is a reconciliation, not new information about the months
- *  around it, and reading it into the chart draws a spike on the month it
- *  was entered and a cliff on the month after, which is not a shape the
- *  account's value actually took — the money did not leave and come back,
- *  the books were merely off by that much. That gap is real and stays real —
- *  `driftCents` still reports it, on `rows` and on `HoldingsTable` — the
- *  chart just is not where it belongs. */
+ * This is what lets a household backfilling a partially-tracked account get
+ * a smoothed line all the way to the present without re-typing a
+ * reconciliation every month just to keep the bridge alive. The typed
+ * figure is still what makes a reading *real* — `series`, `current` and
+ * `HoldingsTable` never see this virtual one, only the chart does, through
+ * `smoothedEntry`.
+ *
+ * Two guards keep it from reaching further than it should. An account with
+ * no real snapshot at all is left alone (`list` empty) — the common,
+ * fully-tracked case needs no bridge to begin with. And an account whose
+ * ledger *does* have anything recorded in the months **strictly between**
+ * its last statement and `period` is left alone too, however partial that
+ * record is — trusting a real, if incomplete, ledger reading over a
+ * synthesised one is the same call `series` already makes everywhere else,
+ * and it is what keeps a lone reconciliation on an otherwise fully-tracked
+ * account from having its accurate in-between months overwritten by a
+ * guess. `period` itself is never part of that check — it is definitionally
+ * where the ledger is expected to answer, that being the whole figure this
+ * bridge is drawn toward.
+ */
+function withCurrentBridge(snapshots, accounts, current, activePeriodsByAccount, period) {
+  const derivedNow = new Map(current.rows.map((row) => [row.account.id, row.derivedCents]));
+  const bridged = new Map(snapshots);
+
+  for (const account of accounts) {
+    if (isOffBudget(account)) continue;
+    const list = snapshots.get(account.id);
+    if (!list || list.length === 0) continue;
+
+    const last = list[list.length - 1];
+    if (periodLTE(period, last.period)) continue;
+    const between = addMonths(period, -1);
+    if (hasActivityBetween(activePeriodsByAccount.get(account.id), last.period, between)) continue;
+
+    bridged.set(account.id, [...list, { period, amountCents: derivedNow.get(account.id) ?? 0 }]);
+  }
+
+  return bridged;
+}
+
+/** A `holdingsAt` entry re-read for the chart: every row's figure smoothed
+ *  toward the next real snapshot when one brackets it, and the bands and
+ *  slice values re-totalled from that — the chart and its table twin's own
+ *  reading of a month, kept beside but never mixed into the exact one
+ *  everything else on the page reads.
+ *
+ *  Only an off-budget holding gets a weighting signal — see
+ *  `interpolatedCents` for why a spend-through account's own activity would
+ *  be the wrong one to use. An account with no bracketing snapshots is
+ *  untouched either way — `interpolatedCents` hands back `holdingsAt`'s own
+ *  figure. */
 function smoothedEntry(entry, snapshots, savingsByPeriod) {
   const rows = entry.rows.map((row) => {
-    if (!isOffBudget(row.account)) {
-      return row.valueCents === row.derivedCents
-        ? row
-        : { ...row, valueCents: row.derivedCents };
-    }
-    const valueCents = interpolatedOffBudgetCents(
+    const weightByPeriod = isOffBudget(row.account) ? savingsByPeriod : EMPTY_PERIOD_MAP;
+    const valueCents = interpolatedCents(
       snapshots,
-      savingsByPeriod,
+      weightByPeriod,
       row.account,
       entry.period,
       row.valueCents
@@ -716,15 +836,21 @@ export default function useNetWorth(period, { months, spanKey = DEFAULT_CHANGE_R
       series.push(holdingsAt(accounts, transactions, snapshots, addMonths(period, -back)));
     }
 
-    // The chart's own reading of the same months: off-budget holdings smoothed
-    // between real snapshots instead of stepped. `current`, `changes` and every
-    // other figure below reads `series`, the exact one — smoothing is for the
-    // line the eye follows across a window, not for a number anything is
-    // measured against.
-    const chartSeries = series.map((entry) => smoothedEntry(entry, snapshots, savingsByPeriod));
-
     const current = series[series.length - 1];
     const first = series[0];
+
+    // The chart's own reading of the same months: any account with a
+    // bracketing pair of real snapshots smoothed between them instead of
+    // stepped. `chartSnapshots` adds one further bracket a spend-through
+    // account can lean on — its own ledger figure at `period`, but only
+    // where the ledger has nothing at all recorded since its last statement
+    // (see `withCurrentBridge`). `current`, `changes` and every other figure
+    // below reads `series`, the exact one — smoothing is for the line the
+    // eye follows across a window, not for a number anything is measured
+    // against.
+    const activePeriodsByAccount = indexAccountActivePeriods(transactions);
+    const chartSnapshots = withCurrentBridge(snapshots, accounts, current, activePeriodsByAccount, period);
+    const chartSeries = series.map((entry) => smoothedEntry(entry, chartSnapshots, savingsByPeriod));
 
     // Net worth at any month, reusing the window where the window already covers
     // it. A reference month usually sits outside the chart — the ten-year figure

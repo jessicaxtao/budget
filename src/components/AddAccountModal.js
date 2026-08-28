@@ -11,7 +11,7 @@ import {
   toEnteredBalanceCents,
   useAccounts,
 } from "../contexts/AccountsContext";
-import { fromCents, todayISO } from "../utils";
+import { amountEditing, todayISO } from "../utils";
 
 /**
  * A place money sits — an account owned, or a debt owed — and what it held when
@@ -75,9 +75,11 @@ function seedFor(account, baseType, baseScope) {
     // answer the user chose.
     assetClass: account?.type === ACCOUNT_TYPES.ASSET ? account.assetClass : DEFAULT_ASSET_CLASS,
     // Shown the way it was entered rather than the way it is stored: a debt as
-    // the amount owed, positive.
+    // the amount owed, positive — and through `amountEditing`, the raw-under-
+    // the-caret face every money field in the app wears, so $12,340.50 seeds as
+    // "12340.50" rather than the "12340.5" a bare `fromCents` would print.
     opening: account
-      ? String(fromCents(toEnteredBalanceCents(account, account.openingBalanceCents)))
+      ? amountEditing(toEnteredBalanceCents(account, account.openingBalanceCents))
       : "",
     // An account undated when it was added stays undated — blank, not today.
     // Today is the right guess only for an account being stated for the first

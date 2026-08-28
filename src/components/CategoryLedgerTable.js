@@ -8,33 +8,30 @@ import { formatCents } from "../utils";
  *   activity  = the month's net movement, negative when money left
  *   budgeted  = what was assigned to it this month
  *   available = carried in + budgeted + activity
- *   target    = the standing monthly estimate, set on the budget plan
  *   goal      = the balance it is saving towards, set on the budget plan too
  *
  * Available leads because it is the figure the user acts on. Budgeted and
  * activity follow as the two things that moved it this month, and because
  * activity carries its own sign the row adds up as it is read rather than
- * needing one column subtracted from another. The two plan columns — what this
- * category was meant to need, and what it is saving towards — sit together at
- * the end, away from the figures that come from the books.
+ * needing one column subtracted from another. The goal — what this category
+ * is saving towards — sits at the end, away from the figures that come from
+ * the books. The standing monthly estimate (target) is plan-level detail that
+ * belongs on the budget plan, not the at-a-glance dashboard.
  *
  * The arrangement is the plan's, not this table's: the sections arrive in the
  * order set on the Configuration page, so a household that has spent time
  * arranging their categories sees the same order everywhere.
  *
  * One definition of trouble, and only one: `available < 0`. Not a second rule
- * about the target, which an envelope carrying money forward can exceed
- * quite safely — a sinking fund spends a year's saving in one month by design.
- * Nor about the goal, for the same reason in reverse: a category short of what
- * it is saving towards is a category part-way through saving, which is what
- * every goal looks like until the day it is met.
+ * about the goal, for a category short of what it is saving towards is a
+ * category part-way through saving, which is what every goal looks like
+ * until the day it is met.
  */
 
 const COLUMNS = [
   { key: "availableCents", label: "Available" },
   { key: "budgetedCents", label: "Budgeted" },
   { key: "activityCents", label: "Activity" },
-  { key: "targetCents", label: "Target" },
   { key: "goalCents", label: "Goal" },
 ];
 
@@ -60,8 +57,8 @@ function Figure({ cents, tone = "text-ink" }) {
  * columns there are — which is exactly what happened when a column was dropped
  * from one and left in the other.
  *
- * The plan columns are grey and dash when unset: they describe intent, and a
- * category nobody has estimated is not a category planned at zero.
+ * The goal column is grey and dashes when unset: it describes intent, and a
+ * category nobody has set one on is not a category saving towards zero.
  */
 function cellFor(row, key) {
   if (key === "availableCents") {
@@ -70,7 +67,6 @@ function cellFor(row, key) {
     const tone = row.availableCents < 0 ? "font-medium text-vermilion-ink" : "font-medium text-ink";
     return { cents: row.availableCents, tone };
   }
-  if (key === "targetCents") return { cents: row.targetCents || null, tone: "text-ink-soft" };
   if (key === "goalCents") return { cents: row.goalCents, tone: "text-ink-soft" };
   return { cents: row[key], tone: "text-ink" };
 }

@@ -5,6 +5,7 @@ import PageHeader from "../components/PageHeader";
 import Placeholder from "../components/Placeholder";
 import SavingsGoalList from "../components/SavingsGoalList";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
+import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
 import useEnvelopes from "../hooks/useEnvelopes";
 import useSavingsGoalEnvelopes from "../hooks/useSavingsGoalEnvelopes";
 import { currentPeriod, formatCents } from "../utils";
@@ -20,19 +21,38 @@ import { currentPeriod, formatCents } from "../utils";
  * stepper, on the same reasoning the dashboard has none: this answers where
  * each goal stands right now, not a month to walk back through.
  *
- * Linking a goal to the category or account it draws from, and editing or
- * removing a goal, are still to come.
+ * `editingGoal` picks up the same add/edit modal AddAccountModal uses:
+ * absent, it adds; a row's goal, and it amends that one. Linking a goal to
+ * the category or account it draws from is still to come.
  */
 export default function SavingsGoalsPage() {
   const [showModal, setShowModal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
   const period = currentPeriod();
 
   const { toBeAssignedCents } = useEnvelopes(period);
   const { setAssignedAmount } = useSavingsGoalAssignments();
+  const { goals, deleteSavingsGoal } = useSavingsGoals();
   const rows = useSavingsGoalEnvelopes(period);
 
   function handleAssign(row, cents) {
     return setAssignedAmount({ goalId: row.goalId, period, amountCents: cents });
+  }
+
+  function handleAdd() {
+    setEditingGoal(null);
+    setShowModal(true);
+  }
+
+  function handleEdit(row) {
+    // The row is the envelope join, not the stored record the modal edits —
+    // look the goal itself up by id rather than reshaping the row.
+    setEditingGoal(goals.find((goal) => goal.id === row.goalId) ?? null);
+    setShowModal(true);
+  }
+
+  function handleDelete(row) {
+    deleteSavingsGoal({ id: row.goalId });
   }
 
   return (
@@ -42,7 +62,7 @@ export default function SavingsGoalsPage() {
         title="Savings goals"
         description="Medium-term goals expected to exceed the normal budget — a new camera, a wedding, a special event — planned for on purpose instead of blowing through an envelope's estimate."
         actions={
-          <Button variant="primary" onClick={() => setShowModal(true)}>
+          <Button variant="primary" onClick={handleAdd}>
             Add goal
           </Button>
         }
@@ -61,18 +81,25 @@ export default function SavingsGoalsPage() {
           — money not yet assigned to a category or a goal.
         </p>
 
-        <SavingsGoalList rows={rows} period={period} onAssign={handleAssign} />
+        <SavingsGoalList
+          rows={rows}
+          period={period}
+          onAssign={handleAssign}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
 
         <Placeholder
           title="Still to come"
-          items={[
-            "Linking a goal to the category or account it draws from",
-            "Editing and removing a goal",
-          ]}
+          items={["Linking a goal to the category or account it draws from"]}
         />
       </div>
 
-      <AddSavingsGoalModal show={showModal} handleClose={() => setShowModal(false)} />
+      <AddSavingsGoalModal
+        show={showModal}
+        goal={editingGoal}
+        handleClose={() => setShowModal(false)}
+      />
     </>
   );
 }

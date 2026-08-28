@@ -188,7 +188,6 @@ export default function AddTransactionModal({
             label={isOutflow ? "Paid to" : "Received from"}
             inputRef={descriptionRef}
             type="text"
-            required
           />
           <Field label="Amount" inputRef={amountRef} type="text" inputMode="decimal" required />
           <Field label="Date" inputRef={dateRef} type="date" required defaultValue={todayISO()} />

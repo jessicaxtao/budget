@@ -45,6 +45,14 @@ import { formatBps, formatCents } from "../utils";
  * because there is nowhere left for it to have carried from. It says the
  * estimate is wrong, which is a statement about the plan rather than about the
  * envelope, and the plan is what this page is read against.
+ *
+ * ## The drill-in
+ *
+ * A category's name is a button, not a heading: clicking it tells the page
+ * which row to open in `CategoryDetailPanel` below, and clicking the open one
+ * again closes it. `selectedBudgetId` is owned by the page, not this table —
+ * the same row has to stay found after the range control moves the window out
+ * from under it, which a `useState` local to this component could not survive.
  */
 
 /**
@@ -73,15 +81,28 @@ function ShareBar({ cents, maxCents }) {
 const headCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk";
 const figureCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
 
-function CategoryRow({ row, maxCents, months, striped }) {
+function CategoryRow({ row, maxCents, months, striped, selected, onSelect }) {
   // See the note above: over the whole window an estimate can no longer be
   // exceeded by carry-over, so exceeding it says the estimate is wrong.
   const over = row.targetCents != null && row.averageCents > row.targetCents;
 
   return (
-    <tr className={striped ? "bg-sheet-alt" : "bg-sheet"}>
+    <tr className={selected ? "bg-band" : striped ? "bg-sheet-alt" : "bg-sheet"}>
       <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
-        {row.name}
+        {/* Opens the drill-in below rather than navigating away — the ranking
+            is still the context the category was picked out of, so leaving the
+            page would lose it. */}
+        <button
+          type="button"
+          onClick={() => onSelect(row.budgetId)}
+          aria-pressed={selected}
+          aria-label={`${selected ? "Hide" : "Show"} the month-by-month detail for ${row.name}`}
+          className={`text-left underline-offset-2 hover:underline ${
+            selected ? "font-medium text-azure underline" : "hover:text-azure"
+          }`}
+        >
+          {row.name}
+        </button>
         <span className="mt-0.5 block font-mono text-label uppercase text-ink-soft">
           {row.groupName ?? "No group"} · {row.monthsWithSpend} of {months}{" "}
           {months === 1 ? "month" : "months"}
@@ -112,7 +133,7 @@ function CategoryRow({ row, maxCents, months, striped }) {
   );
 }
 
-export default function SpendingByCategoryTable({ report }) {
+export default function SpendingByCategoryTable({ report, selectedBudgetId, onSelectCategory }) {
   const { rows, netSpentCents, averagedOverMonths, averageSpendCents } = report;
   const maxCents = rows.reduce((max, row) => Math.max(max, row.netSpentCents), 0);
 
@@ -170,6 +191,8 @@ export default function SpendingByCategoryTable({ report }) {
                   maxCents={maxCents}
                   months={averagedOverMonths}
                   striped={index % 2 === 1}
+                  selected={row.budgetId === selectedBudgetId}
+                  onSelect={onSelectCategory}
                 />
               ))}
             </tbody>
