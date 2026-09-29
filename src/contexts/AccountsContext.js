@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import { useTransactions } from "./TransactionsContext";
 import { formatPeriod, isValidISODate, toCents, todayISO, toPeriod } from "../utils";
 
@@ -273,8 +273,8 @@ function withOpeningSnapshot(balances, previous, { scope, openingDate, openingBa
 }
 
 export const AccountsProvider = ({ children }) => {
-  const [accounts, setAccounts] = useLocalStorage("accounts", [], migrateAccounts);
-  const [balances, setBalances] = useLocalStorage("accountBalances", [], migrateBalances);
+  const [accounts, setAccounts] = useSyncedState("accounts", [], migrateAccounts);
+  const [balances, setBalances] = useSyncedState("accountBalances", [], migrateBalances);
   const { detachAccountTransactions } = useTransactions();
 
   /**

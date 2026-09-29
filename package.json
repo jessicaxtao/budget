@@ -2,12 +2,16 @@
   "name": "react-budget-app",
   "version": "0.1.0",
   "private": true,
+  "productName": "Household Books",
+  "description": "A household's budget, on their own computer.",
+  "author": "JT Tao",
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@supabase/supabase-js": "^2.116.0",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.3.0",
     "@testing-library/user-event": "^13.5.0",
@@ -22,7 +26,11 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "shell-config": "node electron/writeShellConfig.js",
+    "desktop": "npm run shell-config -- development && concurrently -k -n cra,electron -c blue,magenta \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
+    "desktop:build": "npm run shell-config && react-scripts build && electron-builder --dir",
+    "desktop:dist": "npm run shell-config && react-scripts build && electron-builder"
   },
   "eslintConfig": {
     "extends": [
@@ -44,7 +52,53 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.5.4",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.5.26",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "wait-on": "^9.1.0"
+  },
+  "main": "electron/main.js",
+  "build": {
+    "extends": null,
+    "appId": "com.household-books.app",
+    "copyright": "Copyright © JT Tao",
+    "directories": {
+      "output": "dist",
+      "buildResources": "buildResources"
+    },
+    "files": [
+      "build/**/*",
+      "electron/**/*",
+      "!electron/writeShellConfig.js",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "buildResources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.finance",
+      "icon": "buildResources/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office",
+      "icon": "buildResources/icon.png"
+    }
   }
 }

@@ -12,6 +12,15 @@ import { SavingsGoalAssignmentsProvider } from "./SavingsGoalAssignmentsContext"
 // Composes every store in one place so index.js and the tests wrap the app the
 // same way, and adding a store does not mean editing both.
 //
+// **Three layers now sit outside this one, and none of them are its business.**
+// index.js wraps it in AuthProvider, AuthGate and SyncProvider, so by the time
+// any store below mounts there is a session and the account's documents are
+// already in the local cache underneath it. That ordering is what lets every
+// store here keep reading storage *synchronously* in its lazy default — see
+// src/hooks/useSyncedState.js, which is the single seam between these stores
+// and the network, and the reason nothing in this file had to change when the
+// books moved off the browser.
+//
 // **Provider order is a cascade order.** A store that has to clean up after
 // another's delete sits *outside* it, so the inner one can call into it:
 //

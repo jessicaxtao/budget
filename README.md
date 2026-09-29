@@ -2,15 +2,23 @@
 
 This budget app allows you to keep track of your money.
 
-It runs entirely in your browser. There is no backend, no account, and no sign-up
-— every figure you enter is stored in that browser's `localStorage` and never
-leaves the machine. Clearing site data clears the books.
+**Where your books are kept is your choice, and there are two answers.** Sign in
+and they live in your account, so they follow you to any device you sign in from.
+Decline the account and they stay where you are — a file on your own computer in
+the desktop app, this browser's own storage on the web — with nothing sent
+anywhere at all. The desktop app enforces that rather than promising it: unless
+there is a session to justify one, the process makes no network request of any
+kind.
+
+Either way the books are yours to take: **Configuration → Your books as a file**
+exports everything as readable JSON and restores it again.
 
 ## Getting started
 
 ```sh
 npm install
 npm start        # dev server at http://localhost:3000
+npm run desktop  # the desktop app, against that same dev server
 ```
 
 | Command | What it does |
@@ -19,10 +27,19 @@ npm start        # dev server at http://localhost:3000
 | `npm test` | Jest + React Testing Library, watch mode |
 | `npm test -- --watchAll=false` | Single non-interactive run |
 | `npm run build` | Production build into `build/` |
+| `npm run desktop` | Electron shell pointed at the dev server |
+| `npm run desktop:build` | Packaged app into `dist/`, without an installer |
+| `npm run desktop:dist` | Installer for the platform you are on |
+
+Accounts are optional and off unless configured: copy `.env.example` to
+`.env.local` and fill in a Supabase project's URL and anon key. With those unset
+the app runs signed out on this machine's own books, which is also how the test
+suite runs it. `supabase/schema.sql` is the whole server side.
 
 Built with Create React App (react-scripts 5), React 18, React Router 6 and
-Tailwind CSS 3. Linting is CRA's built-in ESLint, which runs as part of
-`npm start` and `npm test` — there is no separate lint script.
+Tailwind CSS 3, packaged with Electron and electron-builder. Linting is CRA's
+built-in ESLint, which runs as part of `npm start` and `npm test` — there is no
+separate lint script.
 
 ## Current features — V0.2
 

@@ -6,6 +6,7 @@ import AddGroupModal from "../components/AddGroupModal";
 import AddIncomeSourceModal from "../components/AddIncomeSourceModal";
 import AssignIncomeModal from "../components/AssignIncomeModal";
 import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
+import BooksFilePanel from "../components/BooksFilePanel";
 import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
 import ExpectedIncomeTable from "../components/ExpectedIncomeTable";
@@ -345,6 +346,15 @@ export default function ConfigurationPage() {
           a page that deliberately has no month in its corner. */}
       <div className="mt-8">
         <BalanceHistoryPanel />
+      </div>
+
+      {/* Last on the page, and closed like the panel above it. Exporting is read
+          twice a year and restoring perhaps once ever, so neither belongs above
+          the things this page is actually opened to do — but the books being a
+          file the household owns is the answer to "what happens if this laptop
+          dies", and that question has to be answerable from inside the app. */}
+      <div className="mt-4">
+        <BooksFilePanel />
       </div>
 
       <AddBudgetModal

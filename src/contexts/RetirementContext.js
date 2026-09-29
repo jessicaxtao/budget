@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useMemo } from "react";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import { toBps, toCents } from "../utils";
 
 /**
@@ -207,7 +207,7 @@ function migratePlan(stored) {
 const isBlank = (value) => value === null || value === undefined || String(value).trim() === "";
 
 export const RetirementProvider = ({ children }) => {
-  const [plan, setPlan] = useLocalStorage("retirementPlan", DEFAULT_PLAN, migratePlan);
+  const [plan, setPlan] = useSyncedState("retirementPlan", DEFAULT_PLAN, migratePlan);
 
   /**
    * Patch the plan. Fields left `undefined` are left alone, so each input on the

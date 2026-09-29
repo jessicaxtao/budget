@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
+import { readKey } from "../storage";
 import { useAssignments } from "./AssignmentsContext";
 import { useTransactions } from "./TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "./constants";
@@ -141,10 +142,9 @@ function legacyPlannedCentsById() {
   const latest = new Map();
 
   try {
-    const raw = localStorage.getItem("budgetPlans");
-    if (raw == null) return latest;
-
-    const plans = JSON.parse(raw);
+    // Through `readKey`, so the fold reads the signed-in household's legacy key
+    // rather than whatever this browser holds unscoped. See src/storage.js.
+    const plans = readKey("budgetPlans");
     if (!Array.isArray(plans)) return latest;
 
     for (const plan of plans) {
@@ -177,10 +177,7 @@ function legacyPlannedCentsById() {
  */
 function storedGroupBuckets() {
   try {
-    const raw = localStorage.getItem("budgetGroups");
-    if (raw == null) return new Map();
-
-    const groups = JSON.parse(raw);
+    const groups = readKey("budgetGroups");
     if (!Array.isArray(groups)) return new Map();
 
     return new Map(
@@ -268,8 +265,8 @@ function migrateGroups(stored) {
  * drag can change a category's group and its position in the same gesture.
  */
 export const BudgetsProvider = ({ children }) => {
-  const [groups, setGroups] = useLocalStorage("budgetGroups", [], migrateGroups);
-  const [budgets, setBudgets] = useLocalStorage("budgets", [], migrateBudgets);
+  const [groups, setGroups] = useSyncedState("budgetGroups", [], migrateGroups);
+  const [budgets, setBudgets] = useSyncedState("budgets", [], migrateBudgets);
   const { reassignBudgetAssignments } = useAssignments();
   const { reassignBudgetTransactions } = useTransactions();
 

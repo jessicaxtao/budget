@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import { toCents, toPeriod } from "../utils";
 
 /**
@@ -58,7 +58,7 @@ function upsert(assignments, goalId, period, cents) {
 }
 
 export const SavingsGoalAssignmentsProvider = ({ children }) => {
-  const [assignments, setAssignments] = useLocalStorage(
+  const [assignments, setAssignments] = useSyncedState(
     "savingsGoalAssignments",
     [],
     migrateAssignments

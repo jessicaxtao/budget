@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
+import { readKey } from "../storage";
 import { useDonations } from "./DonationsContext";
 import { isValidISODate, toCents, todayISO } from "../utils";
 
@@ -102,10 +103,10 @@ export function foldLegacyLedger() {
     ["income", TRANSACTION_KINDS.INFLOW],
   ]) {
     try {
-      const raw = localStorage.getItem(key);
-      if (raw == null) continue;
-
-      const records = JSON.parse(raw);
+      // Through `readKey` rather than `localStorage` directly, so the fold reads
+      // the *signed-in household's* legacy keys and not whatever the browser
+      // happens to hold unscoped. See src/storage.js.
+      const records = readKey(key);
       if (!Array.isArray(records)) continue;
 
       for (const record of records) {
@@ -132,11 +133,8 @@ export function foldLegacyLedger() {
  */
 export function readStoredLedger() {
   try {
-    const raw = localStorage.getItem("transactions");
-    if (raw != null) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return migrateTransactions(parsed);
-    }
+    const parsed = readKey("transactions");
+    if (Array.isArray(parsed)) return migrateTransactions(parsed);
   } catch {
     // Fall through to the legacy keys, which may still be readable.
   }
@@ -236,7 +234,7 @@ function firstBroken(record, touched) {
 }
 
 export const TransactionsProvider = ({ children }) => {
-  const [transactions, setTransactions] = useLocalStorage(
+  const [transactions, setTransactions] = useSyncedState(
     "transactions",
     foldLegacyLedger,
     migrateTransactions

@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useMemo } from "react";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import {
   MAX_PAY_DAYS,
   cadenceForDays,
@@ -106,7 +106,7 @@ function migrateSchedule(stored) {
 }
 
 export const PayScheduleProvider = ({ children }) => {
-  const [schedule, setSchedule] = useLocalStorage("paySchedule", EMPTY_SCHEDULE, migrateSchedule);
+  const [schedule, setSchedule] = useSyncedState("paySchedule", EMPTY_SCHEDULE, migrateSchedule);
 
   /**
    * Patch the schedule. Fields left undefined are left alone, as on

@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import { useSavingsGoalAssignments } from "./SavingsGoalAssignmentsContext";
 import { toCents } from "../utils";
 
@@ -58,7 +58,7 @@ function migrateGoals(stored) {
 }
 
 export const SavingsGoalsProvider = ({ children }) => {
-  const [goals, setGoals] = useLocalStorage("savingsGoals", [], migrateGoals);
+  const [goals, setGoals] = useSyncedState("savingsGoals", [], migrateGoals);
   const { removeGoalAssignments } = useSavingsGoalAssignments();
 
   /**
@@ -84,8 +84,9 @@ export const SavingsGoalsProvider = ({ children }) => {
   const updateSavingsGoal = useCallback(
     ({ id, ...fields }) => {
       const existing = goals.find((goal) => goal.id === id);
-      // `useLocalStorage` listens for the `storage` event, so a goal deleted in
-      // another tab syncs into this one — and the edit modal can be open on a
+      // `useSyncedState` listens for the `storage` event and for a realtime
+      // change from another device, so a goal deleted anywhere syncs into this
+      // tab — and the edit modal can be open on a
       // record the store no longer has. Say so rather than letting a `map` that
       // matches nothing report the write as landed and the modal close on it.
       if (!existing) return { ok: false, error: "That savings goal no longer exists." };

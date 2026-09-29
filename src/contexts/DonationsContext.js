@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import { toBps, toCents } from "../utils";
 
 /**
@@ -156,13 +156,13 @@ function migrateGoals(stored) {
 }
 
 export const DonationsProvider = ({ children }) => {
-  const [recipients, setRecipients] = useLocalStorage(
+  const [recipients, setRecipients] = useSyncedState(
     "donationRecipients",
     [],
     migrateRecipients
   );
-  const [donations, setDonations] = useLocalStorage("donations", [], migrateDonations);
-  const [goals, setGoals] = useLocalStorage("donationGoals", [], migrateGoals);
+  const [donations, setDonations] = useSyncedState("donations", [], migrateDonations);
+  const [goals, setGoals] = useSyncedState("donationGoals", [], migrateGoals);
 
   /**
    * Add an organisation. Returns a result rather than throwing: the caller has

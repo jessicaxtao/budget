@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
-import useLocalStorage from "../hooks/useLocalStorage";
+import useSyncedState from "../hooks/useSyncedState";
 import { CADENCES, monthlyCents } from "../cadence";
 import { toCents } from "../utils";
 
@@ -44,7 +44,7 @@ function migrateIncomeSources(stored) {
 }
 
 export const IncomePlanProvider = ({ children }) => {
-  const [sources, setSources] = useLocalStorage("incomeSources", [], migrateIncomeSources);
+  const [sources, setSources] = useSyncedState("incomeSources", [], migrateIncomeSources);
 
   /** Each source with what it contributes to a typical month. */
   const incomeRows = useMemo(
