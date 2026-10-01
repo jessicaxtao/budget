@@ -207,3 +207,31 @@ test("undated records are called out rather than quietly left out of every month
   // And the chart genuinely does not carry them.
   expect(tile("Spending")).toBe("$1,000");
 });
+
+test("money moved off budget is kept, not spent, and the page says where it went", () => {
+  seed({
+    accounts: [
+      ACCOUNT,
+      { ...ACCOUNT, id: "brk", name: "Brokerage", scope: "off-budget", assetClass: "Equities" },
+    ],
+    budgets: [
+      { id: "b1", name: "Rent", groupId: null, plannedCents: 0, goalCents: null, bucket: "essentials" },
+      { id: "b2", name: "House fund", groupId: null, plannedCents: 0, goalCents: null, bucket: "savings" },
+    ],
+    transactions: [
+      inn(PERIOD, 500000),
+      out(PERIOD, 100000, "b1"),
+      { ...out(PERIOD, 150000, "b2"), kind: TRANSACTION_KINDS.TRANSFER, toAccountId: "brk" },
+    ],
+  });
+  renderPage();
+
+  expect(tile("Spending")).toBe("$1,000");
+  expect(tile("Net")).toBe("$4,000");
+  expect(within(summary()).getByText(/moved to off-budget accounts/)).toHaveTextContent(
+    "$1,500 moved to off-budget accounts"
+  );
+  // The savings share is what was set aside, so the split can still be held up
+  // against the plan's.
+  expect(within(summary()).getByText(/\$1,500 set aside/)).toBeInTheDocument();
+});

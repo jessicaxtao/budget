@@ -180,18 +180,89 @@ test("the selects commit on change, since there is nothing to type", () => {
 test("a value the form would not offer keeps an option of its own", () => {
   renderRegister({
     transactions: [
-      // A category deleted out from under it, and an account the transaction
-      // form does not offer. Without an option apiece the selects would show
-      // their first entry, and the row would look refiled by being looked at.
-      { ...SPEND, budgetId: UNCATEGORIZED_BUDGET_ID, accountId: "acc3" },
+      // A category deleted out from under it, and an account money in cannot
+      // arrive in. Without an option apiece the selects would show their first
+      // entry, and the row would look refiled by being looked at.
+      { ...PAY, budgetId: UNCATEGORIZED_BUDGET_ID, accountId: "acc3" },
     ],
   });
 
-  expect(screen.getByLabelText("Category of Trader Joe's")).toHaveValue(UNCATEGORIZED_BUDGET_ID);
-  expect(screen.getByLabelText("Account of Trader Joe's")).toHaveValue("acc3");
+  expect(screen.getByLabelText("Category of Paycheck")).toHaveValue(UNCATEGORIZED_BUDGET_ID);
+  expect(screen.getByLabelText("Account of Paycheck")).toHaveValue("acc3");
   expect(screen.getByRole("option", { name: "401(k)" })).toBeInTheDocument();
-  // Off-budget accounts are still not on offer to a row that does not hold one.
   expect(screen.queryByRole("option", { name: "Uncategorized", selected: false })).toBeNull();
+});
+
+test("money out can name an off-budget account; money in is offered only the budget's", () => {
+  renderRegister();
+
+  // Spending what was set aside is still spending, so the expense row offers
+  // the holdings, under a heading of their own.
+  const spendAccount = within(screen.getByLabelText("Account of Trader Joe's"));
+  expect(spendAccount.getByRole("group", { name: "Off budget" })).toBeInTheDocument();
+  expect(spendAccount.getByRole("option", { name: "401(k)" })).toBeInTheDocument();
+
+  const payAccount = within(screen.getByLabelText("Account of Paycheck"));
+  expect(payAccount.queryByRole("option", { name: "401(k)" })).toBeNull();
+});
+
+const TOP_UP = {
+  id: "t3",
+  kind: TRANSACTION_KINDS.TRANSFER,
+  description: "Pay the card",
+  amountCents: 50000,
+  date: "2026-08-12",
+  accountId: "acc1",
+  toAccountId: "acc2",
+  budgetId: null,
+};
+
+test("a transfer names both ends, sits in neither total, and has no category to move", () => {
+  renderRegister({ transactions: [SPEND, PAY, TOP_UP] });
+
+  expect(screen.getByLabelText("From account of Pay the card")).toHaveValue("acc1");
+  expect(screen.getByLabelText("To account of Pay the card")).toHaveValue("acc2");
+  expect(screen.getByLabelText("Amount for Pay the card")).toHaveValue("$500");
+  // The In column says what the row is rather than offering to flip it.
+  expect(screen.queryByLabelText("In for Pay the card")).toBeNull();
+  // Both ends are on the budget, so no envelope moves and there is no select.
+  expect(screen.queryByLabelText("Category of Pay the card")).toBeNull();
+
+  const footer = within(screen.getByRole("row", { name: /August 2026/ }));
+  expect(footer.getByText("$2,140")).toBeInTheDocument();
+  expect(footer.getByText("$78.40")).toBeInTheDocument();
+  expect(screen.getByText(/in neither total/i)).toBeInTheDocument();
+});
+
+test("editing a transfer's amount changes the amount and nothing else", () => {
+  const onChange = renderRegister({ transactions: [TOP_UP] });
+  const cell = screen.getByLabelText("Amount for Pay the card");
+
+  fireEvent.focus(cell);
+  fireEvent.change(cell, { target: { value: "450" } });
+  fireEvent.blur(cell);
+
+  expect(onChange).toHaveBeenCalledWith({ id: "t3", amountCents: 45000 });
+});
+
+test("either end of a transfer is re-pointed on change", () => {
+  const onChange = renderRegister({ transactions: [TOP_UP] });
+
+  fireEvent.change(screen.getByLabelText("To account of Pay the card"), {
+    target: { value: "acc3" },
+  });
+
+  expect(onChange).toHaveBeenCalledWith({ id: "t3", toAccountId: "acc3" });
+});
+
+test("a transfer across the budget's edge offers the envelope it moves, or none", () => {
+  renderRegister({
+    transactions: [{ ...TOP_UP, description: "To the 401(k)", toAccountId: "acc3" }],
+  });
+
+  const category = screen.getByLabelText("Category of To the 401(k)");
+  expect(category).toHaveValue("");
+  expect(within(category).getByRole("option", { name: "None — to be assigned" })).toBeInTheDocument();
 });
 
 test("undated rows get a band of their own and stay out of the month's total", () => {

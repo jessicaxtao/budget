@@ -257,3 +257,93 @@ test("an undated entry is reachable from whichever month is on screen", () => {
     `${previous}-04`
   );
 });
+
+describe("transfers", () => {
+  const accounts = [
+    {
+      id: "acc1",
+      name: "Everyday",
+      type: "asset",
+      scope: "on-budget",
+      assetClass: "Cash",
+      openingBalanceCents: 200000,
+      openingDate: null,
+      reconciledOn: null,
+    },
+    {
+      id: "sav",
+      name: "Savings",
+      type: "asset",
+      scope: "on-budget",
+      assetClass: "Cash",
+      openingBalanceCents: 0,
+      openingDate: null,
+      reconciledOn: null,
+    },
+    {
+      id: "brk",
+      name: "Brokerage",
+      type: "asset",
+      scope: "off-budget",
+      assetClass: "Equities",
+      openingBalanceCents: 0,
+      openingDate: null,
+      reconciledOn: null,
+    },
+  ];
+
+  const toBeAssigned = () => screen.getByText("To be assigned").nextElementSibling.textContent;
+
+  function transfer({ to, amount }) {
+    fireEvent.click(screen.getByRole("button", { name: "Add transaction" }));
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.change(screen.getByLabelText(/^description$/i), { target: { value: `To ${to}` } });
+    fireEvent.change(screen.getByLabelText(/^amount$/i), { target: { value: amount } });
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: to } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  }
+
+  test("between two on-budget accounts, the register shows it and the pool does not move", () => {
+    seed({ accounts });
+    renderPage();
+    // $2,000 opening and $2,140 paid in, none of it assigned.
+    expect(toBeAssigned()).toBe("$4,140");
+
+    transfer({ to: "sav", amount: "300" });
+
+    expect(toBeAssigned()).toBe("$4,140");
+    expect(screen.getByLabelText("From account of To sav")).toHaveValue("acc1");
+    expect(screen.getByLabelText("To account of To sav")).toHaveValue("sav");
+    expect(screen.getByLabelText("Amount for To sav")).toHaveValue("$300");
+    expect(screen.queryByText(/moved out this month/i)).toBeNull();
+  });
+
+  test("out to an off-budget account with no envelope, it comes out of the pool and says so", () => {
+    seed({ accounts });
+    renderPage();
+
+    transfer({ to: "brk", amount: "500" });
+
+    expect(toBeAssigned()).toBe("$3,640");
+    expect(screen.getByText(/moved out this month/i).nextElementSibling).toHaveTextContent("$500");
+    expect(entry(ledger().find((t) => t.kind === "transfer").id)).toMatchObject({
+      accountId: "acc1",
+      toAccountId: "brk",
+      budgetId: null,
+    });
+  });
+
+  test("re-pointing a transfer off budget from the register moves the pool", () => {
+    seed({ accounts });
+    renderPage();
+    transfer({ to: "sav", amount: "300" });
+
+    fireEvent.change(screen.getByLabelText("To account of To sav"), {
+      target: { value: "brk" },
+    });
+
+    expect(toBeAssigned()).toBe("$3,840");
+    // Now it crosses the budget's edge, so the row has an envelope to name.
+    expect(screen.getByLabelText("Category of To sav")).toHaveValue("");
+  });
+});

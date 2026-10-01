@@ -400,3 +400,37 @@ describe("the category ranking", () => {
     expect(report.buckets.map((entry) => entry.label)).not.toContain("Savings");
   });
 });
+
+describe("money set aside by transfer", () => {
+  const BROKERAGE = { ...ACCOUNT, id: "brk", name: "Brokerage", scope: "off-budget" };
+  const filed = (id, name, bucket) => ({ ...budget(id, name), bucket });
+
+  test("the split counts it in the bucket of the envelope it left, beside the spending", () => {
+    seed({
+      accounts: [ACCOUNT, BROKERAGE],
+      budgets: [filed("food", "Food", "essentials"), filed("house", "House fund", "savings")],
+      transactions: [
+        inn("2026-08-01", 500000),
+        out("2026-08-02", 60000, "food"),
+        {
+          ...out("2026-08-03", 40000, "house"),
+          kind: TRANSACTION_KINDS.TRANSFER,
+          toAccountId: BROKERAGE.id,
+        },
+      ],
+    });
+
+    const report = read("3m");
+
+    // Not spending: the headline is the food alone, and the money is kept.
+    expect(report.netSpentCents).toBe(60000);
+    expect(report.netCents).toBe(440000);
+    expect(report.setAsideCents).toBe(40000);
+
+    const savings = report.buckets.find((entry) => entry.bucket === "savings");
+    expect(savings).toMatchObject({ netSpentCents: 0, setAsideCents: 40000, totalCents: 40000 });
+    // Shares of the $1,000 that went somewhere, not of the $600 spent.
+    expect(savings.shareBps).toBe(4000);
+    expect(report.buckets.find((entry) => entry.bucket === "essentials").shareBps).toBe(6000);
+  });
+});

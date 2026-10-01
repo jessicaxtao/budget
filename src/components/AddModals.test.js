@@ -361,6 +361,127 @@ describe("one form for both directions", () => {
   });
 });
 
+describe("transfers between accounts", () => {
+  const ACCOUNTS = [
+    { id: "acc1", name: "Everyday", openingBalanceCents: 100000 },
+    { id: "sav", name: "Savings" },
+    { id: "brk", name: "Brokerage", scope: "off-budget", assetClass: "Equities" },
+  ];
+
+  function openHarness(accounts = ACCOUNTS) {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts(accounts);
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+  }
+
+  const stored = () => JSON.parse(localStorage.getItem("transactions"));
+
+  test("a transfer between two on-budget accounts names both and no envelope", () => {
+    openHarness();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+
+    // Starts on the first on-budget account, going to the next one.
+    expect(screen.getByLabelText(/^from$/i)).toHaveValue("acc1");
+    expect(screen.getByLabelText(/^to$/i)).toHaveValue("sav");
+    // Nothing on the budget moves, so there is no envelope to ask about.
+    expect(screen.queryByLabelText(/envelope/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/no envelope moves/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(stored()).toEqual([
+      {
+        id: expect.any(String),
+        kind: "transfer",
+        description: "",
+        amountCents: 25000,
+        date: todayISO(),
+        accountId: "acc1",
+        toAccountId: "sav",
+        budgetId: null,
+      },
+    ]);
+  });
+
+  test("across the budget's edge the envelope is offered, and optional", () => {
+    openHarness();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: "brk" } });
+
+    const envelope = screen.getByLabelText(/out of envelope/i);
+    expect(envelope).not.toBeRequired();
+    expect(envelope).toHaveValue("");
+    expect(screen.getByText(/saved, not spent/i)).toBeInTheDocument();
+
+    fireEvent.change(envelope, { target: { value: "b" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(stored()[0]).toMatchObject({ toAccountId: "brk", budgetId: "b" });
+
+    // Coming the other way it is the envelope the money goes into, and a
+    // fresh select: the one picked going out does not follow it.
+    fireEvent.click(screen.getByText("open a"));
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.change(screen.getByLabelText(/^from$/i), { target: { value: "brk" } });
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: "acc1" } });
+    expect(screen.getByLabelText(/into envelope/i)).toHaveValue("");
+  });
+
+  test("a transfer to the account it came from is refused, and the form stays open", () => {
+    openHarness();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: "acc1" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/different account/i);
+    expect(localStorage.getItem("transactions")).toBe("[]");
+  });
+
+  test("reopening starts on money out again, not on the last transfer", () => {
+    openHarness();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByText("open a"));
+
+    expect(screen.getByRole("button", { name: "Money out" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.queryByLabelText(/^to$/i)).not.toBeInTheDocument();
+  });
+
+  test("money out can be spent from an off-budget account; money in cannot arrive in one", () => {
+    openHarness();
+
+    // The house, bought out of what was set aside.
+    fireEvent.change(screen.getByLabelText(/paid from/i), { target: { value: "brk" } });
+    expect(screen.getByText(/comes out of no envelope/i)).toBeInTheDocument();
+
+    // Money in only offers the budget's own accounts, so the pick resets.
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    expect(screen.getByLabelText(/paid into/i)).toHaveValue("acc1");
+    expect(screen.queryByRole("option", { name: "Brokerage" })).not.toBeInTheDocument();
+  });
+
+  test("with one account there is no transfer form, only the way to add another", () => {
+    openHarness([ACCOUNTS[0]]);
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /add another account/i })).toHaveAttribute(
+      "href",
+      "/plan"
+    );
+  });
+});
+
 describe("forms do not keep stale input", () => {
   test("the transaction form is empty when reopened after a submit", () => {
     seedBudgets(TWO_BUDGETS);

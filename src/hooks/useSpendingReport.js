@@ -225,6 +225,9 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
     // totalled so the page can say where it went.
     let transferredInCents = 0;
     let transferredOutCents = 0;
+    // The same money by the envelope it left or returned to, net, so the bucket
+    // split below can say what share went to savings. `null` is the pool.
+    const setAsideByBudget = new Map();
 
     for (const transaction of transactions) {
       const period = toPeriod(transaction.date);
@@ -234,8 +237,12 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       if (transaction.kind === TRANSACTION_KINDS.TRANSFER) {
         if (period == null || !byMonth.has(period)) continue;
         const side = budgetSide(transaction, accountsById);
+        if (side == null) continue;
         if (side === TRANSACTION_KINDS.INFLOW) transferredInCents += amountCents;
-        else if (side === TRANSACTION_KINDS.OUTFLOW) transferredOutCents += amountCents;
+        else transferredOutCents += amountCents;
+        const key = transaction.budgetId ?? null;
+        const signed = side === TRANSACTION_KINDS.OUTFLOW ? amountCents : -amountCents;
+        setAsideByBudget.set(key, (setAsideByBudget.get(key) ?? 0) + signed);
         continue;
       }
 
@@ -361,36 +368,54 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       })
       .sort((a, b) => b.netSpentCents - a.netSpentCents);
 
-    // What the spending split into, against what the plan says it should. The
-    // plan's own split is on Configuration; this is the same four shares read
-    // off the books instead of off the estimates, which is the comparison the
-    // pair exists for.
+    // Where the money went, against where the plan says it should. The plan's
+    // own split is on Configuration; this is the same four shares read off the
+    // books instead of off the estimates, which is the comparison the pair
+    // exists for.
+    //
+    // **Spending and money set aside, each in the bucket of the envelope it
+    // came out of.** A savings envelope is emptied by transfer — into a
+    // brokerage, a 401(k) — and that is not spending, so a split of spending
+    // alone would show the savings shares near zero against the plan's and
+    // describe a household that never saves. Each segment carries the two
+    // figures apart (`netSpentCents`, `setAsideCents`) and is sized by their
+    // sum (`totalCents`).
     //
     // A category with no bucket — the Uncategorized sentinel, an id whose
-    // category was deleted — cannot be filed under one, so it gets a fifth
-    // segment rather than being dropped. The five have to add up to the total
-    // or the split is describing a smaller household than the headline does.
-    const bucketTotals = new Map(PLAN_BUCKET_ORDER.map((bucket) => [bucket, 0]));
-    let unfiledCents = 0;
-    for (const row of rows) {
-      if (row.bucket != null && bucketTotals.has(row.bucket)) {
-        bucketTotals.set(row.bucket, bucketTotals.get(row.bucket) + row.netSpentCents);
-      } else unfiledCents += row.netSpentCents;
+    // category was deleted — and money set aside straight out of "to be
+    // assigned" cannot be filed under one, so they get a fifth segment rather
+    // than being dropped. The five have to add up to the total or the split is
+    // describing a smaller household than the headline does.
+    const bucketOf = (budgetId) => {
+      const bucket = filing.get(budgetId)?.bucket;
+      return bucket != null && PLAN_BUCKET_ORDER.includes(bucket) ? bucket : null;
+    };
+    const split = new Map(
+      [...PLAN_BUCKET_ORDER, null].map((bucket) => [bucket, { spent: 0, setAside: 0 }])
+    );
+    for (const row of rows) split.get(bucketOf(row.budgetId)).spent += row.netSpentCents;
+    for (const [budgetId, cents] of setAsideByBudget) {
+      split.get(budgetId == null ? null : bucketOf(budgetId)).setAside += cents;
     }
+    const setAsideCents = transferredOutCents - transferredInCents;
+    const splitTotalCents = netSpentCents + setAsideCents;
 
-    const buckets = [
-      ...PLAN_BUCKET_ORDER.map((bucket) => ({
-        bucket,
-        label: PLAN_BUCKET_LABELS[bucket],
-        netSpentCents: bucketTotals.get(bucket),
-      })),
-      { bucket: null, label: "No category", netSpentCents: unfiledCents },
-    ]
-      .filter((entry) => entry.netSpentCents !== 0)
+    const buckets = [...PLAN_BUCKET_ORDER, null]
+      .map((bucket) => {
+        const { spent, setAside } = split.get(bucket);
+        return {
+          bucket,
+          label: bucket == null ? "No category" : PLAN_BUCKET_LABELS[bucket],
+          netSpentCents: spent,
+          setAsideCents: setAside,
+          totalCents: spent + setAside,
+        };
+      })
+      .filter((entry) => entry.netSpentCents !== 0 || entry.setAsideCents !== 0)
       .map((entry) => ({
         ...entry,
-        averageCents: perMonth(entry.netSpentCents),
-        shareBps: shareBps(entry.netSpentCents, netSpentCents),
+        averageCents: perMonth(entry.totalCents),
+        shareBps: shareBps(entry.totalCents, splitTotalCents),
       }));
 
     return {
@@ -428,6 +453,9 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       undatedIncomeCents,
       transferredInCents,
       transferredOutCents,
+      // Net, over the window: moved out less brought back. What the split's
+      // shares are a share of, beside the spending.
+      setAsideCents,
 
       hasLedger: transactions.length > 0,
       firstPeriod,

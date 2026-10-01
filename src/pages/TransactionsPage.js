@@ -38,7 +38,13 @@ export default function TransactionsPage() {
   // Only the pool figures now — the per-category rows this page used to draw
   // are the dashboard's job. Read at the period on screen, so stepping back
   // reports what was unassigned then rather than what is unassigned now.
-  const { toBeAssignedCents, periodIncomeCents, periodAssignedCents } = useEnvelopes(period);
+  const {
+    toBeAssignedCents,
+    periodIncomeCents,
+    periodAssignedCents,
+    periodTransferInCents,
+    periodTransferOutCents,
+  } = useEnvelopes(period);
 
   // The month's rows, newest first, plus every undated one — those belong to no
   // month, and a register that dropped them would leave money on the books with
@@ -57,7 +63,7 @@ export default function TransactionsPage() {
       <PageHeader
         eyebrow="Day to day"
         title="Transactions"
-        description="Every movement of money, a month at a time. Each row names the account it moved through and the category it came out of, and every cell is editable where it sits."
+        description="Every movement of money, a month at a time. Each row names the account it moved through and the category it came out of — or, for a transfer, both accounts — and every cell is editable where it sits."
         actions={
           <>
             <PeriodStepper period={period} onChange={setPeriod} />
@@ -72,6 +78,8 @@ export default function TransactionsPage() {
         toBeAssignedCents={toBeAssignedCents}
         periodIncomeCents={periodIncomeCents}
         periodAssignedCents={periodAssignedCents}
+        periodTransferInCents={periodTransferInCents}
+        periodTransferOutCents={periodTransferOutCents}
         onAssignClick={() => setShowAssignModal(true)}
       />
 

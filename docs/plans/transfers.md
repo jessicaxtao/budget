@@ -1,6 +1,7 @@
 # Plan: transfers between accounts
 
-Status: **phase 1 (store, maths, tests) built. Phase 2 (modal and register) next.**
+Status: **phases 1 and 2 built** (store, maths, modal, register, to-be-assigned bar,
+reports). Phase 3 follow-ons are optional.
 Decisions are recorded at the bottom.
 
 ## The problem
@@ -125,7 +126,7 @@ toBeAssigned + Σ available === opening + cumulative income − cumulative spend
 window) holds unchanged once "every" means every record that isn't a transfer.
 Money set aside is part of what "net" says was kept, which is the point.
 
-### UI (phase 2)
+### UI (phase 2, done)
 
 **`AddTransactionModal`**: the toggle grows a third option, **Transfer**, next
 to Money out / Money in.
@@ -163,7 +164,7 @@ and retirement shares near zero against the plan's. Give the split a
 ## Phases
 
 1. **Store + maths + tests.** Done.
-2. **Modal, register, the to-be-assigned bar and the reports page.**
+2. **Modal, register, the to-be-assigned bar and the reports page.** Done.
 3. **Follow-ons** (each optional, separately shippable):
    - *Net-worth interpolation from real transfers.* A transfer into a specific
      off-budget account says exactly when and where money moved, which
@@ -184,13 +185,24 @@ Phase 1's are in `dataModel.test.js` ("transfers between accounts") and
 - the report: transfers are neither spending nor income, and spending out of an
   off-budget account is spending.
 
-Still to come with phase 2:
+Phase 2's:
 
-- `AddModals.test.js`: the Transfer option, the category appearing and
-  disappearing as the pair crosses the boundary, re-seed across open/close
-  cycles, off-budget accounts offered for money out.
-- `TransactionsPage.test.js`: enter a transfer and see both account balances
-  move while "to be assigned" doesn't.
+- `AddModals.test.js` ("transfers between accounts"): the Transfer option, the
+  envelope appearing only when the pair crosses and defaulting to none each
+  way, a transfer to the same account refused with the form left open, reopen
+  resetting to money out, off-budget accounts offered for money out and not
+  money in, and no form with only one account.
+- `TransactionRegister.test.js`: a transfer row's two ends, its amount-only
+  edit, its absence from both totals, and its envelope only across the edge.
+- `TransactionsPage.test.js` ("transfers"): entered through the form, the pool
+  holds still between two on-budget accounts, drops (with "moved out" on the
+  bar) going off budget, and moves when the register re-points one.
+- `useSpendingReport.test.js` and `ReportsPage.test.js`: money set aside fills
+  its envelope's bucket in the split, and the page says what moved.
+
+**Known, not caused by this work:** at 768px the register's fixed columns
+already sum to more than the container, so Description collapses to nothing and
+its heading overlaps Category's. The column widths are unchanged by this plan.
 
 ## Decisions
 

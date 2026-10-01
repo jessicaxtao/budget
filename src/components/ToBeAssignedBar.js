@@ -6,9 +6,15 @@ import Elder, { ELDER_MOODS } from "./Elder";
  * Money that has arrived and has not been given a job yet.
  *
  *   toBeAssigned = opening balances + all income received − everything assigned
+ *                  ± money moved across the budget's edge with no envelope named
  *
  * Both sides run cumulatively, so last month's leftover is still here to assign
  * and does not quietly expire at the month boundary.
+ *
+ * Money moved to or from an off-budget account is neither received nor
+ * assigned, so when a month has any it gets a figure of its own beside those
+ * two — otherwise the pool would move with nothing on screen to say why. Hidden
+ * at zero, which is most months.
  *
  * A strip rather than a card, because it no longer sits in a grid of them: the
  * register below is the page, and this is the one figure that has to be true
@@ -25,6 +31,8 @@ export default function ToBeAssignedBar({
   toBeAssignedCents,
   periodIncomeCents,
   periodAssignedCents,
+  periodTransferInCents = 0,
+  periodTransferOutCents = 0,
   onAssignClick,
 }) {
   // Sulfur is the caution slot, and money sitting unassigned is exactly that —
@@ -70,14 +78,20 @@ export default function ToBeAssignedBar({
 
         <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
           {[
-            ["Received", periodIncomeCents],
-            ["Assigned", periodAssignedCents],
-          ].map(([label, cents]) => (
-            <div key={label} className="flex items-baseline gap-2">
-              <dt className="font-mono text-label uppercase text-chalk-soft">{label} this month</dt>
-              <dd className="font-mono text-row tabular-nums text-chalk">{formatCents(cents)}</dd>
-            </div>
-          ))}
+            { label: "Received", cents: periodIncomeCents, always: true },
+            { label: "Assigned", cents: periodAssignedCents, always: true },
+            { label: "Moved in", cents: periodTransferInCents },
+            { label: "Moved out", cents: periodTransferOutCents },
+          ]
+            .filter(({ cents, always }) => always || cents !== 0)
+            .map(({ label, cents }) => (
+              <div key={label} className="flex items-baseline gap-2">
+                <dt className="font-mono text-label uppercase text-chalk-soft">
+                  {label} this month
+                </dt>
+                <dd className="font-mono text-row tabular-nums text-chalk">{formatCents(cents)}</dd>
+              </div>
+            ))}
         </dl>
       </div>
 

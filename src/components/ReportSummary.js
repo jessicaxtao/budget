@@ -19,12 +19,18 @@ import { formatBps, formatCents, formatPeriod } from "../utils";
  * second line wherever a refund makes the two differ, so the netting is stated
  * rather than assumed. See `useSpendingReport`.
  *
- * **"Savings rate" means what was left in the on-budget accounts**, which is
- * income less every dollar that actually left them. Money moved between
- * envelopes is an assignment rather than a transaction and never appears here —
- * so a household that funds its car envelope every month is not credited with
- * saving until the money leaves, and is not charged with spending either. That
- * is the honest reading of a ledger with no transfers in it.
+ * **"Savings rate" means what was kept**, which is income less what was spent.
+ * Money moved between envelopes is an assignment rather than a transaction and
+ * never appears here, and neither does money moved to an off-budget account by
+ * transfer: the household still has it, so it is part of what was kept — and
+ * it counts as spending only when it is spent. The transfers are stated in a
+ * line of their own beneath the figures, so money that left the everyday
+ * accounts without being spent is visible rather than merely absent.
+ *
+ * **The split beneath is where the money went, not only where it was spent**:
+ * spending plus money set aside, each in the bucket of the envelope it came
+ * out of. A savings envelope is emptied by transfer, so a split of spending
+ * alone would put the savings shares near zero against the plan's.
  *
  * The per-month figure under each headline is the same total amortised over the
  * window, which is what makes a year comparable with a quarter — and it is
@@ -84,6 +90,9 @@ export default function ReportSummary({ report }) {
     averageSpendCents,
     averageNetCents,
     buckets,
+    transferredInCents,
+    transferredOutCents,
+    setAsideCents,
   } = report;
 
   // SplitGauge draws nothing from all-zero weights and cannot read a negative
@@ -91,7 +100,7 @@ export default function ReportSummary({ report }) {
   // passed something it would render as a broken strip. A bucket in net refund
   // still keeps its figure in the key beside the meter — it is only the ticks
   // it cannot have.
-  const weights = buckets.map((entry) => Math.max(0, entry.netSpentCents));
+  const weights = buckets.map((entry) => Math.max(0, entry.totalCents));
   const drawable = weights.reduce((sum, weight) => sum + weight, 0) > 0;
 
   return (
@@ -146,14 +155,38 @@ export default function ReportSummary({ report }) {
         />
       </dl>
 
+      {(transferredOutCents > 0 || transferredInCents > 0) && (
+        <p className="border-t border-edge px-4 py-2.5 font-sans text-row text-chalk-soft">
+          {transferredOutCents > 0 && (
+            <>
+              <span className="font-mono tabular-nums text-chalk">
+                {formatCents(transferredOutCents)}
+              </span>{" "}
+              moved to off-budget accounts
+            </>
+          )}
+          {transferredOutCents > 0 && transferredInCents > 0 && ", and "}
+          {transferredInCents > 0 && (
+            <>
+              <span className="font-mono tabular-nums text-chalk">
+                {formatCents(transferredInCents)}
+              </span>{" "}
+              brought back
+            </>
+          )}
+          . Money set aside is still yours, so it is neither spending nor income — it becomes
+          spending when it is spent.
+        </p>
+      )}
+
       {buckets.length > 0 && (
         <div className="border-t border-edge px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {drawable && (
               <SplitGauge
-                label={`How ${formatCents(netSpentCents)} of spending divided between ${buckets
-                  .map((entry) => entry.label)
-                  .join(", ")}`}
+                label={`How ${formatCents(netSpentCents + setAsideCents)} ${
+                  setAsideCents !== 0 ? "spent and set aside" : "of spending"
+                } divided between ${buckets.map((entry) => entry.label).join(", ")}`}
                 segments={buckets.map((entry, index) => ({
                   key: entry.bucket ?? "unfiled",
                   weight: weights[index],
@@ -181,11 +214,13 @@ export default function ReportSummary({ report }) {
                 />
                 <dt className="font-mono text-label uppercase text-chalk-soft">{entry.label}</dt>
                 <dd className="font-mono text-row tabular-nums text-chalk">
-                  {formatCents(entry.netSpentCents)}
+                  {formatCents(entry.totalCents)}
                 </dd>
                 <dd className="font-mono text-label uppercase text-chalk-soft">
                   {entry.shareBps == null ? "—" : formatBps(entry.shareBps)} ·{" "}
                   {formatCents(entry.averageCents)}/mo
+                  {entry.setAsideCents !== 0 &&
+                    ` · ${formatCents(entry.setAsideCents)} set aside`}
                 </dd>
               </div>
             ))}

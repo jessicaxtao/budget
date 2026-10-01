@@ -8,6 +8,7 @@ import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
+import { budgetSide, indexAccounts } from "../ledger";
 import { currentPeriod, formatCents, todayISO } from "../utils";
 
 /**
@@ -32,14 +33,26 @@ import { currentPeriod, formatCents, todayISO } from "../utils";
  * second time. The two are genuinely different events and only the user knows
  * which one happened, so the field is offered rather than guessed at.
  *
- * Only on-budget accounts are offered. Off-budget holdings are tracked by their
- * worth over time on the Net worth page, not by transactions: nobody logs each
- * tick of a 401(k), and offering the choice would invite a ledger that is
- * complete for one account and meaningless for the next.
+ * **Transfer is the third direction**: money moving between two of the
+ * household's own accounts, which is neither earned nor spent. Whether it
+ * touches the budget at all depends on the pair (`budgetSide`), so the category
+ * field exists only when the pair crosses the budget's edge — and there it is
+ * optional both ways, because "out of to-be-assigned" and "into to-be-assigned"
+ * are real answers. Each case says in a line what it will do, since the same
+ * form is moving money between envelopes in one case and nothing at all in the
+ * next.
  *
- * Uncontrolled like every other form here, with one exception: the direction is
- * held in state, because it decides which fields exist. The value submitted is
- * that state rather than a hidden input, so there is only ever one copy of it.
+ * Money in offers only on-budget accounts: off-budget holdings are tracked by
+ * their worth over time on the Net worth page, not by transactions, and nobody
+ * logs each tick of a 401(k). Money out offers every account, because spending
+ * money that was set aside — the house bought out of savings — is the moment it
+ * becomes spending, and there is nowhere else to record it. Transfers offer
+ * every account at both ends.
+ *
+ * Uncontrolled like every other form here, with three exceptions, all held in
+ * state because each decides which fields exist: the direction, and the two
+ * accounts. The values submitted are that state rather than hidden inputs, so
+ * there is only ever one copy of each.
  */
 export default function AddTransactionModal({
   show,
@@ -51,10 +64,11 @@ export default function AddTransactionModal({
   const descriptionRef = useRef();
   const amountRef = useRef();
   const dateRef = useRef();
-  const accountIdRef = useRef();
   const budgetIdRef = useRef();
   const [error, setError] = useState(null);
   const [kind, setKind] = useState(defaultKind);
+  const [fromId, setFromId] = useState("");
+  const [toId, setToId] = useState("");
 
   const { addTransaction } = useTransactions();
   const { accounts } = useAccounts();
@@ -66,11 +80,33 @@ export default function AddTransactionModal({
 
   const spendable = accounts.filter(spendsThroughBudget);
   const balanceById = new Map(balanceRows.map((row) => [row.account.id, row.balanceCents]));
+  const accountsById = indexAccounts(accounts);
 
   const isOutflow = kind === TRANSACTION_KINDS.OUTFLOW;
+  const isTransfer = kind === TRANSACTION_KINDS.TRANSFER;
+  // What each direction can name as the account the money left or arrived in.
+  const fromOptions = kind === TRANSACTION_KINDS.INFLOW ? spendable : accounts;
+
   // Nothing to book against. Said plainly, with the way out, rather than
   // presenting a form whose submit can only fail.
-  const blocked = spendable.length === 0 || (isOutflow && budgets.length === 0);
+  const blocker = isTransfer
+    ? accounts.length < 2
+      ? "two-accounts"
+      : null
+    : fromOptions.length === 0
+    ? "account"
+    : isOutflow && budgets.length === 0
+    ? "category"
+    : null;
+
+  // Which way a transfer between the two picked accounts crosses the budget's
+  // edge, if it does — the same question every figure in the app asks of it.
+  const crossing = isTransfer
+    ? budgetSide({ kind, accountId: fromId, toAccountId: toId }, accountsById)
+    : null;
+  // Money out of an off-budget account: spending, but out of no envelope.
+  const fromAccount = accountsById.get(fromId);
+  const spendingSetAside = isOutflow && fromAccount != null && !spendsThroughBudget(fromAccount);
 
   // The modal never unmounts — it is toggled by `show` — so nothing clears the
   // last entry, and `defaultValue` on a select only ever applies on the first
@@ -79,13 +115,13 @@ export default function AddTransactionModal({
     if (!show) return;
     setError(null);
     setKind(defaultKind);
+    seedAccounts(defaultKind);
     // Absent while the modal is showing the "nothing to book against" message,
     // which renders in place of the form.
     if (!formRef.current) return;
 
     formRef.current.reset();
     dateRef.current.value = todayISO();
-    accountIdRef.current.value = spendable[0]?.id ?? "";
     // Absent while there are no categories at all, which only money-in can
     // reach. Money out falls back to the first category; money in falls back to
     // none, because the common inflow is a paycheque and a refund is the one the
@@ -104,10 +140,28 @@ export default function AddTransactionModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, defaultKind, defaultBudgetId]);
 
+  // The accounts a direction starts on: the first on-budget account wherever
+  // there is one, since that is where most money moves, and for a transfer the
+  // first account that is not that one.
+  function seedAccounts(forKind) {
+    const options = forKind === TRANSACTION_KINDS.INFLOW ? spendable : accounts;
+    const from = spendable[0]?.id ?? options[0]?.id ?? "";
+    setFromId(from);
+    setToId(accounts.find((account) => account.id !== from)?.id ?? "");
+  }
+
   function handleKindChange(next) {
     if (next === kind) return;
     setKind(next);
     setError(null);
+    // An account picked for one direction stays picked for the next wherever
+    // that direction offers it — but money in cannot arrive in an off-budget
+    // account, and a transfer needs a second account to go to.
+    const options = next === TRANSACTION_KINDS.INFLOW ? spendable : accounts;
+    if (!options.some((account) => account.id === fromId)) seedAccounts(next);
+    else if (next === TRANSACTION_KINDS.TRANSFER && (toId === "" || toId === fromId)) {
+      setToId(accounts.find((account) => account.id !== fromId)?.id ?? "");
+    }
   }
 
   function handleSubmit(e) {
@@ -118,11 +172,13 @@ export default function AddTransactionModal({
       description: descriptionRef.current.value,
       amount: amountRef.current.value,
       date: dateRef.current.value,
-      accountId: accountIdRef.current?.value,
+      accountId: fromId,
+      toAccountId: isTransfer ? toId : null,
       // "" is the money-in form's "no category", which the store reads as
       // income. Sent as-is; it is the store's job to know what an empty choice
-      // means, not the form's.
-      budgetId: budgetIdRef.current?.value || null,
+      // means, not the form's. A transfer that stays on one side of the budget
+      // has no category field, so it sends none.
+      budgetId: isTransfer && crossing == null ? null : budgetIdRef.current?.value || null,
     });
 
     // Keep the modal open on a rejection so the typed details are still there
@@ -139,10 +195,11 @@ export default function AddTransactionModal({
     <Dialog show={show} handleClose={handleClose} title="New transaction">
       {/* Outside the form: it is a mode, not a field, and putting it in the
           form would have `form.reset()` fighting the state that drives it. */}
-      <div className="mb-5 grid grid-cols-2 border border-edge">
+      <div className="mb-5 grid grid-cols-3 border border-edge">
         {[
           { value: TRANSACTION_KINDS.OUTFLOW, label: "Money out", tone: "bg-vermilion" },
           { value: TRANSACTION_KINDS.INFLOW, label: "Money in", tone: "bg-verdant" },
+          { value: TRANSACTION_KINDS.TRANSFER, label: "Transfer", tone: "bg-azure" },
         ].map((option) => {
           const active = kind === option.value;
           return (
@@ -163,10 +220,19 @@ export default function AddTransactionModal({
         })}
       </div>
 
-      {blocked ? (
+      {blocker ? (
         <div className="flex items-start gap-4 font-sans text-row text-chalk-soft">
           <Elder mood={ELDER_MOODS.PONDERING} className="h-14 w-16" />
-          {spendable.length === 0 ? (
+          {blocker === "two-accounts" ? (
+            <p>
+              A transfer moves money between two of your accounts, and there{" "}
+              {accounts.length === 0 ? "are none yet" : "is only one so far"} —{" "}
+              <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">
+                add {accounts.length === 0 ? "your accounts" : "another account"}
+              </Link>{" "}
+              first.
+            </p>
+          ) : blocker === "account" ? (
             <p>
               No on-budget account yet. Money has to come from somewhere —{" "}
               <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">
@@ -187,38 +253,61 @@ export default function AddTransactionModal({
       ) : (
         <form ref={formRef} onSubmit={handleSubmit}>
           <Field
-            label={isOutflow ? "Paid to" : "Received from"}
+            label={isTransfer ? "Description" : isOutflow ? "Paid to" : "Received from"}
             inputRef={descriptionRef}
             type="text"
-            required
+            required={!isTransfer}
           />
           <Field label="Amount" inputRef={amountRef} type="text" inputMode="decimal" required />
           <Field label="Date" inputRef={dateRef} type="date" required defaultValue={todayISO()} />
+          {/* Controlled, unlike the rest of the form: which account is picked
+              decides which fields exist below, so it has to be state — and the
+              re-seed effect sets that state on every open, which is the job a
+              ref write does for the uncontrolled fields. */}
           <SelectField
-            label={isOutflow ? "Paid from" : "Paid into"}
-            selectRef={accountIdRef}
+            label={isTransfer ? "From" : isOutflow ? "Paid from" : "Paid into"}
+            value={fromId}
+            onChange={(e) => setFromId(e.target.value)}
             required
           >
-            {spendable.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} — {formatCents(balanceById.get(account.id) ?? 0)}
-              </option>
-            ))}
+            <AccountOptions accounts={fromOptions} balanceById={balanceById} />
           </SelectField>
-          {/* Keyed on the direction so switching remounts it, which is what
-              makes each direction's default its own: a fresh select takes its
-              first option, and the first option is the first category for money
-              out and "no category" for money in. Without the key the element is
-              reused and a category picked for an expense would silently turn the
-              next paycheque into a refund. */}
-          {(isOutflow || budgets.length > 0) && (
+          {isTransfer && (
+            <SelectField label="To" value={toId} onChange={(e) => setToId(e.target.value)} required>
+              <AccountOptions accounts={accounts} balanceById={balanceById} />
+            </SelectField>
+          )}
+          {/* Keyed on the direction — and for a transfer, on which way it
+              crosses — so switching remounts it, which is what makes each case's
+              default its own: a fresh select takes its first option, and the
+              first option is the first category for money out and "none" for
+              everything else. Without the key the element is reused and a
+              category picked for an expense would silently turn the next
+              paycheque into a refund. */}
+          {(isOutflow || (isTransfer ? crossing != null : budgets.length > 0)) && (
             <SelectField
-              key={kind}
-              label={isOutflow ? "Category" : "Refund to category"}
+              key={isTransfer ? `${kind}:${crossing}` : kind}
+              label={
+                isOutflow
+                  ? "Category"
+                  : isTransfer
+                  ? crossing === TRANSACTION_KINDS.OUTFLOW
+                    ? "Out of envelope"
+                    : "Into envelope"
+                  : "Refund to category"
+              }
               selectRef={budgetIdRef}
               required={isOutflow}
             >
-              {!isOutflow && <option value="">None — income to assign</option>}
+              {!isOutflow && (
+                <option value="">
+                  {!isTransfer
+                    ? "None — income to assign"
+                    : crossing === TRANSACTION_KINDS.OUTFLOW
+                    ? "None — out of to be assigned"
+                    : "None — to be assigned"}
+                </option>
+              )}
               {budgets.map((budget) => (
                 <option key={budget.id} value={budget.id}>
                   {budget.name}
@@ -226,7 +315,33 @@ export default function AddTransactionModal({
               ))}
             </SelectField>
           )}
-          {!isOutflow && (
+          {isTransfer && (
+            <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">
+              {crossing === TRANSACTION_KINDS.OUTFLOW ? (
+                <>
+                  Money set aside off budget is saved, not spent: it leaves the envelope you pick, or
+                  “to be assigned”, and counts as spending only when it is spent.
+                </>
+              ) : crossing === TRANSACTION_KINDS.INFLOW ? (
+                <>
+                  Money brought back onto the budget is your own, not income: it goes into the
+                  envelope you pick, or into “to be assigned”.
+                </>
+              ) : (
+                <>
+                  Both accounts are on the same side of the budget, so no envelope moves — only the
+                  two balances.
+                </>
+              )}
+            </p>
+          )}
+          {spendingSetAside && (
+            <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">
+              Spent from an off-budget account: it counts as spending in your reports, but comes out
+              of no envelope — the money left the budget when it was set aside.
+            </p>
+          )}
+          {kind === TRANSACTION_KINDS.INFLOW && (
             <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">
               Income lands in “to be assigned”, where you give it a job. Pick a category instead
               only if this is money coming back — a refund, or a share someone paid you back — and
@@ -246,5 +361,34 @@ export default function AddTransactionModal({
         </form>
       )}
     </Dialog>
+  );
+}
+
+/**
+ * The accounts a select offers, the ones the budget spends through first with
+ * what each holds today, then any off-budget holdings under a heading of their
+ * own — without a figure, since what the books derive for one is not what it is
+ * worth (that is a statement, on the Net worth page).
+ */
+function AccountOptions({ accounts, balanceById }) {
+  const onBudget = accounts.filter(spendsThroughBudget);
+  const offBudget = accounts.filter((account) => !spendsThroughBudget(account));
+  return (
+    <>
+      {onBudget.map((account) => (
+        <option key={account.id} value={account.id}>
+          {account.name} — {formatCents(balanceById.get(account.id) ?? 0)}
+        </option>
+      ))}
+      {offBudget.length > 0 && (
+        <optgroup label="Off budget">
+          {offBudget.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
   );
 }
