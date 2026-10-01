@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import Elder, { ELDER_MOODS } from "./Elder";
 import Dialog from "./Dialog";
 import Field, { SelectField } from "./Field";
 import Button from "./Button";
@@ -163,7 +164,8 @@ export default function AddTransactionModal({
       </div>
 
       {blocked ? (
-        <div className="font-sans text-row text-chalk-soft">
+        <div className="flex items-start gap-4 font-sans text-row text-chalk-soft">
+          <Elder mood={ELDER_MOODS.PONDERING} className="h-14 w-16" />
           {spendable.length === 0 ? (
             <p>
               No on-budget account yet. Money has to come from somewhere —{" "}

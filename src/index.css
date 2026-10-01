@@ -2,27 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/400-italic.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource/young-serif/400.css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/400-italic.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "@fontsource/ibm-plex-mono/600.css";
 
+/* The Grove's two modes. Every colour token in tailwind.config.js reads one of
+   these, as bare RGB channels so opacity modifiers still work. Light is the
+   default; `useTheme` writes `data-theme` on <html>, and public/index.html sets
+   it before the first paint so a dark-mode reload does not flash parchment.
+
+   Text pairs are checked at 4.5:1 or better against every surface they sit on
+   in their own mode. The four net-worth series are checked separately — see
+   the comment beside them in tailwind.config.js before changing one. */
+:root {
+  color-scheme: light;
+
+  --c-ledger: 246 241 231; /* #F6F1E7 parchment */
+  --c-panel: 255 253 248; /* #FFFDF8 paper */
+  --c-panel-raised: 234 225 207; /* #EAE1CF sand */
+  --c-edge: 220 207 182; /* #DCCFB6 */
+
+  --c-sheet: 255 253 248; /* #FFFDF8 */
+  --c-sheet-alt: 250 245 234; /* #FAF5EA */
+  --c-band: 234 225 207; /* #EAE1CF */
+  --c-rule: 230 219 198; /* #E6DBC6 */
+
+  --c-ink: 43 33 27; /* #2B211B bark */
+  --c-ink-soft: 107 94 82; /* #6B5E52 */
+  --c-chalk: 43 33 27;
+  --c-chalk-soft: 107 94 82;
+
+  --c-canopy: 31 74 54; /* #1F4A36 */
+  --c-on-canopy: 255 253 248;
+  --c-on-canopy-soft: 201 216 206; /* #C9D8CE */
+  --c-coin: 242 182 50; /* #F2B632 */
+  --c-on-canopy-rust: 224 118 63; /* #E0763F */
+  --c-on-canopy-sky: 143 185 214; /* #8FB9D6 */
+
+  --c-action: 47 107 79; /* #2F6B4F canopy */
+  --c-on-action: 255 253 248;
+
+  --c-azure: 49 108 114; /* #316C72 river teal */
+  --c-verdant: 47 107 79; /* #2F6B4F */
+  --c-vermilion: 163 64 26; /* #A3401A rust */
+  --c-sulfur: 125 88 0; /* #7D5800 old gold */
+  --c-vermilion-ink: 163 64 26;
+
+  --c-invested: 38 69 115; /* #264573 */
+  --c-property: 172 86 174; /* #AC56AE */
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-ledger: 20 17 14; /* #14110E bark */
+  --c-panel: 30 26 22; /* #1E1A16 */
+  --c-panel-raised: 42 36 30; /* #2A241E loam */
+  --c-edge: 58 49 41; /* #3A3129 */
+
+  --c-sheet: 30 26 22;
+  --c-sheet-alt: 34 29 24; /* #221D18 */
+  --c-band: 42 36 30;
+  --c-rule: 52 45 38; /* #342D26 */
+
+  --c-ink: 241 232 218; /* #F1E8DA parchment */
+  --c-ink-soft: 168 154 136; /* #A89A88 */
+  --c-chalk: 241 232 218;
+  --c-chalk-soft: 168 154 136;
+
+  --c-canopy: 23 54 40; /* #173628 */
+  --c-on-canopy: 255 253 248;
+  --c-on-canopy-soft: 201 216 206;
+  --c-coin: 242 182 50;
+  --c-on-canopy-rust: 224 118 63;
+  --c-on-canopy-sky: 143 185 214;
+
+  --c-action: 124 199 154; /* #7CC79A leaf */
+  --c-on-action: 15 42 31; /* #0F2A1F */
+
+  --c-azure: 134 188 214; /* #86BCD6 */
+  --c-verdant: 124 199 154;
+  --c-vermilion: 240 138 93; /* #F08A5D */
+  --c-sulfur: 242 182 50; /* #F2B632 */
+  --c-vermilion-ink: 240 138 93;
+
+  --c-invested: 87 132 199; /* #5784C7 */
+  --c-property: 211 165 212; /* #D3A5D4 */
+}
+
 body {
   margin: 0;
-  background-color: #0c1014;
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  background-color: rgb(var(--c-ledger));
+  color: rgb(var(--c-chalk));
+  font-family: "DM Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Keyboard focus stays visible everywhere, and readable against both the dark
-   chrome and the light data rows. */
+/* Keyboard focus stays visible everywhere, in either mode. */
 :focus-visible {
-  outline: 2px solid #599caa;
+  outline: 2px solid rgb(var(--c-azure));
   outline-offset: 2px;
 }
 

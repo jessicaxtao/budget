@@ -1,76 +1,88 @@
 /** @type {import('tailwindcss').Config} */
 
-// The palette is the Gotham terminal scheme, taken as-is from its ANSI slots so
-// the app reads like the terminal it sits next to. Two surfaces do the work: a
-// dark chrome that climbs Gotham's four background steps from the near-black
-// page up to the blue slate (44m), and, inverted inside it, a light data body
-// (`sheet` on Gotham's foreground mint) where the numbers live. Text tokens are
-// named for the surface they sit on — `ink`/`ink-soft` on light, `chalk`/
-// `chalk-soft` on dark — so a wrong pairing is visible at the call site.
+// The Grove: parchment, canopy green and an old orangutan's orange, in a light
+// and a dark mode. Every colour is a CSS variable declared twice in
+// `src/index.css` — once on `:root` (light) and once under `[data-theme="dark"]`
+// — so a component names a role and never a mode. The token names predate the
+// two modes and are kept because three hundred call sites already say what each
+// colour is *for*:
+//
+//   ledger / panel / panel-raised / edge   the page, cards, raised bands, hairlines
+//   sheet / sheet-alt / band / rule        data rows, zebra, subtotals, hairlines
+//   chalk / chalk-soft, ink / ink-soft     text on the first set and the second
+//
+// In both modes the two surfaces are the same lightness, so `chalk` and `ink`
+// are the same colour; the pairs survive so a future mode can pull them apart
+// again without touching a component.
+//
+// Each variable holds bare RGB channels so Tailwind's opacity modifiers
+// (`border-vermilion/60`) keep working.
+const token = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 module.exports = {
   content: ["./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
-        // The chrome ramp, darkest first. The accents below are what has to
-        // stay legible on it, so the large surfaces take the bottom two steps
-        // and the slate is reserved for bands and hovers — on a slate-sized
-        // card `azure` figures fall to 2.7:1.
-        ledger: "#0C1014", // app background
-        panel: "#0A3749", // cards, dark chrome
-        "panel-raised": "#195465", // table header bands, hover / nested surface
-        edge: "#245361", // hairline on dark
+        ledger: token("ledger"), // app background
+        panel: token("panel"), // cards
+        "panel-raised": token("panel-raised"), // header bands, hover
+        edge: token("edge"), // hairline around cards
 
-        sheet: "#D3EBE9", // data rows
-        "sheet-alt": "#C9E5E3", // zebra row
-        band: "#99D1CE", // group and subtotal rows
-        rule: "#B2DAD7", // hairline on light
+        sheet: token("sheet"), // data rows
+        "sheet-alt": token("sheet-alt"), // zebra row
+        band: token("band"), // group and subtotal rows
+        rule: token("rule"), // hairline between rows
 
-        ink: "#0C1014", // text on light
-        "ink-soft": "#245361", // secondary text on light
-        chalk: "#D3EBE9", // text on dark
-        // Gotham's foreground pair. The dimmer cyan `#599CAA` is the obvious
-        // next step down but only reaches 4.1:1 on `panel`, so secondary text
-        // takes the brighter one and `azure` keeps `#599CAA` for accents.
-        "chalk-soft": "#99D1CE", // secondary text on dark
+        ink: token("ink"), // text on the data rows
+        "ink-soft": token("ink-soft"),
+        chalk: token("chalk"), // text on the page and cards
+        "chalk-soft": token("chalk-soft"),
 
-        azure: "#599CAA", // figures, links, primary action
-        verdant: "#2AA889", // income, under budget, yes
-        // Gotham's bright red rather than its base red (#C23127): the base sits
-        // at 2.3:1 on `panel`, which is where the modals' error text lands.
-        // This one matches the old palette's contrast there and beats it on the
-        // page.
-        vermilion: "#D26937", // expense, over budget, no
-        sulfur: "#EDB443", // active tab, caution
+        // The header is the canopy in both modes — the one surface that does
+        // not follow the page — so it has tokens of its own, and `coin` is the
+        // active-tab underline drawn on it.
+        canopy: token("canopy"),
+        "on-canopy": token("on-canopy"),
+        "on-canopy-soft": token("on-canopy-soft"),
+        coin: token("coin"),
+        // The tab bar's family marks — configuration, the ledger, the reports —
+        // which sit on the canopy and so are tuned for it, not for the page.
+        "on-canopy-rust": token("on-canopy-rust"),
+        "on-canopy-sky": token("on-canopy-sky"),
 
-        // The accents above are tuned for the dark chrome and are too light to
-        // carry text on the light data rows, so destructive actions inside the
-        // sheet surface use a darkened Gotham red instead.
-        "vermilion-ink": "#8F2119",
+        // The primary action and its label. Green like income, but a token of
+        // its own: `azure` is also a bucket colour beside `verdant` on the plan's
+        // split, and the two have to stay apart there.
+        action: token("action"),
+        "on-action": token("on-action"),
 
-        // The net-worth series, and the only colours in the app chosen by
-        // measurement rather than by picking them off the Gotham ramp: a stacked
-        // chart is read by telling its bands apart, so the four have to clear a
-        // colour-vision separation gate against each other on `panel`, which no
-        // four of the accents above do. Cash and debt keep `verdant` and
-        // `vermilion` — money held and money owed mean the same here as
-        // everywhere else in the app — so only the two the palette had no hue
-        // for are new, stepped to pass alongside them.
-        //
-        // Validated all-pairs on #0A3749: worst normal-vision ΔE 16.3, worst
-        // simulated protan/deutan ΔE 6.4. That last figure sits in the band that
-        // is only legal with a second, non-colour channel, which is why the
-        // chart ships a legend, a direct label on the net, and a table view of
-        // the same figures — none of them optional. **Changing one of these four
-        // means re-running the check on all four.**
-        invested: "#5A8FEA", // stocks, bonds, and the like
-        property: "#C173B8", // the house, and anything owned that is neither
+        azure: token("azure"), // figures, links, the essentials bucket
+        verdant: token("verdant"), // income, under budget, yes
+        vermilion: token("vermilion"), // spending, over budget, no
+        sulfur: token("sulfur"), // caution, the selected segment
+        "vermilion-ink": token("vermilion-ink"), // destructive actions on rows
+
+        // The net-worth series, and the only colours chosen by measurement. A
+        // stacked chart is read by telling its bands apart, so the four (cash is
+        // `verdant`, debt `vermilion`) are checked all-pairs, and against the
+        // card they sit on, in both modes: CIEDE2000 under normal vision and
+        // under simulated protan and deutan (Machado 2009, full severity).
+        // Worst pair 12.4 in light and 12.6 in dark, where Gotham's four scored
+        // 8.5 by the same measure. `invested` and `property` differ in lightness
+        // as well as hue, which is what carries them under protanopia.
+        // **Changing one of these four means re-running the check on all four,
+        // in both modes.** The legend, the direct label and the table view stay
+        // regardless — colour is never the only channel.
+        invested: token("invested"),
+        property: token("property"),
       },
       fontFamily: {
-        // One family for structure, one for figures. The spreadsheet's own
-        // register is utilitarian sans; Plex carries that without the
-        // characterlessness of the default grid font.
-        sans: ["'IBM Plex Sans'", "system-ui", "sans-serif"],
+        // Young Serif is for the few words that name a place — the app and each
+        // page title — and nothing that has to be scanned. DM Sans carries the
+        // structure, and the figures stay in Plex Mono.
+        display: ["'Young Serif'", "Georgia", "serif"],
+        sans: ["'DM Sans'", "system-ui", "sans-serif"],
         mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
       },
       fontSize: {

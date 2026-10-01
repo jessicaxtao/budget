@@ -5,7 +5,7 @@ export default function PageHeader({ eyebrow, title, description, actions }) {
         {eyebrow ? (
           <div className="font-mono text-label uppercase text-chalk-soft">{eyebrow}</div>
         ) : null}
-        <h1 className="mt-1.5 font-sans text-2xl font-bold tracking-tight text-chalk">{title}</h1>
+        <h1 className="mt-1.5 font-display text-4xl leading-tight text-chalk">{title}</h1>
         {description ? (
           <p className="mt-2 max-w-2xl font-sans text-sm leading-relaxed text-chalk-soft">{description}</p>
         ) : null}
