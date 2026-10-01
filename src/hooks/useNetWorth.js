@@ -8,6 +8,7 @@ import {
 import { PLAN_BUCKETS, useBudgets } from "../contexts/BudgetsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { accountBalancesAt } from "./useAccountBalances";
+import { budgetSide, indexAccounts } from "../ledger";
 import { addMonths, formatCents, formatPeriod, periodLTE, toPeriod } from "../utils";
 
 /**
@@ -407,18 +408,22 @@ const TRANSFER_BUCKETS = new Set([PLAN_BUCKETS.SAVINGS, PLAN_BUCKETS.RETIREMENT]
  * books' live arithmetic on its way toward some holding, whichever one.
  *
  * This is the only signal available for *when*, inside a gap between two
- * off-budget snapshots, the money actually moved: nothing in the ledger names
- * the off-budget account a transfer was headed for (there is no transfer
- * record in this app — an outflow only names a category), so a transfer-bucket
- * outflow is a proxy, not a fact. It is shared across every off-budget
+ * off-budget snapshots, the money actually moved. A transfer to an off-budget
+ * account under such a category counts the same as an outflow; a plain
+ * outflow names only a category and not the holding it was headed for, so
+ * either is a proxy here, not a fact — attributing a transfer to the one
+ * account it names is still to come. It is shared across every off-budget
  * holding rather than attributed to one, for the same reason. Built once per
  * render and walked by period, the same shape as `indexSnapshots`.
  */
-function indexSavingsSpend(transactions, budgets) {
+function indexSavingsSpend(transactions, budgets, accounts) {
   const bucketOf = new Map(budgets.map((budget) => [budget.id, budget.bucket]));
+  const accountsById = indexAccounts(accounts);
   const byPeriod = new Map();
   for (const transaction of transactions) {
-    if (transaction.kind !== TRANSACTION_KINDS.OUTFLOW) continue;
+    // A transfer out to an off-budget account under a savings category reads
+    // as an outflow here too — it is exactly the movement this proxy is for.
+    if (budgetSide(transaction, accountsById) !== TRANSACTION_KINDS.OUTFLOW) continue;
     if (!TRANSFER_BUCKETS.has(bucketOf.get(transaction.budgetId))) continue;
     const period = toPeriod(transaction.date);
     if (period == null) continue;
@@ -700,7 +705,7 @@ export default function useNetWorth(period, { months, spanKey = DEFAULT_CHANGE_R
 
   return useMemo(() => {
     const snapshots = indexSnapshots(balances);
-    const savingsByPeriod = indexSavingsSpend(transactions, budgets);
+    const savingsByPeriod = indexSavingsSpend(transactions, budgets, accounts);
     const firstPeriod = firstKnownPeriod(accounts, transactions, balances);
 
     const range =

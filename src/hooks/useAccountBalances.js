@@ -44,20 +44,38 @@ import { periodLTE, toPeriod } from "../utils";
 export function accountBalancesAt(accounts, transactions, period) {
   const movement = new Map();
 
+  const entryFor = (accountId) => {
+    let entry = movement.get(accountId);
+    if (!entry) {
+      entry = { inflowCents: 0, outflowCents: 0 };
+      movement.set(accountId, entry);
+    }
+    return entry;
+  };
+
   for (const transaction of transactions) {
+    const transactionPeriod = toPeriod(transaction.date);
+    if (transactionPeriod != null && !periodLTE(transactionPeriod, period)) continue;
+
+    // A transfer is both legs at once: out of one account and into the other.
+    // Whatever it does to the budget, it always does this to the balances — the
+    // money left one place and arrived in another. A leg cut loose by an
+    // account delete moves nothing, the same as any detached record.
+    if (transaction.kind === TRANSACTION_KINDS.TRANSFER) {
+      if (transaction.accountId != null) {
+        entryFor(transaction.accountId).outflowCents += transaction.amountCents;
+      }
+      if (transaction.toAccountId != null) {
+        entryFor(transaction.toAccountId).inflowCents += transaction.amountCents;
+      }
+      continue;
+    }
+
     // Cut loose from a deleted account. The money is still in the envelope
     // maths; there is simply no account left to show it against.
     if (transaction.accountId == null) continue;
 
-    const transactionPeriod = toPeriod(transaction.date);
-    if (transactionPeriod != null && !periodLTE(transactionPeriod, period)) continue;
-
-    let entry = movement.get(transaction.accountId);
-    if (!entry) {
-      entry = { inflowCents: 0, outflowCents: 0 };
-      movement.set(transaction.accountId, entry);
-    }
-
+    const entry = entryFor(transaction.accountId);
     if (transaction.kind === TRANSACTION_KINDS.INFLOW) {
       entry.inflowCents += transaction.amountCents;
     } else {

@@ -145,6 +145,7 @@ test("typing into the other column turns an expense into a refund, keeping the r
     amountCents: 7840,
     date: `${PERIOD}-11`,
     accountId: "acc1",
+    toAccountId: null,
     budgetId: "b1",
   });
   expect(screen.getByLabelText("In for Trader Joe's")).toHaveValue("$78.40");

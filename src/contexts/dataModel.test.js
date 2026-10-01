@@ -152,6 +152,7 @@ describe("migrating records written before the schema changed", () => {
         // Nothing recorded which account the money moved through, and there is
         // no way to work it out after the fact.
         accountId: null,
+        toAccountId: null,
         budgetId: "b1",
       },
       {
@@ -161,6 +162,7 @@ describe("migrating records written before the schema changed", () => {
         amountCents: 300000,
         date: null,
         accountId: null,
+        toAccountId: null,
         budgetId: null,
       },
     ]);
@@ -477,6 +479,7 @@ describe("a record can be corrected in place", () => {
       amountCents: 900,
       date: "2026-08-04",
       accountId: ACCOUNT.id,
+      toAccountId: null,
       budgetId: "b1",
     });
   });
@@ -1917,7 +1920,8 @@ describe("the day-one seed", () => {
 /**
  * The tripwire.
  *
- *   toBeAssigned + Σ available === opening + cumulative income − cumulative spend
+ *   toBeAssigned + Σ available
+ *     === opening + cumulative income + cumulative transferred in − cumulative spend
  *
  * Money is either sitting in an envelope or waiting to be put in one; it is
  * never in both places and never in neither. The assignment terms cancel, so
@@ -1936,7 +1940,7 @@ function expectBalanced(env) {
   // the comment on goalRows in useEnvelopes.
   const goalAvailable = env.goalRows.reduce((sum, row) => sum + row.availableCents, 0);
   expect(env.toBeAssignedCents + available + goalAvailable).toBe(
-    env.openingCents + env.cumIncomeCents - env.cumSpentCents
+    env.openingCents + env.cumIncomeCents + env.cumTransferInCents - env.cumSpentCents
   );
 }
 
@@ -2217,5 +2221,333 @@ describe("the books balance after every mutation", () => {
       });
     });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe("transfers between accounts", () => {
+  const SAVINGS = { ...ACCOUNT, id: "sav", name: "Savings" };
+  const CARD = {
+    ...ACCOUNT,
+    id: "card",
+    name: "Visa",
+    type: "liability",
+    scope: "credit-card",
+    assetClass: "Unclassified",
+  };
+  const BROKERAGE = {
+    ...ACCOUNT,
+    id: "brk",
+    name: "Brokerage",
+    scope: "off-budget",
+    assetClass: "Equities",
+  };
+  const IRA = { ...BROKERAGE, id: "ira", name: "IRA" };
+
+  const move = (fields) => ({
+    kind: TRANSACTION_KINDS.TRANSFER,
+    accountId: ACCOUNT.id,
+    date: "2026-08-10",
+    ...fields,
+  });
+
+  const useBooks = () => ({
+    accounts: useAccounts(),
+    ledger: useTransactions(),
+    env: useEnvelopes("2026-08"),
+    balances: useAccountBalances("2026-08"),
+  });
+
+  const balanceOf = (current, id) =>
+    current.balances.rows.find((row) => row.account.id === id).balanceCents;
+
+  function setup(accounts = [ACCOUNT, SAVINGS, CARD, BROKERAGE, IRA]) {
+    seedAccounts(accounts);
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Retirement" }]));
+    localStorage.setItem("assignments", JSON.stringify([]));
+    const rendered = renderHook(useBooks, { wrapper });
+    act(() => {
+      rendered.result.current.ledger.addTransaction(
+        earn({ description: "Pay", amount: "1000", date: "2026-08-01" })
+      );
+    });
+    return rendered;
+  }
+
+  describe("the store", () => {
+    test("a transfer is stored as one record naming both ends", () => {
+      const { result } = setup();
+      act(() => {
+        result.current.ledger.addTransaction(
+          move({ description: "Top up", amount: "200", toAccountId: SAVINGS.id })
+        );
+      });
+
+      const saved = stored("transactions").find((t) => t.kind === TRANSACTION_KINDS.TRANSFER);
+      expect(saved).toEqual({
+        id: expect.any(String),
+        kind: TRANSACTION_KINDS.TRANSFER,
+        description: "Top up",
+        amountCents: 20000,
+        date: "2026-08-10",
+        accountId: ACCOUNT.id,
+        toAccountId: SAVINGS.id,
+        budgetId: null,
+      });
+    });
+
+    test("a transfer has to say where the money went, and somewhere else", () => {
+      const { result } = setup();
+      let noDestination;
+      let sameAccount;
+      act(() => {
+        noDestination = result.current.ledger.addTransaction(move({ amount: "5" }));
+        sameAccount = result.current.ledger.addTransaction(
+          move({ amount: "5", toAccountId: ACCOUNT.id })
+        );
+      });
+
+      expect(noDestination).toEqual({ ok: false, error: "Choose the account the money went to." });
+      expect(sameAccount).toEqual({
+        ok: false,
+        error: "A transfer has to go to a different account.",
+      });
+      expect(result.current.ledger.transactions).toHaveLength(1);
+    });
+
+    test("an edit cannot point a transfer back at where it started", () => {
+      const { result } = setup();
+      let id;
+      act(() => {
+        id = result.current.ledger.addTransaction(
+          move({ amount: "5", toAccountId: SAVINGS.id })
+        ).id;
+      });
+
+      let moved;
+      act(() => {
+        moved = result.current.ledger.updateTransaction({ id, accountId: SAVINGS.id });
+      });
+      expect(moved.ok).toBe(false);
+
+      let cleared;
+      act(() => {
+        cleared = result.current.ledger.updateTransaction({ id, toAccountId: "" });
+      });
+      expect(cleared.ok).toBe(false);
+    });
+
+    test("only a transfer carries a destination, and one that stops being a transfer drops it", () => {
+      const { result } = setup();
+      let id;
+      act(() => {
+        // Named on a plain inflow, the destination is ignored at the boundary.
+        result.current.ledger.addTransaction(earn({ amount: "1", toAccountId: SAVINGS.id }));
+        id = result.current.ledger.addTransaction(
+          move({ amount: "5", toAccountId: SAVINGS.id })
+        ).id;
+      });
+      expect(result.current.ledger.inflows.every((t) => t.toAccountId === null)).toBe(true);
+
+      act(() => {
+        result.current.ledger.updateTransaction({ id, kind: TRANSACTION_KINDS.INFLOW });
+      });
+      const flipped = result.current.ledger.transactions.find((t) => t.id === id);
+      expect(flipped.kind).toBe(TRANSACTION_KINDS.INFLOW);
+      expect(flipped.toAccountId).toBeNull();
+
+      // Back to a transfer, it has to be told where again.
+      let back;
+      act(() => {
+        back = result.current.ledger.updateTransaction({ id, kind: TRANSACTION_KINDS.TRANSFER });
+      });
+      expect(back).toEqual({ ok: false, error: "Choose the account the money went to." });
+    });
+
+    test("a stored transfer survives a reload with its destination", () => {
+      // The migration rebuilds every record from a field list, so a field left
+      // off it is erased on the next load — a transfer would arrive nowhere.
+      seedAccounts([ACCOUNT, SAVINGS]);
+      localStorage.setItem(
+        "transactions",
+        JSON.stringify([
+          {
+            id: "t1",
+            kind: "transfer",
+            description: "",
+            amountCents: 500,
+            date: "2026-08-02",
+            accountId: ACCOUNT.id,
+            toAccountId: SAVINGS.id,
+            budgetId: null,
+          },
+        ])
+      );
+
+      const { result } = renderHook(useBooks, { wrapper });
+
+      expect(result.current.ledger.transactions[0]).toMatchObject({
+        kind: TRANSACTION_KINDS.TRANSFER,
+        toAccountId: SAVINGS.id,
+      });
+      expect(balanceOf(result.current, SAVINGS.id)).toBe(500);
+    });
+
+    test("an account's transactions include the transfers that arrived in it", () => {
+      const { result } = setup();
+      act(() => {
+        result.current.ledger.addTransaction(move({ amount: "5", toAccountId: SAVINGS.id }));
+      });
+      expect(result.current.ledger.getAccountTransactions(SAVINGS.id)).toHaveLength(1);
+    });
+  });
+
+  describe("what a transfer does to the books", () => {
+    test("between two on-budget accounts it moves the balances and nothing else", () => {
+      const { result } = setup();
+      const before = result.current.env;
+
+      act(() => {
+        result.current.ledger.addTransaction(move({ amount: "300", toAccountId: SAVINGS.id }));
+      });
+
+      expect(balanceOf(result.current, ACCOUNT.id)).toBe(70000);
+      expect(balanceOf(result.current, SAVINGS.id)).toBe(30000);
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents);
+      expect(result.current.env.periodIncomeCents).toBe(before.periodIncomeCents);
+      expect(result.current.env.cumSpentCents).toBe(before.cumSpentCents);
+      expectBalanced(result.current.env);
+    });
+
+    test("paying the card is a neutral transfer that brings what is owed down", () => {
+      const { result } = setup();
+      act(() => {
+        result.current.ledger.addTransaction(
+          spend({ amount: "120", accountId: CARD.id, budgetId: "b1", date: "2026-08-03" })
+        );
+      });
+      const before = result.current.env;
+
+      act(() => {
+        result.current.ledger.addTransaction(move({ amount: "120", toAccountId: CARD.id }));
+      });
+
+      expect(balanceOf(result.current, CARD.id)).toBe(0);
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents);
+      expect(envelopeFor(result.current.env, "b1").availableCents).toBe(
+        envelopeFor(before, "b1").availableCents
+      );
+      expectBalanced(result.current.env);
+    });
+
+    test("out to an off-budget account it is spend from the category it names", () => {
+      const { result } = setup();
+      act(() => {
+        result.current.ledger.addTransaction(
+          move({ amount: "250", toAccountId: BROKERAGE.id, budgetId: "b1" })
+        );
+      });
+
+      expect(envelopeFor(result.current.env, "b1").spentCents).toBe(25000);
+      expect(balanceOf(result.current, BROKERAGE.id)).toBe(25000);
+      expect(balanceOf(result.current, ACCOUNT.id)).toBe(75000);
+      expectBalanced(result.current.env);
+    });
+
+    test("out to an off-budget account with no category, it lands in Uncategorized", () => {
+      // The forms require the category; storage edited by hand may not have one,
+      // and the money still left the budget.
+      const { result } = setup();
+      act(() => {
+        result.current.ledger.addTransaction(move({ amount: "40", toAccountId: BROKERAGE.id }));
+      });
+
+      expect(envelopeFor(result.current.env, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(4000);
+      expectBalanced(result.current.env);
+    });
+
+    test("in from an off-budget account it is money to assign, but not income", () => {
+      const { result } = setup();
+      const before = result.current.env;
+
+      act(() => {
+        result.current.ledger.addTransaction(
+          move({ amount: "500", accountId: BROKERAGE.id, toAccountId: ACCOUNT.id })
+        );
+      });
+
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents + 50000);
+      expect(result.current.env.periodIncomeCents).toBe(before.periodIncomeCents);
+      expect(result.current.env.cumIncomeCents).toBe(before.cumIncomeCents);
+      expect(result.current.env.periodTransferInCents).toBe(50000);
+      expect(result.current.env.cumTransferInCents).toBe(50000);
+      expectBalanced(result.current.env);
+    });
+
+    test("in from an off-budget account naming a category, it is a refund to it", () => {
+      const { result } = setup();
+      const before = result.current.env;
+
+      act(() => {
+        result.current.ledger.addTransaction(
+          move({
+            amount: "60",
+            accountId: BROKERAGE.id,
+            toAccountId: ACCOUNT.id,
+            budgetId: "b1",
+          })
+        );
+      });
+
+      expect(envelopeFor(result.current.env, "b1").refundCents).toBe(6000);
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents);
+      expectBalanced(result.current.env);
+    });
+
+    test("between two off-budget accounts it moves their balances and nothing else", () => {
+      const { result } = setup();
+      const before = result.current.env;
+
+      act(() => {
+        result.current.ledger.addTransaction(
+          move({ amount: "800", accountId: BROKERAGE.id, toAccountId: IRA.id })
+        );
+      });
+
+      expect(balanceOf(result.current, BROKERAGE.id)).toBe(-80000);
+      expect(balanceOf(result.current, IRA.id)).toBe(80000);
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents);
+      expectBalanced(result.current.env);
+    });
+  });
+
+  describe("deleting an account a transfer touched", () => {
+    test("the leg is cut loose, and the envelopes still match the cash", () => {
+      const { result } = setup();
+      act(() => {
+        result.current.accounts.updateAccount({ id: CARD.id, opening: "500" });
+      });
+      act(() => {
+        result.current.ledger.addTransaction(move({ amount: "500", toAccountId: CARD.id }));
+      });
+      expectBalanced(result.current.env);
+
+      act(() => {
+        result.current.accounts.deleteAccount({ id: CARD.id });
+      });
+
+      const transfer = result.current.ledger.transactions.find(
+        (t) => t.kind === TRANSACTION_KINDS.TRANSFER
+      );
+      expect(transfer).toMatchObject({ accountId: ACCOUNT.id, toAccountId: null });
+      // Checking is still $500 lighter; the card's −$500 opening has left the
+      // pool, so the payment now reads as money that left the budget.
+      expect(balanceOf(result.current, ACCOUNT.id)).toBe(50000);
+      expect(envelopeFor(result.current.env, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(50000);
+      expectBalanced(result.current.env);
+
+      const onBudgetCash = result.current.balances.onBudgetCents;
+      const available = result.current.env.rows.reduce((sum, row) => sum + row.availableCents, 0);
+      expect(result.current.env.toBeAssignedCents + available).toBe(onBudgetCash);
+    });
   });
 });

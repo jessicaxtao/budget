@@ -14,7 +14,7 @@ import { isValidISODate, toCents, todayISO } from "../utils";
  *
  * A record is:
  *
- *   { id, kind, date, description, amountCents, accountId, budgetId }
+ *   { id, kind, date, description, amountCents, accountId, toAccountId, budgetId }
  *
  * `amountCents` is a non-negative magnitude and `kind` carries the direction,
  * rather than a signed amount. Money that moves in two directions through one
@@ -42,10 +42,20 @@ import { isValidISODate, toCents, todayISO } from "../utils";
  * register can commit one cell at a time and a row folded in from the old
  * stores — no date, no account — can still have its description fixed without
  * being asked to invent the rest. See `RULES` and `firstBroken`.
+ *
+ * **A transfer is the third kind**: money moving from `accountId` to
+ * `toAccountId`, one record rather than a linked out-and-in pair, because a pair
+ * can come apart — one leg deleted, re-dated or re-priced — and a single record
+ * cannot disagree with itself. `toAccountId` is `null` on every other kind.
+ * What a transfer does to the budget depends on which side of it each account
+ * sits on, which this store cannot see (it wraps AccountsProvider), so that
+ * question is answered once, in `budgetSide` (`src/ledger.js`), and a
+ * transfer's category is only required where the forms can tell it crosses the
+ * boundary. This store checks what it can: both ends named, and different.
  */
 const TransactionsContext = React.createContext();
 
-export const TRANSACTION_KINDS = { INFLOW: "inflow", OUTFLOW: "outflow" };
+export const TRANSACTION_KINDS = { INFLOW: "inflow", OUTFLOW: "outflow", TRANSFER: "transfer" };
 
 const KIND_VALUES = Object.values(TRANSACTION_KINDS);
 
@@ -55,6 +65,7 @@ export function useTransactions() {
 
 const isOutflow = (transaction) => transaction.kind === TRANSACTION_KINDS.OUTFLOW;
 const isInflow = (transaction) => transaction.kind === TRANSACTION_KINDS.INFLOW;
+const isTransfer = (transaction) => transaction.kind === TRANSACTION_KINDS.TRANSFER;
 
 /** One legacy record — from either old key — in the shape this store holds. */
 function fromLegacy(record, kind) {
@@ -75,6 +86,7 @@ function fromLegacy(record, kind) {
     // way to work it out after the fact. Undated is to dates what this is to
     // accounts: an honest gap rather than a guess.
     accountId: null,
+    toAccountId: null,
     // The old income store had no category to record, so a folded inflow is
     // income rather than a refund — which is what it was when it was logged.
     budgetId: record.budgetId ?? null,
@@ -167,6 +179,11 @@ function migrateTransactions(stored) {
             : transaction.amountCents ?? 0,
         date: transaction.date ?? null,
         accountId: transaction.accountId ?? null,
+        // Carried explicitly: this map rebuilds every record from a field list,
+        // so a field left off it is a field erased on the next reload — which
+        // for a transfer would leave money leaving one account and arriving
+        // nowhere. Null on every other kind.
+        toAccountId: kind === TRANSACTION_KINDS.TRANSFER ? transaction.toAccountId ?? null : null,
         // Carried on both kinds. On an outflow it is the category the money came
         // from; on an inflow it is the category the money went back to, which is
         // a refund. An inflow without one is income.
@@ -185,8 +202,9 @@ function migrateTransactions(stored) {
  * a record that already exists, and checks only the rules those fields could
  * break — which is why each rule names the fields it is about.
  *
- * The last one is the only cross-field rule there is: an outflow names a
- * category. Either side of it moving can break it, so it lists both.
+ * The cross-field rules list every field they read, so either side moving
+ * re-checks them: an outflow names a category, and a transfer names a
+ * destination that is not where it started.
  */
 const RULES = [
   {
@@ -213,6 +231,16 @@ const RULES = [
     fields: ["kind", "budgetId"],
     holds: (t) => t.kind !== TRANSACTION_KINDS.OUTFLOW || Boolean(t.budgetId),
     error: "Choose a category for this expense.",
+  },
+  {
+    fields: ["kind", "toAccountId"],
+    holds: (t) => !isTransfer(t) || Boolean(t.toAccountId),
+    error: "Choose the account the money went to.",
+  },
+  {
+    fields: ["kind", "accountId", "toAccountId"],
+    holds: (t) => !isTransfer(t) || t.accountId !== t.toAccountId,
+    error: "A transfer has to go to a different account.",
   },
 ];
 
@@ -267,7 +295,11 @@ export const TransactionsProvider = ({ children }) => {
   );
 
   const getAccountTransactions = useCallback(
-    (accountId) => transactions.filter((transaction) => transaction.accountId === accountId),
+    (accountId) =>
+      transactions.filter(
+        (transaction) =>
+          transaction.accountId === accountId || transaction.toAccountId === accountId
+      ),
     [transactions]
   );
 
@@ -278,7 +310,16 @@ export const TransactionsProvider = ({ children }) => {
    * one option that cannot be right.
    */
   const addTransaction = useCallback(
-    ({ kind, description, amount, amountCents, date = todayISO(), accountId, budgetId }) => {
+    ({
+      kind,
+      description,
+      amount,
+      amountCents,
+      date = todayISO(),
+      accountId,
+      toAccountId,
+      budgetId,
+    }) => {
       const id = uuidV4();
       const transaction = {
         id,
@@ -287,6 +328,7 @@ export const TransactionsProvider = ({ children }) => {
         amountCents: amountCents ?? toCents(amount),
         date,
         accountId: accountId || null,
+        toAccountId: kind === TRANSACTION_KINDS.TRANSFER ? toAccountId || null : null,
         // "" is what an unpicked select is worth in the DOM, and null is what
         // "no category" is worth here. The two must not be confused, or an
         // inflow would be a refund against a category with no name.
@@ -339,6 +381,13 @@ export const TransactionsProvider = ({ children }) => {
       // select reads the same whichever mutator it went through.
       if ("accountId" in patch) changes.accountId = patch.accountId || null;
       if ("budgetId" in patch) changes.budgetId = patch.budgetId || null;
+      if ("toAccountId" in patch) changes.toAccountId = patch.toAccountId || null;
+      // A record that stops being a transfer stops having a destination, or
+      // flipping it back later would resurrect one nobody can see.
+      const nextKind = changes.kind ?? current.kind;
+      if (nextKind !== TRANSACTION_KINDS.TRANSFER && current.toAccountId != null) {
+        changes.toAccountId = null;
+      }
 
       const next = { ...current, ...changes };
       const result = firstBroken(next, new Set(Object.keys(changes)));
@@ -411,12 +460,24 @@ export const TransactionsProvider = ({ children }) => {
    * rewrite every envelope balance because the user tidied up their account
    * list. What is lost is the account's own running balance, which had nowhere
    * left to be shown anyway.
+   *
+   * Either leg of a transfer is cut, and the other kept. `budgetSide` reads the
+   * missing leg as outside the budget — the account's opening balance has left
+   * the pool too, and the two have to move together for the envelopes to keep
+   * matching the cash.
    */
   const detachAccountTransactions = useCallback(
     ({ accountId }) => {
       setTransactions((prevTransactions) =>
         prevTransactions.map((transaction) =>
-          transaction.accountId === accountId ? { ...transaction, accountId: null } : transaction
+          transaction.accountId === accountId || transaction.toAccountId === accountId
+            ? {
+                ...transaction,
+                accountId: transaction.accountId === accountId ? null : transaction.accountId,
+                toAccountId:
+                  transaction.toAccountId === accountId ? null : transaction.toAccountId,
+              }
+            : transaction
         )
       );
     },

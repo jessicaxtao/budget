@@ -1,6 +1,7 @@
 # Plan: transfers between accounts
 
-Status: **draft. Open questions at the bottom need answers before building.**
+Status: **phase 1 (store, maths, tests) built. Phase 2 (modal and register) next.**
+Decisions are recorded at the bottom.
 
 ## The problem
 
@@ -39,7 +40,7 @@ itself. `amountCents` stays a non-negative magnitude; the direction is
 |---|---|---|---|
 | on-budget → on-budget | checking → savings, checking → Visa (a card payment) | **none** | none, refused |
 | on-budget → off-budget | checking → 401(k), checking → brokerage | **outflow**: money leaves the budget | required (e.g. a savings or retirement category) |
-| off-budget → on-budget | brokerage → checking | **inflow**: money enters the budget | optional: none means the pool, one means a refund to that category |
+| off-budget → on-budget | brokerage → checking | **inflow**: money enters the budget | optional: none means the pool (to assign, but **not income**), one means a refund to that category |
 | off-budget → off-budget | 401(k) rollover to an IRA | **none** | none, refused |
 
 "On-budget" means `spendsThroughBudget`, so cards count as on-budget, exactly
@@ -63,10 +64,14 @@ budgetSide(transaction, accountsById) → "inflow" | "outflow" | null
   scopes **live**. Changing an account's scope restates the transfers into it,
   just as it already restates the account's opening balance in "to be
   assigned".
-- **A leg whose account is gone** (detached by an account delete, so `null`) is
-  treated as being on the same side as the other leg, so the transfer is
-  neutral. Deleting an account then never rewrites an envelope through its
-  transfers, which keeps the rule in `detachAccountTransactions`.
+- **A leg whose account is gone** (detached by an account delete, so `null`)
+  counts as **outside the budget**. The first draft made the transfer neutral
+  instead, but that breaks the books: delete a card that checking paid $500
+  towards, and the card's −$500 opening leaves "to be assigned" while checking
+  stays $500 lighter, so the envelopes hold $500 more than the accounts. Treated
+  as outside, the payment becomes $500 leaving the budget and lands in
+  Uncategorized, which is visible. A test checks that "to be assigned" plus
+  everything in the envelopes still equals the on-budget cash after the delete.
 - **A crossing outflow with no category** (the store cannot refuse it; see
   below) is charged to `UNCATEGORIZED_BUDGET_ID`, as legacy spend already is.
   Dropping it instead would break the envelope identity.
@@ -111,21 +116,25 @@ store's "no more than the gift" bound, and it gets the same treatment:
 
 | Reader | Today | Change |
 |---|---|---|
-| `useEnvelopes` | `kind === INFLOW` else spend | classify with `budgetSide`; `null` → skip entirely |
+| `useEnvelopes` | `kind === INFLOW` else spend | classify with `budgetSide`; `null` → skip entirely. Money in from off budget goes to the pool but is reported as `periodTransferInCents` / `cumTransferInCents`, not income |
 | `accountBalancesAt` | inflow +, **else −** | a transfer is − on `accountId` **and** + on `toAccountId`. Today's `else` would treat it as an outflow and lose the arriving leg. |
-| `useSpendingReport` | inflow / outflow | classify; neutral transfers are in no figure |
+| `useSpendingReport` | inflow / outflow | classify; neutral transfers are in no figure; money in from off budget with no category is in neither income nor spending, totalled as `transferredInCents` |
 | `useNetWorth` `indexSavingsSpend` | outflows in the savings/retirement buckets | also count crossing on→off transfers with such a category. They are the exact signal this proxy was standing in for (see phase 3) |
 | `useGiving` | skips non-inflows / tagged ids | unchanged; a transfer can't be a gift (the forms don't offer it) |
 
-**The envelope identity still holds without changing it**: a neutral transfer
-adds to neither side, and a crossing one adds to `cumIncomeCents` /
-`cumSpentCents` exactly as the inflow or outflow it stands for. The tripwire in
-`dataModel.test.js` gets transfer cases rather than a new formula.
+**The envelope identity gains one term**, because money brought in from off
+budget is cash but not income:
+
+```
+toBeAssigned + Σ available === opening + cumulative income + cumulative transferred in − cumulative spend
+```
+
+A neutral transfer adds to neither side; one out to off budget is in
+`cumSpentCents` like any outflow.
 
 The report's tripwire ("`netCents` = every inflow less every outflow in the
-window") needs one deliberate restatement: *every inflow less every outflow
-**across the budget boundary***. Its right-hand side, computed off the seed,
-skips neutral transfers.
+window") now reads *across the budget's edge, less money brought in from off
+budget with no category*.
 
 ### UI
 
@@ -157,18 +166,20 @@ column at Description's expense.
 1. **Store + maths + tests.** The `budgetSide` module, store changes, migration,
    every hook, and the two tripwires extended. No UI yet; it can be verified
    entirely in tests.
-2. **Modal and register.** Enter and edit transfers.
+2. **Modal and register.** Enter and edit transfers. Also show
+   `periodTransferInCents` beside "Received" in `ToBeAssignedBar`, since
+   "to be assigned" now grows from something that isn't income.
 3. **Follow-ons** (each optional, separately shippable):
-   - *Pair two existing rows into a transfer.* Faked transfers already in the
-     ledger (an outflow and an inflow of the same amount, close in date, on
-     different accounts) can be detected and offered for merging.
    - *Net-worth interpolation from real transfers.* A transfer into a specific
      off-budget account says exactly when and where money moved, which
      `indexSavingsSpend` only guesses at, and shares across every holding.
    - *Credit-card payment envelopes* (comparison item #2) build directly on
      card payments being neutral transfers.
 
-## Tests to add
+## Tests
+
+Phase 1's are in (`dataModel.test.js` "transfers between accounts", and the
+report test in `useSpendingReport.test.js`); the UI ones come with phase 2.
 
 - `dataModel.test.js`: the identity after each of a neutral transfer, an on→off
   transfer with a category, one with no category (→ Uncategorized), an off→on to
@@ -187,17 +198,16 @@ column at Description's expense.
 - `TransactionsPage.test.js`: enter a transfer, see both account balances move
   and "to be assigned" not move.
 
-## Open questions
+## Decisions
 
-1. **Is money brought in from an off-budget account income?** It has to land in
-   "to be assigned" (otherwise on-budget cash and the envelopes disagree), but
-   the Reports page and the giving page's share-of-income both read "income"
-   off the same rule. *Recommendation:* treat it as income in v1, as YNAB does,
-   and revisit if pulling from a brokerage starts inflating the savings rate.
-2. **Do you already have faked transfers in your data?** If so, the
-   pair-into-a-transfer tool (phase 3) is worth moving up. Otherwise it can
-   wait.
-3. **Off-budget → off-budget transfers:** allow them (a rollover), or keep
-   off-budget accounts snapshot-only and offer only transfers with at least one
-   on-budget leg? *Recommendation:* allow them. They cost nothing in the maths
-   (neutral) and move the derived balances that net worth falls back on.
+1. **Money brought in from an off-budget account is not income.** It lands in
+   "to be assigned", but it is kept out of income everywhere: the dashboard's
+   figures, the Reports page and the giving page's share of income. The
+   envelope hook reports it separately (`periodTransferInCents`), and the
+   report totals it as `transferredInCents`. Transfers out to an off-budget
+   account under a category still count as spending from that category, which
+   is how a retirement contribution shows in the retirement bucket.
+2. **No merge tool.** Nobody is using the app yet, so there are no faked
+   transfers to convert. Dropped from phase 3.
+3. **Off-budget → off-budget transfers are allowed.** They have no effect on the
+   budget and move the derived balances that net worth falls back on.

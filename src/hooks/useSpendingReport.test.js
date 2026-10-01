@@ -163,6 +163,44 @@ describe("income, spending and what was left", () => {
     expect(report.netCents).toBe(report.totalIncomeCents - report.netSpentCents);
   });
 
+  test("transfers count only where they cross the budget, and never as income", () => {
+    const SAVINGS = { ...ACCOUNT, id: "sav", name: "Savings" };
+    const BROKERAGE = { ...ACCOUNT, id: "brk", name: "Brokerage", scope: "off-budget" };
+    const transfer = (date, amountCents, accountId, toAccountId, budgetId = null) => ({
+      id: `t${(sequence += 1)}`,
+      kind: TRANSACTION_KINDS.TRANSFER,
+      accountId,
+      toAccountId,
+      budgetId,
+      amountCents,
+      date,
+    });
+    seed({
+      accounts: [ACCOUNT, SAVINGS, BROKERAGE],
+      groups: [{ id: "g1", name: "Bills", bucket: "essentials" }],
+      budgets: [budget("b1", "Rent", "g1", 100000), budget("b2", "Dining", null, 20000)],
+      transactions: [
+        ...transactions,
+        // Checking to savings: money changing places, in no figure.
+        transfer("2026-08-02", 40000, ACCOUNT.id, SAVINGS.id),
+        // Out to the brokerage under a category: spending from it.
+        transfer("2026-08-03", 25000, ACCOUNT.id, BROKERAGE.id, "b1"),
+        // In from the brokerage with no category: to assign, but not earned.
+        transfer("2026-08-04", 70000, BROKERAGE.id, ACCOUNT.id),
+      ],
+    });
+
+    const report = read("3m");
+
+    expect(report.totalIncomeCents).toBe(1000000);
+    expect(report.totalSpentCents).toBe(230000 + 25000);
+    expect(report.transferredInCents).toBe(70000);
+    // The identity, with the one transfer that crosses as spending counted as an
+    // outflow, and the money brought in from off budget in neither side.
+    expect(report.netCents).toBe(cashMoved(transactions, report.months) - 25000);
+    expect(report.netCents).toBe(report.totalIncomeCents - report.netSpentCents);
+  });
+
   test("a refund nets off its category and is not counted as income", () => {
     setup();
     const report = read("3m");

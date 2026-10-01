@@ -292,6 +292,7 @@ describe("one form for both directions", () => {
         amountCents: 450,
         date: todayISO(),
         accountId: "acc1",
+        toAccountId: null,
         budgetId: "a",
       },
     ]);

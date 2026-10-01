@@ -5,6 +5,7 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
+import { budgetSide, indexAccounts } from "../ledger";
 import { periodLTE, toPeriod } from "../utils";
 
 /**
@@ -19,11 +20,12 @@ import { periodLTE, toPeriod } from "../utils";
  *   activity(b, p)  = refunded(b,p) − spent(b,p)
  *   available(b, P) = Σ over p ≤ P of [ assigned(b,p) + activity(b,p) ]
  *   carriedIn(b, P) = the same sum over p < P
- *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ]
+ *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) + transferredIn(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ]
  *
  * so that, at every period:
  *
- *   toBeAssigned + Σ available + Σ goal available === opening + cumulative inflow − cumulative spend
+ *   toBeAssigned + Σ available + Σ goal available
+ *     === opening + cumulative inflow + cumulative transferred in − cumulative spend
  *
  * which is cash on hand. That identity is the tripwire the tests assert after
  * every mutation. It holds only if the row set below covers *every* budgetId
@@ -55,6 +57,14 @@ import { periodLTE, toPeriod } from "../utils";
  * into `cumIncomeCents`, because "income in August" is a figure the user checks
  * against their payslips and an account opening is not part of it. Off-budget
  * accounts are excluded: a 401(k) is not money to assign to groceries.
+ *
+ * **A transfer counts only where it crosses the budget** (`budgetSide`): one
+ * between two on-budget accounts — paying the card — moves nothing here at
+ * all. One out to an off-budget account is spend from the category it names;
+ * one in from off budget lands in the pool, or in the category it names as a
+ * refund. Money brought in that way is kept out of `income` and reported as
+ * `transferredIn` beside it: it is the household's own money changing places,
+ * not money it earned, and "income in August" is checked against payslips.
  *
  * Undated records (date: null, from the migration that introduced dates) count
  * in every period's cumulative sums, so money never disappears from the books
@@ -92,24 +102,42 @@ export default function useEnvelopes(period) {
 
     let periodIncomeCents = 0;
     let cumIncomeCents = 0;
+    // Money brought into the books from an off-budget account. Cash, so the
+    // identity has to see it, but not income — see the note on transfers above.
+    let periodTransferInCents = 0;
+    let cumTransferInCents = 0;
     // What the pool has ever been given, which is what "to be assigned" is built
     // from. Separate from `cumIncomeCents` — that one is cash on hand and counts
     // every inflow, while a refund reaches the same total through its envelope
     // instead. Adding a refund to both is the one mistake here that would create
     // money out of nothing.
-    let cumPoolIncomeCents = 0;
+    let cumPoolInCents = 0;
+
+    const accountsById = indexAccounts(accounts);
 
     for (const transaction of transactions) {
-      const transactionPeriod = toPeriod(transaction.date);
-      const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
-      const counted = transactionPeriod == null || periodLTE(transactionPeriod, period);
-      if (inflow && counted) cumIncomeCents += transaction.amountCents;
+      // What the record does to the budget, which for a transfer depends on the
+      // two accounts — and for one that stays on one side is nothing at all.
+      const side = budgetSide(transaction, accountsById);
+      if (side == null) continue;
 
-      // Income: an inflow naming no category. It is the only kind of inflow the
-      // pool ever sees.
+      const transactionPeriod = toPeriod(transaction.date);
+      const inflow = side === TRANSACTION_KINDS.INFLOW;
+      const transfer = transaction.kind === TRANSACTION_KINDS.TRANSFER;
+      const counted = transactionPeriod == null || periodLTE(transactionPeriod, period);
+      if (inflow && counted) {
+        if (transfer) cumTransferInCents += transaction.amountCents;
+        else cumIncomeCents += transaction.amountCents;
+      }
+
+      // An inflow naming no category goes to the pool: income, or money brought
+      // in from off budget. Nothing else the pool ever sees.
       if (inflow && transaction.budgetId == null) {
-        if (transactionPeriod === period) periodIncomeCents += transaction.amountCents;
-        if (counted) cumPoolIncomeCents += transaction.amountCents;
+        if (transactionPeriod === period) {
+          if (transfer) periodTransferInCents += transaction.amountCents;
+          else periodIncomeCents += transaction.amountCents;
+        }
+        if (counted) cumPoolInCents += transaction.amountCents;
         continue;
       }
 
@@ -275,16 +303,18 @@ export default function useEnvelopes(period) {
       rows,
       goalRows,
       toBeAssignedCents:
-        openingCents + cumPoolIncomeCents - assignedThroughCents - goalAssignedThroughCents,
+        openingCents + cumPoolInCents - assignedThroughCents - goalAssignedThroughCents,
       totalAvailableCents: totals.available,
       totalCarriedInCents: totals.carriedIn,
       periodIncomeCents,
+      periodTransferInCents,
       periodAssignedCents: totals.periodAssigned,
       periodSpentCents: totals.spent,
       periodRefundCents: totals.refund,
       periodActivityCents: totals.activity,
       openingCents,
       cumIncomeCents,
+      cumTransferInCents,
       cumSpentCents,
     };
   }, [budgets, transactions, assignments, goalAssignments, accounts, period]);

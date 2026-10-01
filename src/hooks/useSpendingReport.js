@@ -4,7 +4,9 @@ import {
   PLAN_BUCKET_ORDER,
   useBudgets,
 } from "../contexts/BudgetsContext";
+import { useAccounts } from "../contexts/AccountsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import { budgetSide, indexAccounts, isIncome } from "../ledger";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import { toSections } from "../planLayout";
 import { addMonths, periodLTE, toPeriod } from "../utils";
@@ -51,6 +53,16 @@ import { addMonths, periodLTE, toPeriod } from "../utils";
  * from spending rather than added to income. Both routes reach the same total,
  * which is what makes "net saved" a fact about the bank rather than a figure
  * assembled from two different books.
+ *
+ * **Transfers are read by what they do to the budget** (`budgetSide`). One that
+ * stays on one side of it — paying the card, checking to savings — is in no
+ * figure here. One out to an off-budget account is spending from the category
+ * it names, which is how a 401(k) contribution shows in the retirement bucket.
+ * One in from off budget is a refund if it names a category; if it names none
+ * it lands in the pool to be assigned but is **not income** — it was the
+ * household's own money changing places — so it is left out of both sides of
+ * the identity and totalled on its own as `transferredInCents`. "Inflows" and
+ * "outflows" above mean across the budget's edge, less that one case.
  *
  * ## What is left out, and said out loud
  *
@@ -169,8 +181,11 @@ const emptyCategory = (budgetId) => ({
 export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_RANGE) {
   const { groups, budgets } = useBudgets();
   const { transactions } = useTransactions();
+  const { accounts } = useAccounts();
 
   return useMemo(() => {
+    const accountsById = indexAccounts(accounts);
+
     // The first month anything was recorded in, which is what "all" reaches back
     // to and what the average below is honestly divisible by.
     let firstPeriod = null;
@@ -205,15 +220,32 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
     let undatedCount = 0;
     let undatedSpentCents = 0;
     let undatedIncomeCents = 0;
+    // Money brought in from off budget with no category on it. It lands in the
+    // pool to be assigned, but it was the household's own money changing places,
+    // so it is neither income nor a refund and is in no figure below. Totalled
+    // over the window so the page can say where it went.
+    let transferredInCents = 0;
 
     for (const transaction of transactions) {
+      // A transfer that stays on one side of the budget is money changing
+      // places, and a report of what the household earned and spent has nothing
+      // to say about it. One that crosses reads as the inflow or outflow it is.
+      const side = budgetSide(transaction, accountsById);
+      if (side == null) continue;
+
       const period = toPeriod(transaction.date);
-      const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
+      const inflow = side === TRANSACTION_KINDS.INFLOW;
       const amountCents = transaction.amountCents;
+      const toPool = inflow && transaction.budgetId == null;
+
+      if (toPool && !isIncome(transaction)) {
+        if (period != null && byMonth.has(period)) transferredInCents += amountCents;
+        continue;
+      }
 
       if (period == null) {
         undatedCount += 1;
-        if (inflow && transaction.budgetId == null) undatedIncomeCents += amountCents;
+        if (toPool) undatedIncomeCents += amountCents;
         else undatedSpentCents += inflow ? -amountCents : amountCents;
         continue;
       }
@@ -225,7 +257,7 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
 
       // Income is an inflow naming no category, and it is the only inflow the
       // household actually earned.
-      if (inflow && transaction.budgetId == null) {
+      if (toPool) {
         month.incomeCents += amountCents;
         continue;
       }
@@ -393,9 +425,10 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       undatedCount,
       undatedSpentCents,
       undatedIncomeCents,
+      transferredInCents,
 
       hasLedger: transactions.length > 0,
       firstPeriod,
     };
-  }, [groups, budgets, transactions, endPeriod, rangeKey]);
+  }, [groups, budgets, transactions, accounts, endPeriod, rangeKey]);
 }
