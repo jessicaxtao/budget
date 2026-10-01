@@ -1921,7 +1921,8 @@ describe("the day-one seed", () => {
  * The tripwire.
  *
  *   toBeAssigned + Σ available
- *     === opening + cumulative income + cumulative transferred in − cumulative spend
+ *     === opening + cumulative income − cumulative spend
+ *         + cumulative transferred in − cumulative transferred out
  *
  * Money is either sitting in an envelope or waiting to be put in one; it is
  * never in both places and never in neither. The assignment terms cancel, so
@@ -1940,7 +1941,11 @@ function expectBalanced(env) {
   // the comment on goalRows in useEnvelopes.
   const goalAvailable = env.goalRows.reduce((sum, row) => sum + row.availableCents, 0);
   expect(env.toBeAssignedCents + available + goalAvailable).toBe(
-    env.openingCents + env.cumIncomeCents + env.cumTransferInCents - env.cumSpentCents
+    env.openingCents +
+      env.cumIncomeCents -
+      env.cumSpentCents +
+      env.cumTransferInCents -
+      env.cumTransferOutCents
   );
 }
 
@@ -2439,29 +2444,59 @@ describe("transfers between accounts", () => {
       expectBalanced(result.current.env);
     });
 
-    test("out to an off-budget account it is spend from the category it names", () => {
+    test("out to an off-budget account it leaves the envelope it names, but is not spent", () => {
       const { result } = setup();
+      const before = result.current.env;
       act(() => {
         result.current.ledger.addTransaction(
           move({ amount: "250", toAccountId: BROKERAGE.id, budgetId: "b1" })
         );
       });
 
-      expect(envelopeFor(result.current.env, "b1").spentCents).toBe(25000);
+      const row = envelopeFor(result.current.env, "b1");
+      expect(row.movedOutCents).toBe(25000);
+      expect(row.spentCents).toBe(0);
+      expect(row.activityCents).toBe(-25000);
+      expect(result.current.env.periodSpentCents).toBe(before.periodSpentCents);
+      expect(result.current.env.cumSpentCents).toBe(before.cumSpentCents);
+      expect(result.current.env.periodTransferOutCents).toBe(25000);
       expect(balanceOf(result.current, BROKERAGE.id)).toBe(25000);
       expect(balanceOf(result.current, ACCOUNT.id)).toBe(75000);
       expectBalanced(result.current.env);
     });
 
-    test("out to an off-budget account with no category, it lands in Uncategorized", () => {
-      // The forms require the category; storage edited by hand may not have one,
-      // and the money still left the budget.
+    test("out to an off-budget account with no category, it comes out of to-be-assigned", () => {
       const { result } = setup();
+      const before = result.current.env;
       act(() => {
         result.current.ledger.addTransaction(move({ amount: "40", toAccountId: BROKERAGE.id }));
       });
 
-      expect(envelopeFor(result.current.env, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(4000);
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents - 4000);
+      expect(envelopeFor(result.current.env, UNCATEGORIZED_BUDGET_ID).activityCents).toBe(0);
+      expectBalanced(result.current.env);
+    });
+
+    test("spending out of an off-budget account comes out of no envelope", () => {
+      // The house bought with money set aside in savings. It left the budget
+      // when it was set aside; spending it now moves no envelope and no pool.
+      const { result } = setup();
+      act(() => {
+        result.current.ledger.addTransaction(
+          move({ amount: "300", toAccountId: BROKERAGE.id, budgetId: "b1" })
+        );
+      });
+      const before = result.current.env;
+
+      act(() => {
+        result.current.ledger.addTransaction(
+          spend({ amount: "300", accountId: BROKERAGE.id, budgetId: "b1", date: "2026-08-20" })
+        );
+      });
+
+      expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents);
+      expect(envelopeFor(result.current.env, "b1")).toEqual(envelopeFor(before, "b1"));
+      expect(balanceOf(result.current, BROKERAGE.id)).toBe(0);
       expectBalanced(result.current.env);
     });
 
@@ -2483,7 +2518,7 @@ describe("transfers between accounts", () => {
       expectBalanced(result.current.env);
     });
 
-    test("in from an off-budget account naming a category, it is a refund to it", () => {
+    test("in from an off-budget account naming a category, it is moved into that envelope", () => {
       const { result } = setup();
       const before = result.current.env;
 
@@ -2498,7 +2533,8 @@ describe("transfers between accounts", () => {
         );
       });
 
-      expect(envelopeFor(result.current.env, "b1").refundCents).toBe(6000);
+      expect(envelopeFor(result.current.env, "b1").movedInCents).toBe(6000);
+      expect(envelopeFor(result.current.env, "b1").refundCents).toBe(0);
       expect(result.current.env.toBeAssignedCents).toBe(before.toBeAssignedCents);
       expectBalanced(result.current.env);
     });
@@ -2540,9 +2576,10 @@ describe("transfers between accounts", () => {
       );
       expect(transfer).toMatchObject({ accountId: ACCOUNT.id, toAccountId: null });
       // Checking is still $500 lighter; the card's −$500 opening has left the
-      // pool, so the payment now reads as money that left the budget.
+      // pool, so the payment now reads as money that left the budget — out of
+      // "to be assigned", since it names no category.
       expect(balanceOf(result.current, ACCOUNT.id)).toBe(50000);
-      expect(envelopeFor(result.current.env, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(50000);
+      expect(result.current.env.cumTransferOutCents).toBe(50000);
       expectBalanced(result.current.env);
 
       const onBudgetCash = result.current.balances.onBudgetCents;

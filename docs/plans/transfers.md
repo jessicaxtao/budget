@@ -5,18 +5,26 @@ Decisions are recorded at the bottom.
 
 ## The problem
 
-A ledger record is money in or money out (`TRANSACTION_KINDS`), and money out
-must name a category. Moving $500 from checking to savings, or paying the Visa
-bill, can only be entered as:
+A ledger record was either money in or money out, and money out had to name a
+category. Moving $500 from checking to savings, or paying the Visa bill, could
+only be entered as:
 
-- an outflow from checking, filed against some category, which counts as
-  spending, reduces an envelope and shows in the spending report; plus
-- an inflow to the other account, which counts as income and adds to "to be
+- an outflow from checking, filed against some category, which counted as
+  spending, reduced an envelope and showed in the spending report; plus
+- an inflow to the other account, which counted as income and added to "to be
   assigned".
 
-Each half distorts a different figure, and together they inflate both income
+Each half distorted a different figure, and together they inflated both income
 and spending in the report. A real transfer moves money between accounts and,
 in the common case, touches **no** budget figure at all.
+
+## The principle
+
+**Money that moves is not money spent.** Setting money aside in a brokerage, a
+401(k) or a savings account the budget doesn't track still leaves the household
+with that money. It becomes spending only when it is spent, for example when
+the house is bought out of the savings account. So a transfer is never spending
+and never income, wherever it goes.
 
 ## The model: one record, a third kind
 
@@ -24,7 +32,7 @@ in the common case, touches **no** budget figure at all.
 { id, kind: "transfer", date, description, amountCents,
   accountId,      // where the money left
   toAccountId,    // where it arrived
-  budgetId }      // only when the transfer crosses the budget boundary
+  budgetId }      // optional: the envelope it moves, when it crosses the budget's edge
 ```
 
 **One record, not a linked pair of in/out records.** "One movement of money is
@@ -34,180 +42,166 @@ leg re-dated, one leg's amount edited. A single record cannot disagree with
 itself. `amountCents` stays a non-negative magnitude; the direction is
 `accountId` → `toAccountId`.
 
-### What a transfer does to the budget depends on which side each account is on
+### What a record does to the budget
 
-| From → To | Example | Budget effect | Category |
+| Record | Example | Envelopes / "to be assigned" | Spending report |
 |---|---|---|---|
-| on-budget → on-budget | checking → savings, checking → Visa (a card payment) | **none** | none, refused |
-| on-budget → off-budget | checking → 401(k), checking → brokerage | **outflow**: money leaves the budget | required (e.g. a savings or retirement category) |
-| off-budget → on-budget | brokerage → checking | **inflow**: money enters the budget | optional: none means the pool (to assign, but **not income**), one means a refund to that category |
-| off-budget → off-budget | 401(k) rollover to an IRA | **none** | none, refused |
+| transfer, on → on | checking → savings, paying the Visa | nothing | nothing |
+| transfer, on → off | checking → 401(k) or brokerage | out of the envelope it names, or out of "to be assigned" if none | nothing: the money is still the household's |
+| transfer, off → on | brokerage → checking | into the envelope it names, or into "to be assigned" if none | nothing: not income |
+| transfer, off → off | 401(k) rolled into an IRA | nothing | nothing |
+| outflow on an **off-budget** account | the house, bought out of savings | nothing: the money left the budget when it was set aside | **spending** in its category |
+| inflow or outflow on an on-budget account | as before | as before | as before |
 
-"On-budget" means `spendsThroughBudget`, so cards count as on-budget, exactly
-as they do everywhere else. A card payment is the first row: neutral, because
-the purchases on the card were already charged to their categories when they
-were made.
+"On-budget" means `spendsThroughBudget`, so cards count as on-budget, exactly as
+they do everywhere else. A card payment is the first row: no effect, because the
+purchases on the card were already charged to their categories when they were
+made.
 
 That classification is **cross-store maths** (it needs the transaction and the
 accounts), so it cannot live in `TransactionsContext`. That provider wraps
-`AccountsProvider` and must not read it. It goes in one pure function that
-every hook calls:
+`AccountsProvider` and must not read it. It is one pure function that every
+hook calls:
 
 ```js
 // src/ledger.js — no React, like paySchedule.js
 budgetSide(transaction, accountsById) → "inflow" | "outflow" | null
 ```
 
-- An inflow or outflow returns its own kind, unchanged, so existing records
-  classify exactly as they do today.
-- A transfer returns the row of the table above, read off the two accounts'
-  scopes **live**. Changing an account's scope restates the transfers into it,
-  just as it already restates the account's opening balance in "to be
-  assigned".
+- An inflow or outflow returns its own kind, unless its account is off-budget,
+  in which case it returns `null`. A record with no account at all (legacy, or
+  detached by an account delete) stays in the budget, as it always has.
+- A transfer returns `null` when both ends are on the same side of the budget,
+  and otherwise the direction it crosses. Scopes are read **live**, so changing
+  an account's scope restates its transfers, as it already restates the
+  account's opening balance in "to be assigned".
 - **A leg whose account is gone** (detached by an account delete, so `null`)
-  counts as **outside the budget**. The first draft made the transfer neutral
-  instead, but that breaks the books: delete a card that checking paid $500
-  towards, and the card's −$500 opening leaves "to be assigned" while checking
-  stays $500 lighter, so the envelopes hold $500 more than the accounts. Treated
-  as outside, the payment becomes $500 leaving the budget and lands in
-  Uncategorized, which is visible. A test checks that "to be assigned" plus
+  counts as **outside the budget**. The first draft treated the transfer as
+  having no effect instead, but that breaks the books. Delete a card that
+  checking paid $500 towards: the card's −$500 opening leaves "to be assigned"
+  while checking stays $500 lighter, so the envelopes would hold $500 more than
+  the accounts. Treated as outside, the payment becomes $500 leaving the budget,
+  taken out of "to be assigned". A test checks that "to be assigned" plus
   everything in the envelopes still equals the on-budget cash after the delete.
-- **A crossing outflow with no category** (the store cannot refuse it; see
-  below) is charged to `UNCATEGORIZED_BUDGET_ID`, as legacy spend already is.
-  Dropping it instead would break the envelope identity.
 
-### Why the store cannot enforce the category rule, and who does
-
-`TransactionsContext` cannot see account scopes, so it cannot know whether a
-transfer crosses the boundary. This is the same position as the donations
-store's "no more than the gift" bound, and it gets the same treatment:
-
-- **The store** checks what it can: a transfer names both accounts, and they
-  are different.
-- **The forms** (the modal and the register) know the accounts, so they require
-  the category on an on→off transfer and refuse one on a neutral transfer.
-- **The hooks** handle whatever is in storage anyway (the Uncategorized
-  fallback above), so no stored state can break the maths.
+**The category on a crossing transfer is optional both ways**, so the store has
+nothing to enforce about it that it cannot see. It checks what it can: a
+transfer names both accounts, and they are different. The forms should refuse a
+category on a transfer that stays on one side, because it would mean nothing.
 
 ## Changes, file by file
 
-### Store: `src/contexts/TransactionsContext.js`
+### Store: `src/contexts/TransactionsContext.js` (done)
 
 - `TRANSACTION_KINDS.TRANSFER = "transfer"`.
-- **`migrateTransactions` must carry `toAccountId`** (`?? null`). Today it
-  rebuilds every record from a field list and maps unknown kinds to OUTFLOW, so
-  without this edit every transfer would be **stripped of its destination and
-  turned into an expense on the next reload**. This is the one change where a
-  mistake loses data, so it gets a test of its own.
-- `RULES`:
-  - existing "an outflow names a category": unchanged (transfers are exempt);
-  - new "a transfer names where the money went", fields `kind, toAccountId`;
-  - new "a transfer goes to a different account", fields
-    `kind, accountId, toAccountId`;
-  - `toAccountId` is normalised to `null` on anything that is not a transfer,
-    so flipping a transfer back to an outflow cannot leave a stale destination.
-- `addTransaction` / `updateTransaction` accept `toAccountId`, with `""`
-  normalised to `null` as for the other selects.
-- `detachAccountTransactions` clears `toAccountId` as well as `accountId`.
-- `getAccountTransactions` matches either leg.
-- `reassignBudgetTransactions`, `deleteTransaction`: unchanged.
+- **`migrateTransactions` carries `toAccountId`.** It rebuilds every record from
+  a field list and maps unknown kinds to OUTFLOW, so without this every transfer
+  would reload as an expense going nowhere. Tested on its own.
+- `RULES`: a transfer names where the money went (`kind, toAccountId`), and
+  that is a different account (`kind, accountId, toAccountId`). `toAccountId` is
+  `null` on anything that is not a transfer, and `updateTransaction` drops it
+  when a record stops being one.
+- `detachAccountTransactions` clears whichever leg pointed at the deleted
+  account; `getAccountTransactions` matches either leg.
 
-### Maths: replace every `kind` check with `budgetSide`
+### Maths (done)
 
-| Reader | Today | Change |
-|---|---|---|
-| `useEnvelopes` | `kind === INFLOW` else spend | classify with `budgetSide`; `null` → skip entirely. Money in from off budget goes to the pool but is reported as `periodTransferInCents` / `cumTransferInCents`, not income |
-| `accountBalancesAt` | inflow +, **else −** | a transfer is − on `accountId` **and** + on `toAccountId`. Today's `else` would treat it as an outflow and lose the arriving leg. |
-| `useSpendingReport` | inflow / outflow | classify; neutral transfers are in no figure; money in from off budget with no category is in neither income nor spending, totalled as `transferredInCents` |
-| `useNetWorth` `indexSavingsSpend` | outflows in the savings/retirement buckets | also count crossing on→off transfers with such a category. They are the exact signal this proxy was standing in for (see phase 3) |
-| `useGiving` | skips non-inflows / tagged ids | unchanged; a transfer can't be a gift (the forms don't offer it) |
+| Reader | Change |
+|---|---|
+| `useEnvelopes` | Classifies with `budgetSide`; `null` is skipped. A crossing transfer moves its envelope as `movedIn` / `movedOut` (gross, on each row, apart from `spent` / `refund`) or the pool if it names none. Reports `periodTransferInCents` / `periodTransferOutCents` and cumulative twins. "Spent this month" no longer includes money set aside. |
+| `accountBalancesAt` | A transfer is − on `accountId` **and** + on `toAccountId`. |
+| `useSpendingReport` | Ignores every transfer and reads every plain record, off-budget accounts included. Totals `transferredInCents` / `transferredOutCents` for the window. |
+| `useNetWorth` `indexSavingsSpend` | Counts every transfer out of the budget, plus plain outflows under a savings or retirement category as before. |
+| `useGiving` | Unchanged; a transfer can't be a gift. |
 
-**The envelope identity gains one term**, because money brought in from off
-budget is cash but not income:
+**The envelope identity** now reads:
 
 ```
-toBeAssigned + Σ available === opening + cumulative income + cumulative transferred in − cumulative spend
+toBeAssigned + Σ available === opening + cumulative income − cumulative spend
+                               + cumulative transferred in − cumulative transferred out
 ```
 
-A neutral transfer adds to neither side; one out to off budget is in
-`cumSpentCents` like any outflow.
+**The report identity** (`netCents` = every inflow less every outflow in the
+window) holds unchanged once "every" means every record that isn't a transfer.
+Money set aside is part of what "net" says was kept, which is the point.
 
-The report's tripwire ("`netCents` = every inflow less every outflow in the
-window") now reads *across the budget's edge, less money brought in from off
-budget with no category*.
-
-### UI
+### UI (phase 2)
 
 **`AddTransactionModal`**: the toggle grows a third option, **Transfer**, next
 to Money out / Money in.
 - Fields: From, To, Amount, Date, Description.
-- From and To offer **every** account, off-budget included. Moving money to a
-  401(k) is the point.
-- The category select appears only when the picked pair crosses the boundary:
-  required for on→off; for off→on, optional, with "None — income to assign".
-  It is keyed on the pair's crossing state, the same way it is already keyed on
-  direction, so each case gets its own default.
+- From and To offer **every** account, off-budget included.
+- When the pair crosses the budget's edge, an optional category select appears:
+  "None — from to-be-assigned" going out, "None — to assign" coming in. It is
+  keyed on the crossing state, as the select is already keyed on direction, so
+  each case gets its own default.
 - The "nowhere to file this" guard: a transfer needs two accounts, not a
   category.
+- **Money out also has to offer off-budget accounts** now, or the house can't be
+  bought out of savings. Out of an off-budget account, the category still names
+  what it was spent on, for the report.
 
 **`TransactionRegister`**: a transfer row shows the Account cell as
 `Checking → Savings` (two compact selects) and the amount in the **Out** column,
 read from the source account's side. The In cell on a transfer row is blank and
 not editable, because "type in the other column to flip direction" makes no
-sense for a transfer. The Category cell shows a dash when the transfer is
-neutral. Keep the fixed column widths summing under 768px (see CLAUDE.md); two
-selects in the Account cell is the tight spot, and may mean widening that
-column at Description's expense.
+sense for a transfer. The Category cell shows a dash when the transfer stays on
+one side. Keep the fixed column widths summing under 768px (see CLAUDE.md); two
+selects in the Account cell is the tight spot.
+
+**`ToBeAssignedBar`**: show money moved in and out by transfer beside
+"Received", since "to be assigned" can now move without income or assignment.
+
+**Reports**: say how much was moved to and from off-budget accounts in the
+window, next to the headline figures. The bucket split now leaves money set
+aside by transfer out, so a household that saves by transfer sees the savings
+and retirement shares near zero against the plan's. Give the split a
+"set aside" segment so the plan-against-books comparison still means something.
 
 **`AccountList` / dashboard**: nothing to do. Both read `accountBalancesAt`.
 
 ## Phases
 
-1. **Store + maths + tests.** The `budgetSide` module, store changes, migration,
-   every hook, and the two tripwires extended. No UI yet; it can be verified
-   entirely in tests.
-2. **Modal and register.** Enter and edit transfers. Also show
-   `periodTransferInCents` beside "Received" in `ToBeAssignedBar`, since
-   "to be assigned" now grows from something that isn't income.
+1. **Store + maths + tests.** Done.
+2. **Modal, register, the to-be-assigned bar and the reports page.**
 3. **Follow-ons** (each optional, separately shippable):
    - *Net-worth interpolation from real transfers.* A transfer into a specific
      off-budget account says exactly when and where money moved, which
      `indexSavingsSpend` only guesses at, and shares across every holding.
    - *Credit-card payment envelopes* (comparison item #2) build directly on
-     card payments being neutral transfers.
+     card payments being transfers with no budget effect.
 
 ## Tests
 
-Phase 1's are in (`dataModel.test.js` "transfers between accounts", and the
-report test in `useSpendingReport.test.js`); the UI ones come with phase 2.
+Phase 1's are in `dataModel.test.js` ("transfers between accounts") and
+`useSpendingReport.test.js`:
 
-- `dataModel.test.js`: the identity after each of a neutral transfer, an on→off
-  transfer with a category, one with no category (→ Uncategorized), an off→on to
-  the pool, an off→on refund, and an account delete that leaves a transfer
-  half-detached.
-- Store: the migration keeps `toAccountId` across a reload; a transfer to the
-  same account is refused; one with no destination is refused; flipping kind
-  away from transfer clears `toAccountId`.
-- `accountBalancesAt`: both legs move, and an off-budget destination's derived
-  balance rises.
-- `useSpendingReport.test.js`: a neutral transfer is in no figure and the
-  identity holds.
+- the store: one record naming both ends; refused without a destination or to
+  the same account; an edit can't point it back at itself; flipping away from a
+  transfer drops the destination; the destination survives a reload;
+- the envelope identity after each case in the table above, including the house
+  bought out of an off-budget account and an account delete that cuts a leg;
+- the report: transfers are neither spending nor income, and spending out of an
+  off-budget account is spending.
+
+Still to come with phase 2:
+
 - `AddModals.test.js`: the Transfer option, the category appearing and
   disappearing as the pair crosses the boundary, re-seed across open/close
-  cycles.
-- `TransactionsPage.test.js`: enter a transfer, see both account balances move
-  and "to be assigned" not move.
+  cycles, off-budget accounts offered for money out.
+- `TransactionsPage.test.js`: enter a transfer and see both account balances
+  move while "to be assigned" doesn't.
 
 ## Decisions
 
-1. **Money brought in from an off-budget account is not income.** It lands in
-   "to be assigned", but it is kept out of income everywhere: the dashboard's
-   figures, the Reports page and the giving page's share of income. The
-   envelope hook reports it separately (`periodTransferInCents`), and the
-   report totals it as `transferredInCents`. Transfers out to an off-budget
-   account under a category still count as spending from that category, which
-   is how a retirement contribution shows in the retirement bucket.
-2. **No merge tool.** Nobody is using the app yet, so there are no faked
-   transfers to convert. Dropped from phase 3.
-3. **Off-budget → off-budget transfers are allowed.** They have no effect on the
+1. **A transfer is never spending and never income.** Money set aside off
+   budget is still the household's; it is spending when it is spent. Moving it
+   out takes it from the envelope it names (or "to be assigned"), but "spent
+   this month" and the spending report don't count it. Money brought back isn't
+   income either.
+2. **Spending out of an off-budget account is spending** (the house). It shows
+   in the report under its category and comes out of no envelope.
+3. **No merge tool.** Nobody is using the app yet, so there are no faked
+   transfers to convert.
+4. **Off-budget → off-budget transfers are allowed.** They have no effect on the
    budget and move the derived balances that net worth falls back on.

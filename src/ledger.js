@@ -5,15 +5,27 @@ import { TRANSACTION_KINDS } from "./contexts/TransactionsContext";
  * What a ledger record does to the *budget*, as distinct from what it does to
  * an account.
  *
- * For an inflow or an outflow the answer is its own kind: the record already
- * says which way money crossed into or out of the books. A transfer moves money
- * between two accounts, and whether that touches the budget at all depends on
- * which side of the budget each account sits on:
+ * For an inflow or an outflow the answer is its own kind — unless it moved
+ * through an **off-budget** account. Then it is `null`: a house bought out of
+ * the savings account it was set aside in is real spending (the report counts
+ * it), but that money left the budget when it was set aside, so it comes out of
+ * no envelope now. A record with no account at all — legacy, or detached by an
+ * account delete — stays in the budget, as it always has.
+ *
+ * A transfer moves money between two accounts, and whether that touches the
+ * budget at all depends on which side of the budget each account sits on:
  *
  *   on-budget  → on-budget    none      checking → savings, paying the card
  *   on-budget  → off-budget   outflow   checking → 401(k): money leaves the budget
  *   off-budget → on-budget    inflow    brokerage → checking: money enters it
  *   off-budget → off-budget   none      a rollover between two holdings
+ *
+ * **A transfer is never spending and never income**, whichever way it reads
+ * here: money set aside is money the household still has, and it is spent only
+ * when it is spent. So the envelope maths keeps a transfer's effect apart from
+ * `spent` and `refund` (`movedOut` / `movedIn`), and the spending report leaves
+ * transfers out altogether. One that crosses with a category moves that
+ * envelope; one with none moves "to be assigned".
  *
  * Cards count as on-budget, as they do everywhere (`spendsThroughBudget`): a
  * card payment is a neutral transfer, because every purchase on the card was
@@ -32,14 +44,17 @@ import { TRANSACTION_KINDS } from "./contexts/TransactionsContext";
  * the books: delete a card that checking paid $500 towards, and its −$500
  * opening leaves the pool (+$500) while checking is still $500 lighter, so the
  * payment has to start counting as $500 leaving the budget or the envelopes
- * hold $500 more than the accounts do. With no category on it, it lands in
- * Uncategorized, where it is visible rather than silently absorbed.
+ * hold $500 more than the accounts do. With no category on it, it comes out of
+ * "to be assigned".
  *
  * @returns TRANSACTION_KINDS.INFLOW, TRANSACTION_KINDS.OUTFLOW, or `null` for a
  *   record with no effect on the budget.
  */
 export function budgetSide(transaction, accountsById) {
-  if (transaction.kind !== TRANSACTION_KINDS.TRANSFER) return transaction.kind;
+  if (transaction.kind !== TRANSACTION_KINDS.TRANSFER) {
+    const account = accountsById.get(transaction.accountId);
+    return account && !spendsThroughBudget(account) ? null : transaction.kind;
+  }
 
   const fromInside = insideBudget(accountsById.get(transaction.accountId));
   const toInside = insideBudget(accountsById.get(transaction.toAccountId));

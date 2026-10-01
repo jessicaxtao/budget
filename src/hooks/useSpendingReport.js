@@ -6,7 +6,7 @@ import {
 } from "../contexts/BudgetsContext";
 import { useAccounts } from "../contexts/AccountsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
-import { budgetSide, indexAccounts, isIncome } from "../ledger";
+import { budgetSide, indexAccounts } from "../ledger";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import { toSections } from "../planLayout";
 import { addMonths, periodLTE, toPeriod } from "../utils";
@@ -54,15 +54,15 @@ import { addMonths, periodLTE, toPeriod } from "../utils";
  * which is what makes "net saved" a fact about the bank rather than a figure
  * assembled from two different books.
  *
- * **Transfers are read by what they do to the budget** (`budgetSide`). One that
- * stays on one side of it — paying the card, checking to savings — is in no
- * figure here. One out to an off-budget account is spending from the category
- * it names, which is how a 401(k) contribution shows in the retirement bucket.
- * One in from off budget is a refund if it names a category; if it names none
- * it lands in the pool to be assigned but is **not income** — it was the
- * household's own money changing places — so it is left out of both sides of
- * the identity and totalled on its own as `transferredInCents`. "Inflows" and
- * "outflows" above mean across the budget's edge, less that one case.
+ * **A transfer is in no figure here.** Money moved to a brokerage or a 401(k)
+ * is money the household still has, so it is not spending — it is part of what
+ * "net" says was kept — and money brought back is the household's own, so it
+ * is not income. It becomes spending when it is spent: a house bought out of
+ * the savings account is an ordinary outflow, and it is counted whichever
+ * account it left, off-budget ones included. Transfers that crossed the
+ * budget's edge are totalled on their own (`transferredInCents` /
+ * `transferredOutCents`) so the page can say where the money went. "Inflows"
+ * and "outflows" above mean every record that is not a transfer.
  *
  * ## What is left out, and said out loud
  *
@@ -220,28 +220,29 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
     let undatedCount = 0;
     let undatedSpentCents = 0;
     let undatedIncomeCents = 0;
-    // Money brought in from off budget with no category on it. It lands in the
-    // pool to be assigned, but it was the household's own money changing places,
-    // so it is neither income nor a refund and is in no figure below. Totalled
-    // over the window so the page can say where it went.
+    // Money moved across the budget's edge by transfer, in the window. Neither
+    // is in any figure below — see the note on transfers above — but both are
+    // totalled so the page can say where it went.
     let transferredInCents = 0;
+    let transferredOutCents = 0;
 
     for (const transaction of transactions) {
-      // A transfer that stays on one side of the budget is money changing
-      // places, and a report of what the household earned and spent has nothing
-      // to say about it. One that crosses reads as the inflow or outflow it is.
-      const side = budgetSide(transaction, accountsById);
-      if (side == null) continue;
-
       const period = toPeriod(transaction.date);
-      const inflow = side === TRANSACTION_KINDS.INFLOW;
       const amountCents = transaction.amountCents;
-      const toPool = inflow && transaction.budgetId == null;
 
-      if (toPool && !isIncome(transaction)) {
-        if (period != null && byMonth.has(period)) transferredInCents += amountCents;
+      // A transfer is money changing places, never earned and never spent.
+      if (transaction.kind === TRANSACTION_KINDS.TRANSFER) {
+        if (period == null || !byMonth.has(period)) continue;
+        const side = budgetSide(transaction, accountsById);
+        if (side === TRANSACTION_KINDS.INFLOW) transferredInCents += amountCents;
+        else if (side === TRANSACTION_KINDS.OUTFLOW) transferredOutCents += amountCents;
         continue;
       }
+
+      // Every account, off-budget ones included: a house bought out of savings
+      // is spending, even though it comes out of no envelope.
+      const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
+      const toPool = inflow && transaction.budgetId == null;
 
       if (period == null) {
         undatedCount += 1;
@@ -426,6 +427,7 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       undatedSpentCents,
       undatedIncomeCents,
       transferredInCents,
+      transferredOutCents,
 
       hasLedger: transactions.length > 0,
       firstPeriod,

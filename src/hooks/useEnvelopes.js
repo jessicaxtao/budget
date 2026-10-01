@@ -17,15 +17,16 @@ import { periodLTE, toPeriod } from "../utils";
  * what keeps the provider graph acyclic; the moment derived maths moves into a
  * provider, that stops being true. See src/contexts/AppProviders.js.
  *
- *   activity(b, p)  = refunded(b,p) − spent(b,p)
+ *   activity(b, p)  = refunded(b,p) − spent(b,p) + movedIn(b,p) − movedOut(b,p)
  *   available(b, P) = Σ over p ≤ P of [ assigned(b,p) + activity(b,p) ]
  *   carriedIn(b, P) = the same sum over p < P
- *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) + transferredIn(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ]
+ *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) + poolMovedIn(p) − poolMovedOut(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ]
  *
  * so that, at every period:
  *
  *   toBeAssigned + Σ available + Σ goal available
- *     === opening + cumulative inflow + cumulative transferred in − cumulative spend
+ *     === opening + cumulative inflow − cumulative spend
+ *         + cumulative transferred in − cumulative transferred out
  *
  * which is cash on hand. That identity is the tripwire the tests assert after
  * every mutation. It holds only if the row set below covers *every* budgetId
@@ -60,11 +61,15 @@ import { periodLTE, toPeriod } from "../utils";
  *
  * **A transfer counts only where it crosses the budget** (`budgetSide`): one
  * between two on-budget accounts — paying the card — moves nothing here at
- * all. One out to an off-budget account is spend from the category it names;
- * one in from off budget lands in the pool, or in the category it names as a
- * refund. Money brought in that way is kept out of `income` and reported as
- * `transferredIn` beside it: it is the household's own money changing places,
- * not money it earned, and "income in August" is checked against payslips.
+ * all. One that crosses moves the envelope it names, or the pool if it names
+ * none, and it is **never spending or income**: money set aside in a
+ * brokerage is money the household still has, and it is spent when it is
+ * spent. So it travels as `movedOut` / `movedIn`, beside `spent` and `refund`
+ * rather than inside them, and "spent this month" means what it says.
+ *
+ * **Spending out of an off-budget account is in none of this.** The money left
+ * the budget when it was set aside, so a house bought from the savings account
+ * comes out of no envelope; the spending report is where it shows.
  *
  * Undated records (date: null, from the migration that introduced dates) count
  * in every period's cumulative sums, so money never disappears from the books
@@ -92,6 +97,10 @@ export default function useEnvelopes(period) {
           spentNow: 0,
           refundBefore: 0,
           refundNow: 0,
+          movedInBefore: 0,
+          movedInNow: 0,
+          movedOutBefore: 0,
+          movedOutNow: 0,
           assignedBefore: 0,
           assignedNow: 0,
         };
@@ -102,16 +111,19 @@ export default function useEnvelopes(period) {
 
     let periodIncomeCents = 0;
     let cumIncomeCents = 0;
-    // Money brought into the books from an off-budget account. Cash, so the
-    // identity has to see it, but not income — see the note on transfers above.
+    // Money moved across the budget's edge by transfer. Cash, so the identity
+    // has to see it, but neither income nor spending — see the note above.
     let periodTransferInCents = 0;
+    let periodTransferOutCents = 0;
     let cumTransferInCents = 0;
-    // What the pool has ever been given, which is what "to be assigned" is built
-    // from. Separate from `cumIncomeCents` — that one is cash on hand and counts
-    // every inflow, while a refund reaches the same total through its envelope
-    // instead. Adding a refund to both is the one mistake here that would create
-    // money out of nothing.
-    let cumPoolInCents = 0;
+    let cumTransferOutCents = 0;
+    // What the pool has ever been given, net of what was moved straight out of
+    // it, which is what "to be assigned" is built from. Separate from
+    // `cumIncomeCents` — that one is cash on hand and counts every inflow, while
+    // a refund reaches the same total through its envelope instead. Adding a
+    // refund to both is the one mistake here that would create money out of
+    // nothing.
+    let cumPoolCents = 0;
 
     const accountsById = indexAccounts(accounts);
 
@@ -125,24 +137,37 @@ export default function useEnvelopes(period) {
       const inflow = side === TRANSACTION_KINDS.INFLOW;
       const transfer = transaction.kind === TRANSACTION_KINDS.TRANSFER;
       const counted = transactionPeriod == null || periodLTE(transactionPeriod, period);
-      if (inflow && counted) {
-        if (transfer) cumTransferInCents += transaction.amountCents;
-        else cumIncomeCents += transaction.amountCents;
+      const amountCents = transaction.amountCents;
+
+      if (transfer) {
+        if (transactionPeriod === period) {
+          if (inflow) periodTransferInCents += amountCents;
+          else periodTransferOutCents += amountCents;
+        }
+        if (counted) {
+          if (inflow) cumTransferInCents += amountCents;
+          else cumTransferOutCents += amountCents;
+        }
+        // Naming no category, it moves the pool in either direction: money
+        // brought in waits to be assigned, and money set aside without an
+        // envelope comes out of what was waiting.
+        if (transaction.budgetId == null) {
+          if (counted) cumPoolCents += inflow ? amountCents : -amountCents;
+          continue;
+        }
+      } else if (inflow && counted) {
+        cumIncomeCents += amountCents;
       }
 
-      // An inflow naming no category goes to the pool: income, or money brought
-      // in from off budget. Nothing else the pool ever sees.
-      if (inflow && transaction.budgetId == null) {
-        if (transactionPeriod === period) {
-          if (transfer) periodTransferInCents += transaction.amountCents;
-          else periodIncomeCents += transaction.amountCents;
-        }
-        if (counted) cumPoolInCents += transaction.amountCents;
+      // Income: an inflow naming no category. The pool's only other source.
+      if (!transfer && inflow && transaction.budgetId == null) {
+        if (transactionPeriod === period) periodIncomeCents += amountCents;
+        if (counted) cumPoolCents += amountCents;
         continue;
       }
 
       const entry = bucket(transaction.budgetId ?? UNCATEGORIZED_BUDGET_ID);
-      const field = inflow ? "refund" : "spent";
+      const field = transfer ? (inflow ? "movedIn" : "movedOut") : inflow ? "refund" : "spent";
       if (transactionPeriod === period) entry[`${field}Now`] += transaction.amountCents;
       // Undated movement already happened, so it belongs behind us rather than
       // in this month's column.
@@ -224,13 +249,23 @@ export default function useEnvelopes(period) {
         spentNow: 0,
         refundBefore: 0,
         refundNow: 0,
+        movedInBefore: 0,
+        movedInNow: 0,
+        movedOutBefore: 0,
+        movedOutNow: 0,
         assignedBefore: 0,
         assignedNow: 0,
       };
-      // Signed: what the month did to the envelope, which is what came back
-      // less what went out.
-      const activityCents = entry.refundNow - entry.spentNow;
-      const carriedInCents = entry.assignedBefore + entry.refundBefore - entry.spentBefore;
+      // Signed: what the month did to the envelope, which is what came back or
+      // was moved in, less what went out or was set aside.
+      const activityCents =
+        entry.refundNow - entry.spentNow + entry.movedInNow - entry.movedOutNow;
+      const carriedInCents =
+        entry.assignedBefore +
+        entry.refundBefore -
+        entry.spentBefore +
+        entry.movedInBefore -
+        entry.movedOutBefore;
       const budget = budgetsById.get(budgetId);
       const kind = budget
         ? "category"
@@ -249,6 +284,11 @@ export default function useEnvelopes(period) {
         // what the balance is built from.
         spentCents: entry.spentNow,
         refundCents: entry.refundNow,
+        // Gross as well, and kept apart from the two above: money moved to or
+        // from an off-budget account by transfer changed this envelope, but it
+        // was neither spent nor refunded.
+        movedInCents: entry.movedInNow,
+        movedOutCents: entry.movedOutNow,
         activityCents,
         availableCents: carriedInCents + entry.assignedNow + activityCents,
         // The standing estimate from Configuration, which is the same figure in
@@ -303,11 +343,12 @@ export default function useEnvelopes(period) {
       rows,
       goalRows,
       toBeAssignedCents:
-        openingCents + cumPoolInCents - assignedThroughCents - goalAssignedThroughCents,
+        openingCents + cumPoolCents - assignedThroughCents - goalAssignedThroughCents,
       totalAvailableCents: totals.available,
       totalCarriedInCents: totals.carriedIn,
       periodIncomeCents,
       periodTransferInCents,
+      periodTransferOutCents,
       periodAssignedCents: totals.periodAssigned,
       periodSpentCents: totals.spent,
       periodRefundCents: totals.refund,
@@ -315,6 +356,7 @@ export default function useEnvelopes(period) {
       openingCents,
       cumIncomeCents,
       cumTransferInCents,
+      cumTransferOutCents,
       cumSpentCents,
     };
   }, [budgets, transactions, assignments, goalAssignments, accounts, period]);

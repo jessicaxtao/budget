@@ -408,9 +408,9 @@ const TRANSFER_BUCKETS = new Set([PLAN_BUCKETS.SAVINGS, PLAN_BUCKETS.RETIREMENT]
  * books' live arithmetic on its way toward some holding, whichever one.
  *
  * This is the only signal available for *when*, inside a gap between two
- * off-budget snapshots, the money actually moved. A transfer to an off-budget
- * account under such a category counts the same as an outflow; a plain
- * outflow names only a category and not the holding it was headed for, so
+ * off-budget snapshots, the money actually moved. Every transfer out of the
+ * budget counts, whatever it is filed under; a plain outflow names only a
+ * category and not the holding it was headed for, so
  * either is a proxy here, not a fact — attributing a transfer to the one
  * account it names is still to come. It is shared across every off-budget
  * holding rather than attributed to one, for the same reason. Built once per
@@ -421,10 +421,12 @@ function indexSavingsSpend(transactions, budgets, accounts) {
   const accountsById = indexAccounts(accounts);
   const byPeriod = new Map();
   for (const transaction of transactions) {
-    // A transfer out to an off-budget account under a savings category reads
-    // as an outflow here too — it is exactly the movement this proxy is for.
     if (budgetSide(transaction, accountsById) !== TRANSACTION_KINDS.OUTFLOW) continue;
-    if (!TRANSFER_BUCKETS.has(bucketOf.get(transaction.budgetId))) continue;
+    // A transfer out of the budget is exactly the movement this proxy is for,
+    // whatever it was filed under. A plain outflow counts only under a savings
+    // category, the way money was set aside before transfers existed.
+    const transfer = transaction.kind === TRANSACTION_KINDS.TRANSFER;
+    if (!transfer && !TRANSFER_BUCKETS.has(bucketOf.get(transaction.budgetId))) continue;
     const period = toPeriod(transaction.date);
     if (period == null) continue;
     byPeriod.set(period, (byPeriod.get(period) ?? 0) + transaction.amountCents);

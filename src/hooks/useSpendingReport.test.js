@@ -163,7 +163,7 @@ describe("income, spending and what was left", () => {
     expect(report.netCents).toBe(report.totalIncomeCents - report.netSpentCents);
   });
 
-  test("transfers count only where they cross the budget, and never as income", () => {
+  test("a transfer is neither spending nor income; spending from off budget is spending", () => {
     const SAVINGS = { ...ACCOUNT, id: "sav", name: "Savings" };
     const BROKERAGE = { ...ACCOUNT, id: "brk", name: "Brokerage", scope: "off-budget" };
     const transfer = (date, amountCents, accountId, toAccountId, budgetId = null) => ({
@@ -183,9 +183,9 @@ describe("income, spending and what was left", () => {
         ...transactions,
         // Checking to savings: money changing places, in no figure.
         transfer("2026-08-02", 40000, ACCOUNT.id, SAVINGS.id),
-        // Out to the brokerage under a category: spending from it.
+        // Set aside in the brokerage under a category: still the household's.
         transfer("2026-08-03", 25000, ACCOUNT.id, BROKERAGE.id, "b1"),
-        // In from the brokerage with no category: to assign, but not earned.
+        // Brought back with no category: the household's own, not earned.
         transfer("2026-08-04", 70000, BROKERAGE.id, ACCOUNT.id),
       ],
     });
@@ -193,12 +193,21 @@ describe("income, spending and what was left", () => {
     const report = read("3m");
 
     expect(report.totalIncomeCents).toBe(1000000);
-    expect(report.totalSpentCents).toBe(230000 + 25000);
+    expect(report.totalSpentCents).toBe(230000);
     expect(report.transferredInCents).toBe(70000);
-    // The identity, with the one transfer that crosses as spending counted as an
-    // outflow, and the money brought in from off budget in neither side.
-    expect(report.netCents).toBe(cashMoved(transactions, report.months) - 25000);
+    expect(report.transferredOutCents).toBe(25000);
+    expect(report.netCents).toBe(cashMoved(transactions, report.months));
     expect(report.netCents).toBe(report.totalIncomeCents - report.netSpentCents);
+
+    // Spent out of the brokerage — the house. Now it is spending.
+    localStorage.setItem(
+      "transactions",
+      JSON.stringify([
+        ...JSON.parse(localStorage.getItem("transactions")),
+        { ...out("2026-08-20", 25000, "b1"), accountId: BROKERAGE.id },
+      ])
+    );
+    expect(read("3m").totalSpentCents).toBe(230000 + 25000);
   });
 
   test("a refund nets off its category and is not counted as income", () => {
