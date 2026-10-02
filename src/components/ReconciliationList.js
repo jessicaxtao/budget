@@ -47,35 +47,54 @@ function ReconciliationRow({ account, balanceCents, daysSince, striped, onReconc
   const overdrawn = account.type !== ACCOUNT_TYPES.LIABILITY && balanceCents < 0;
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-2 ${striped ? "bg-sheet-alt" : "bg-sheet"}`}>
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-sans text-row text-ink">{account.name}</div>
-        <div className="truncate font-mono text-label uppercase text-ink-soft">
-          {scopeLabel(account)}
-        </div>
-      </div>
-
-      <div className="shrink-0 text-right">
+    /* Two lines, not three columns. This panel sits in the dashboard's narrow
+       side column, where a row of name, figures and button puts the account's
+       own name last in the queue for the space: the figure block refuses to
+       shrink because the date in it must not wrap, so at 355px the name was
+       truncated to five characters while "SEP 28, 2026 · 3 DAYS AGO" — which
+       nobody reads first — kept its full width. The name and its balance are
+       the pair worth reading together, so they take the top line; what the
+       account is and when it was last checked go under them, beside the
+       action. */
+    <div className={`px-4 py-2 ${striped ? "bg-sheet-alt" : "bg-sheet"}`}>
+      <div className="flex items-baseline gap-3">
+        <div className="min-w-0 flex-1 truncate font-sans text-row text-ink">{account.name}</div>
         <div
-          className={`font-mono text-row font-medium tabular-nums ${
+          className={`shrink-0 font-mono text-row font-medium tabular-nums ${
             overdrawn ? "text-vermilion-ink" : "text-ink"
           }`}
         >
           {formatCents(balanceCents)}
         </div>
-        <div className={`whitespace-nowrap font-mono text-label uppercase ${status.tone}`}>
-          {status.text} · {status.note}
-        </div>
       </div>
 
-      <Button
-        variant="row-action"
-        size="sm"
-        aria-label={`Mark ${account.name} reconciled`}
-        onClick={() => onReconcile(account)}
-      >
-        Reconcile
-      </Button>
+      <div className="mt-0.5 flex items-start gap-3">
+        {/* This line **wraps rather than truncates**, which is the one thing it
+            must do differently from the name above it. Both the day and how
+            long ago it was are on it — the exact date is the fact, the relative
+            note is the staleness at a glance — and at this width they do not
+            fit beside the action on one line. Truncating would drop the half
+            that carries the tone; a name is still recognisable from its start,
+            but "SEP 28, 2026 · 3 D…" is not a date anybody can read. So it is
+            allowed a second line instead, and nothing is hidden. */}
+        <div className="min-w-0 flex-1 font-mono text-label uppercase">
+          <span className="text-ink-soft">{scopeLabel(account)}</span>
+          <span className="text-ink-soft"> · </span>
+          {/* Each half is unbreakable on its own, so the wrap falls between
+              them rather than through the middle of "3 DAYS AGO". */}
+          <span className={`whitespace-nowrap ${status.tone}`}>{status.text}</span>
+          <span className={status.tone}> · </span>
+          <span className={`whitespace-nowrap ${status.tone}`}>{status.note}</span>
+        </div>
+        <Button
+          variant="row-action"
+          size="sm"
+          aria-label={`Mark ${account.name} reconciled`}
+          onClick={() => onReconcile(account)}
+        >
+          Reconcile
+        </Button>
+      </div>
     </div>
   );
 }

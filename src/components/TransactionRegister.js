@@ -113,7 +113,12 @@ const figureInput = `${cellBase} bg-transparent text-right font-mono tabular-num
 // A `<select>` with a transparent background paints its option list against
 // whatever is behind it — see `Field.js` — which on a zebra table means the
 // row's own shade rather than the page's.
-const cellSelect = (index) => `${cellBase} ${rowBg(index)}`;
+// `truncate` is on the selects and deliberately not on `cellBase`: a fixed
+// 144px column cannot hold "Everyday checking", and a select clips the
+// overflow mid-glyph by default — "Everyday checkii", which reads as a
+// rendering fault rather than as a name that did not fit. An input must not
+// have it, since it scrolls its own content while the caret is in it.
+const cellSelect = (index) => `${cellBase} ${rowBg(index)} truncate`;
 
 /**
  * What a row is called when something has to be said about it out loud.
