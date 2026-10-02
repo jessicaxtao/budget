@@ -6,7 +6,7 @@ import {
   toYear,
   useDonations,
 } from "../contexts/DonationsContext";
-import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import { isSplit, TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 // One definition of "a share, or a dash where a share would be a fiction",
 // shared with the spending report rather than written a second time here: a
 // denominator of zero or of the wrong sign has the same answer wherever it turns
@@ -129,6 +129,9 @@ export default function useGiving(year) {
       rows.push({
         transactionId: donation.transactionId,
         date: transaction.date,
+        // The reference rather than the name, for `useSpendingReport`'s reason:
+        // this hook is about what was given, and the page resolves who to.
+        payeeId: transaction.payeeId,
         description: transaction.description,
         amountCents,
         deductibleCents: claimedCents,
@@ -206,10 +209,20 @@ export default function useGiving(year) {
     // spending report uses: an inflow naming no category. A refund is money
     // coming back to a category, and giving a tenth of a refunded jacket is not
     // what anybody means by a tenth of their income.
+    //
+    // **A transfer is not income here even when it is income to the pool.** Money
+    // drawn out of a brokerage into checking becomes spendable, so `useEnvelopes`
+    // rightly puts it in "to be assigned" — but it is not something the household
+    // earned, and a tithe is a share of earnings. The `kind` test is what keeps
+    // the two readings apart, and the divergence is deliberate rather than an
+    // oversight in one of them.
     let incomeCents = 0;
     for (const transaction of transactions) {
       if (transaction.kind !== TRANSACTION_KINDS.INFLOW) continue;
-      if (transaction.budgetId != null) continue;
+      // Naming no category is what makes an inflow income — and an inflow divided
+      // between categories names several, so it is refund all the way down and
+      // never earnings.
+      if (transaction.budgetId != null || isSplit(transaction)) continue;
       if (toYear(transaction.date) === year) incomeCents += transaction.amountCents;
     }
 

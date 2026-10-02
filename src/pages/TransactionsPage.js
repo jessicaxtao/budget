@@ -5,11 +5,14 @@ import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
 import PeriodStepper from "../components/PeriodStepper";
 import ToBeAssignedBar from "../components/ToBeAssignedBar";
+import SplitTransactionModal from "../components/SplitTransactionModal";
 import TransactionRegister from "../components/TransactionRegister";
 import { useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
+import { usePayees } from "../contexts/PayeesContext";
 import { useTransactions } from "../contexts/TransactionsContext";
 import useEnvelopes from "../hooks/useEnvelopes";
+import { orderPayeesByUse } from "../payeeSearch";
 import { currentPeriod, toPeriod } from "../utils";
 
 /**
@@ -30,10 +33,19 @@ export default function TransactionsPage() {
   const [period, setPeriod] = useState(currentPeriod);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  // The row being divided, held as an **id** rather than as the record: the
+  // ledger hands out fresh objects on every write, and the modal has to go on
+  // pointing at the same transaction across one.
+  const [splitTargetId, setSplitTargetId] = useState(null);
 
   const { transactions, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { budgets } = useBudgets();
+  const { payees, payeeById, addPayee, findPayeeByName } = usePayees();
+  // Most recently used first, which is the order the register's payee cells offer
+  // before a letter is typed. Built off the whole ledger rather than the month on
+  // screen: which payees the household deals with is not a fact about March.
+  const orderedPayees = useMemo(() => orderPayeesByUse(payees, transactions), [payees, transactions]);
 
   // Only the pool figures now — the per-category rows this page used to draw
   // are the dashboard's job. Read at the period on screen, so stepping back
@@ -51,6 +63,38 @@ export default function TransactionsPage() {
     // Stable, so entries sharing a date stay in the order they were logged.
     return [...inPeriod].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
   }, [transactions, period]);
+
+  const splitTarget = transactions.find((entry) => entry.id === splitTargetId) ?? null;
+
+  /**
+   * A payee named on a register row, created first where it is new.
+   *
+   * The register cannot do this itself: it is handed its rows as props and has no
+   * store. **Creating on blur is the rule here and the opposite of the entry
+   * form's**, which holds a typed name as a draft until submit — a cell has no
+   * submit to wait for, so the moment the user leaves it is the only moment there
+   * is. That does mean a mistyped name becomes a payee, which is exactly what the
+   * merge on the plan page is for.
+   *
+   * The payee is created before the row is repointed, for `AddTransactionModal`'s
+   * reason: the row has to be able to name it, and a payee with nothing filed under
+   * it yet is a far better residual than a row pointing at nothing.
+   */
+  function handlePayeeChange(transaction, { payeeId, name }) {
+    if (payeeId) return updateTransaction({ id: transaction.id, payeeId });
+
+    const trimmed = (name ?? "").trim();
+    if (!trimmed) return updateTransaction({ id: transaction.id, payeeId: null });
+
+    // A payee added on another device since this page rendered is the same payee,
+    // not a duplicate to be refused.
+    const existing = findPayeeByName(trimmed);
+    if (existing) return updateTransaction({ id: transaction.id, payeeId: existing.id });
+
+    const created = addPayee({ name: trimmed });
+    if (!created.ok) return created;
+    return updateTransaction({ id: transaction.id, payeeId: created.id });
+  }
 
   return (
     <>
@@ -80,9 +124,13 @@ export default function TransactionsPage() {
         transactions={rows}
         budgets={budgets}
         accounts={accounts}
+        payees={orderedPayees}
+        payeeById={payeeById}
         onChange={updateTransaction}
+        onPayeeChange={handlePayeeChange}
         onDelete={deleteTransaction}
         onAdd={() => setShowAddModal(true)}
+        onSplit={(transaction) => setSplitTargetId(transaction.id)}
       />
 
       <AssignIncomeModal
@@ -91,6 +139,13 @@ export default function TransactionsPage() {
         handleClose={() => setShowAssignModal(false)}
       />
       <AddTransactionModal show={showAddModal} handleClose={() => setShowAddModal(false)} />
+      {/* Shown off the record rather than off the id, so a row deleted while the
+          editor is open closes it rather than leaving an empty dialog behind. */}
+      <SplitTransactionModal
+        show={splitTarget != null}
+        transaction={splitTarget}
+        handleClose={() => setSplitTargetId(null)}
+      />
     </>
   );
 }

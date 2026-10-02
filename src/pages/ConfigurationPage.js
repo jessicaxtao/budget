@@ -11,6 +11,8 @@ import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
 import ExpectedIncomeTable from "../components/ExpectedIncomeTable";
 import PageHeader from "../components/PageHeader";
+import PayeeList from "../components/PayeeList";
+import ScheduleList from "../components/ScheduleList";
 import PlanHealthSummary from "../components/PlanHealthSummary";
 import PaySchedulePanel from "../components/PaySchedulePanel";
 import { DEFAULT_SCOPE, isOffBudget, useAccounts } from "../contexts/AccountsContext";
@@ -346,6 +348,24 @@ export default function ConfigurationPage() {
           a page that deliberately has no month in its corner. */}
       <div className="mt-8">
         <BalanceHistoryPanel />
+      </div>
+
+      {/* Above the payee list and closed like it, because a schedule is written
+          down once and then left alone — nearer to setting the household up than
+          the list below it, which fills itself. What is *due* is read on the
+          dashboard; what a schedule *is* is stated here, on the page that holds
+          every other standing fact and deliberately carries no month. */}
+      <div className="mt-4">
+        <ScheduleList />
+      </div>
+
+      {/* Between the two, and closed like both. A payee list is a standing fact
+          like the accounts above it and belongs to no month, which is what lets it
+          sit on a page with none in its corner — but it fills itself as
+          transactions are entered, so it is opened to tidy up rather than to set
+          anything up, and that puts it below the things this page exists for. */}
+      <div className="mt-4">
+        <PayeeList />
       </div>
 
       {/* Last on the page, and closed like the panel above it. Exporting is read

@@ -65,18 +65,31 @@ const read = (range = "12m", period = END) =>
   renderHook(() => useSpendingReport(period, range), { wrapper }).result.current;
 
 /** The identity's right-hand side, computed straight off the seed: cash that
- *  actually moved in the window, with no notion of income or refunds in it. */
-const cashMoved = (transactions, months) =>
-  transactions
+ *  actually moved in the window, with no notion of income or refunds in it.
+ *
+ *  A transfer is not cash moving in or out of the household, so it is not on this
+ *  side either — with the one exception the report itself makes, money leaving the
+ *  budget for a holding, which the plan allocates and the report counts as
+ *  spending. `offBudgetIds` is what tells the two apart, and it is spelled out
+ *  here rather than read off `budgetLegs` so the tripwire is not checking the code
+ *  under test against itself. */
+const cashMoved = (transactions, months, offBudgetIds = []) => {
+  const off = new Set(offBudgetIds);
+  return transactions
     .filter((transaction) => months.includes(toPeriod(transaction.date)))
-    .reduce(
-      (sum, transaction) =>
+    .reduce((sum, transaction) => {
+      if (transaction.kind === TRANSACTION_KINDS.TRANSFER) {
+        const leaves = !off.has(transaction.accountId) && off.has(transaction.toAccountId);
+        return leaves ? sum - transaction.amountCents : sum;
+      }
+      return (
         sum +
         (transaction.kind === TRANSACTION_KINDS.INFLOW
           ? transaction.amountCents
-          : -transaction.amountCents),
-      0
-    );
+          : -transaction.amountCents)
+      );
+    }, 0);
+};
 
 describe("the window", () => {
   test("a range resolves to whole months, oldest first, ending at the month asked for", () => {
@@ -351,5 +364,256 @@ describe("the category ranking", () => {
     );
     // Savings had nothing in it, so it is not a segment of nothing.
     expect(report.buckets.map((entry) => entry.label)).not.toContain("Savings");
+  });
+});
+
+describe("transfers", () => {
+  const CARD = {
+    id: "card1",
+    name: "Visa",
+    type: "liability",
+    scope: "credit-card",
+    assetClass: "Other",
+    openingBalanceCents: 0,
+    openingDate: null,
+  };
+  const HOLDING = {
+    id: "acc401k",
+    name: "401(k)",
+    type: "asset",
+    scope: "off-budget",
+    assetClass: "Stocks",
+    openingBalanceCents: 0,
+    openingDate: null,
+  };
+
+  const move = (date, amountCents, accountId, toAccountId, budgetId = null) => ({
+    id: `x${(sequence += 1)}`,
+    kind: TRANSACTION_KINDS.TRANSFER,
+    accountId,
+    toAccountId,
+    budgetId,
+    amountCents,
+    date,
+  });
+
+  test("a transfer between two accounts the budget spends through is in no report", () => {
+    const transactions = [
+      out("2026-08-02", 5000, "b1"),
+      move("2026-08-10", 20000, ACCOUNT.id, CARD.id),
+    ];
+    seed({ accounts: [ACCOUNT, CARD], budgets: [budget("b1", "Groceries")], transactions });
+
+    const report = read("3m");
+
+    // Paying a card off is not spending. Counted anywhere here it would report
+    // the household as having spent that money twice — once on the card and once
+    // to settle it.
+    expect(report.totalSpentCents).toBe(5000);
+    expect(report.totalIncomeCents).toBe(0);
+    expect(report.rows).toHaveLength(1);
+    expect(report.undatedCount).toBe(0);
+    const august = report.series.find((month) => month.period === "2026-08");
+    expect(august.spentCents).toBe(5000);
+  });
+
+  test("a transfer out of the budget is spending against its category", () => {
+    const transactions = [move("2026-08-10", 20000, ACCOUNT.id, HOLDING.id, "b1")];
+    seed({
+      accounts: [ACCOUNT, HOLDING],
+      budgets: [budget("b1", "Retirement")],
+      transactions,
+    });
+
+    const report = read("3m");
+
+    // The same reading the categorised outflow it replaces got, which is what
+    // keeps the bucket split comparable with the plan's own.
+    expect(report.totalSpentCents).toBe(20000);
+    expect(report.netSpentCents).toBe(20000);
+    const row = report.rows.find((entry) => entry.budgetId === "b1");
+    expect(row.netSpentCents).toBe(20000);
+    // And it is on the drill-in list, so the figure can be traced to the record
+    // that made it, the same as any other row.
+    expect(row.transactions).toHaveLength(1);
+    expect(row.transactions[0].kind).toBe(TRANSACTION_KINDS.TRANSFER);
+  });
+
+  test("a transfer into the budget is not income the household earned", () => {
+    const transactions = [
+      move("2026-08-10", 500000, HOLDING.id, ACCOUNT.id),
+      out("2026-08-12", 500000, "b1"),
+      inn("2026-08-01", 400000),
+    ];
+    seed({ accounts: [ACCOUNT, HOLDING], budgets: [budget("b1", "Home")], transactions });
+
+    const report = read("3m");
+
+    // `useEnvelopes` puts the withdrawal in "to be assigned", because it is money
+    // that can now be spent. A report of what the household earned is a different
+    // question, and the answer this one gives is the month the household really
+    // had: $4,000 earned against $5,000 spent on the roof, so a thousand down —
+    // which is what its net worth did. Counted as income it would read as four
+    // thousand up in the month it got poorer.
+    expect(report.totalIncomeCents).toBe(400000);
+    expect(report.totalSpentCents).toBe(500000);
+    expect(report.netCents).toBe(-100000);
+    expect(report.netCents).toBe(cashMoved(transactions, report.months, [HOLDING.id]));
+  });
+
+  test("the identity holds with transfers in the window", () => {
+    const transactions = [
+      inn("2026-07-01", 300000),
+      out("2026-07-04", 40000, "b1"),
+      // Inside the budget: on neither side of the identity.
+      move("2026-07-10", 20000, ACCOUNT.id, CARD.id),
+      // Out of the budget: spending, on both sides.
+      move("2026-08-10", 50000, ACCOUNT.id, HOLDING.id, "b1"),
+      // Into the budget: on neither side, which is what keeps the two halves of
+      // this test agreeing about a month that was not a month of earnings.
+      move("2026-08-20", 90000, HOLDING.id, ACCOUNT.id),
+    ];
+    seed({
+      accounts: [ACCOUNT, CARD, HOLDING],
+      budgets: [budget("b1", "Retirement")],
+      transactions,
+    });
+
+    const report = read("3m");
+    expect(report.netCents).toBe(cashMoved(transactions, report.months, [HOLDING.id]));
+  });
+
+  test("an undated transfer inside the budget is not even counted as missing", () => {
+    const transactions = [
+      { ...move("2026-08-10", 20000, ACCOUNT.id, CARD.id), date: null },
+      { ...out("2026-08-02", 5000, "b1"), date: null },
+    ];
+    seed({ accounts: [ACCOUNT, CARD], budgets: [budget("b1", "Groceries")], transactions });
+
+    const report = read("3m");
+
+    // Only the outflow is money the report is missing a month for. A transfer that
+    // moves no budget money would not have been in the chart even with a date, so
+    // saying it is missing from one would be saying nothing.
+    expect(report.undatedCount).toBe(1);
+    expect(report.undatedSpentCents).toBe(5000);
+  });
+});
+
+describe("a receipt divided between categories", () => {
+  // $124 at the supermarket: groceries, a light bulb and a birthday card. One
+  // movement of money, three places it went.
+  const divided = (date, amountCents, parts, fields = {}) => ({
+    id: `d${(sequence += 1)}`,
+    kind: TRANSACTION_KINDS.OUTFLOW,
+    accountId: ACCOUNT.id,
+    budgetId: null,
+    amountCents,
+    date,
+    splits: parts.map(([budgetId, cents], index) => ({
+      id: `p${index}`,
+      budgetId,
+      amountCents: cents,
+    })),
+    ...fields,
+  });
+
+  const BUDGETS = [
+    budget("b1", "Groceries"),
+    budget("b2", "Household"),
+    budget("b3", "Gifts"),
+  ];
+
+  test("the ranking is by where the money went, not by which receipt it arrived on", () => {
+    const transactions = [
+      divided("2026-08-04", 12400, [
+        ["b1", 9000],
+        ["b2", 2000],
+        ["b3", 1400],
+      ]),
+      out("2026-08-06", 3000, "b3"),
+    ];
+    seed({ budgets: BUDGETS, transactions });
+
+    const report = read("3m");
+    const rowFor = (id) => report.rows.find((row) => row.budgetId === id);
+
+    expect(rowFor("b1").netSpentCents).toBe(9000);
+    expect(rowFor("b2").netSpentCents).toBe(2000);
+    // Its own part plus the outflow beside it — the point of dividing a receipt
+    // is that the categories add up across every record that touched them.
+    expect(rowFor("b3").netSpentCents).toBe(4400);
+    expect(report.totalSpentCents).toBe(15400);
+    // And the whole is still what the household spent: the identity is computed
+    // off the seed with no notion of parts in it.
+    expect(report.netCents).toBe(cashMoved(transactions, report.months));
+  });
+
+  test("the drill-in shows the part and names the whole it came out of", () => {
+    seed({
+      budgets: BUDGETS,
+      transactions: [
+        divided("2026-08-04", 12400, [
+          ["b1", 9000],
+          ["b2", 3400],
+        ]),
+        out("2026-08-06", 3000, "b1"),
+      ],
+    });
+
+    const report = read("3m");
+    const rows = report.rows.find((row) => row.budgetId === "b1").transactions;
+
+    // The figure has to be the part or the rows would not add up to the total
+    // above them; the whole travels beside it so the line does not read as a
+    // disagreement with the register.
+    expect(rows.map((row) => [row.amountCents, row.wholeAmountCents])).toEqual([
+      [3000, null],
+      [9000, 12400],
+    ]);
+  });
+
+  test("an undated division is one record the report could not place, not three", () => {
+    seed({
+      budgets: BUDGETS,
+      transactions: [
+        divided(null, 12400, [
+          ["b1", 9000],
+          ["b2", 3400],
+        ]),
+      ],
+    });
+
+    const report = read("3m");
+
+    // Counted once — it is one row on the register — but every cent of it is
+    // reported as missing, or the figure the page prints would understate what
+    // the chart is leaving out.
+    expect(report.undatedCount).toBe(1);
+    expect(report.undatedSpentCents).toBe(12400);
+    expect(report.totalSpentCents).toBe(0);
+  });
+
+  test("the parts are filed into their own buckets, not the receipt's", () => {
+    seed({
+      budgets: [
+        { ...budget("b1", "Groceries"), bucket: "essentials" },
+        { ...budget("b3", "Gifts"), bucket: "fun" },
+      ],
+      transactions: [
+        divided("2026-08-04", 10000, [
+          ["b1", 7000],
+          ["b3", 3000],
+        ]),
+      ],
+    });
+
+    const report = read("3m");
+    const share = (bucket) => report.buckets.find((entry) => entry.bucket === bucket);
+
+    // This is the comparison the split exists for: a household that files the
+    // whole shop under essentials cannot see what it actually spends on wants.
+    expect(share("essentials").netSpentCents).toBe(7000);
+    expect(share("fun").netSpentCents).toBe(3000);
   });
 });

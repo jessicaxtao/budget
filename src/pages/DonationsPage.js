@@ -11,6 +11,7 @@ import PageHeader from "../components/PageHeader";
 import Placeholder from "../components/Placeholder";
 import YearStepper from "../components/YearStepper";
 import { useDonations } from "../contexts/DonationsContext";
+import { usePayees } from "../contexts/PayeesContext";
 import useGiving from "../hooks/useGiving";
 import { formatCents, todayISO } from "../utils";
 
@@ -54,6 +55,14 @@ export default function DonationsPage() {
   const { recipients, updateDonation, removeDonation, deleteRecipient, setGivingGoal } =
     useDonations();
   const giving = useGiving(year);
+  // Names for the gift rows. `useGiving` passes the reference through and stops
+  // there — it is a hook about what was given, and a payee's name is not a figure —
+  // so the join happens here, the same seam `ReportsPage` keeps for its drill-in.
+  const { payeeById } = usePayees();
+  const giftRows = giving.rows.map((row) => ({
+    ...row,
+    payeeName: payeeById.get(row.payeeId)?.name ?? null,
+  }));
 
   // The store validates; the page has to say so. Silently swallowing a rejected
   // edit would leave a row showing a figure the books are not using.
@@ -157,7 +166,7 @@ export default function DonationsPage() {
           <div className="lg:col-span-2">
             <DonationList
               year={year}
-              rows={giving.rows}
+              rows={giftRows}
               recipients={recipients}
               totalCents={giving.totalCents}
               deductibleCents={giving.deductibleCents}

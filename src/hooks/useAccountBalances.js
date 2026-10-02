@@ -19,6 +19,13 @@ import { periodLTE, toPeriod } from "../utils";
  * *for*, this says where it *is*, and a plan the accounts cannot fund is one the
  * user needs to see.
  *
+ * A **transfer** is the one record that moves two balances, and the one the two
+ * cuts read most differently: here both of its halves are always real, while the
+ * envelope cut sees a transfer between two accounts the budget spends through as
+ * nothing at all. That is what lets a credit card be paid off — the card's balance
+ * rises by what checking loses, and no envelope is asked to fund the payment
+ * twice. See `budgetLegs` in TransactionsContext.
+ *
  * Derived, never stored. That is what separates it from `balances` in
  * AccountsContext, which is a figure the user types in for an off-budget holding
  * whose worth no ledger can know — a 401(k) moves with the market, not with
@@ -43,21 +50,40 @@ import { periodLTE, toPeriod } from "../utils";
  */
 export function accountBalancesAt(accounts, transactions, period) {
   const movement = new Map();
+  const entryFor = (accountId) => {
+    let entry = movement.get(accountId);
+    if (!entry) {
+      entry = { inflowCents: 0, outflowCents: 0 };
+      movement.set(accountId, entry);
+    }
+    return entry;
+  };
 
   for (const transaction of transactions) {
+    const transactionPeriod = toPeriod(transaction.date);
+    if (transactionPeriod != null && !periodLTE(transactionPeriod, period)) continue;
+
+    // **The one record that moves two balances.** Money left one account and
+    // arrived in another, so this is the cut where both halves are real — and it
+    // is the only cut where they are, since between two accounts the budget spends
+    // through nothing has been earned or spent at all. Each side is credited only
+    // if it still exists: a transfer whose holding was deleted still leaves the
+    // account it left, on the same rule as any other detached record below.
+    if (transaction.kind === TRANSACTION_KINDS.TRANSFER) {
+      if (transaction.accountId != null) {
+        entryFor(transaction.accountId).outflowCents += transaction.amountCents;
+      }
+      if (transaction.toAccountId != null) {
+        entryFor(transaction.toAccountId).inflowCents += transaction.amountCents;
+      }
+      continue;
+    }
+
     // Cut loose from a deleted account. The money is still in the envelope
     // maths; there is simply no account left to show it against.
     if (transaction.accountId == null) continue;
 
-    const transactionPeriod = toPeriod(transaction.date);
-    if (transactionPeriod != null && !periodLTE(transactionPeriod, period)) continue;
-
-    let entry = movement.get(transaction.accountId);
-    if (!entry) {
-      entry = { inflowCents: 0, outflowCents: 0 };
-      movement.set(transaction.accountId, entry);
-    }
-
+    const entry = entryFor(transaction.accountId);
     if (transaction.kind === TRANSACTION_KINDS.INFLOW) {
       entry.inflowCents += transaction.amountCents;
     } else {

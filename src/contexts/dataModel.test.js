@@ -10,6 +10,7 @@ import {
 import { useIncomePlan } from "./IncomePlanContext";
 import { TRANSACTION_KINDS, useTransactions } from "./TransactionsContext";
 import { useAccounts } from "./AccountsContext";
+import { usePayees } from "./PayeesContext";
 import { useAssignments } from "./AssignmentsContext";
 import { useRetirement } from "./RetirementContext";
 import { useSavingsGoals } from "./SavingsGoalsContext";
@@ -146,21 +147,32 @@ describe("migrating records written before the schema changed", () => {
       {
         id: "e1",
         kind: "outflow",
+        // Neither old store had payees, so the text it did hold stays where it is
+        // — as the row's note. Minting a payee out of free text would invent a
+        // decision the household never made.
+        payeeId: null,
         description: "Coffee",
         amountCents: 450,
         date: null,
         // Nothing recorded which account the money moved through, and there is
         // no way to work it out after the fact.
         accountId: null,
+        // Neither old store had a kind that could name a second account.
+        toAccountId: null,
+        // Nor could either have been divided between categories.
+        splits: null,
         budgetId: "b1",
       },
       {
         id: "i1",
         kind: "inflow",
+        payeeId: null,
         description: "Salary",
         amountCents: 300000,
         date: null,
         accountId: null,
+        toAccountId: null,
+        splits: null,
         budgetId: null,
       },
     ]);
@@ -473,10 +485,13 @@ describe("a record can be corrected in place", () => {
     expect(result.current.transactions[0]).toEqual({
       id,
       kind: TRANSACTION_KINDS.OUTFLOW,
+      payeeId: null,
       description: "Coffee, twice",
       amountCents: 900,
       date: "2026-08-04",
       accountId: ACCOUNT.id,
+      toAccountId: null,
+      splits: null,
       budgetId: "b1",
     });
   });
@@ -2254,5 +2269,1015 @@ describe("the books balance after every mutation", () => {
       });
     });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe("transfers", () => {
+  // The four accounts the matrix needs: two the budget spends through (one of
+  // them a card, since paying one off is the case that had no correct shape at
+  // all before transfers existed) and two it does not.
+  const CHECKING = ACCOUNT;
+  const CARD = {
+    id: "card1",
+    name: "Visa",
+    type: "liability",
+    scope: "credit-card",
+    assetClass: "Other",
+    // The form asks a debt for what is owed as a positive figure and the store
+    // negates it, so $200 owed is −$200 held.
+    openingBalanceCents: -20000,
+    openingDate: null,
+  };
+  const HOLDING = {
+    id: "acc401k",
+    name: "401(k)",
+    type: "asset",
+    scope: "off-budget",
+    assetClass: "Stocks",
+    openingBalanceCents: 500000,
+    openingDate: null,
+  };
+  const BROKERAGE = {
+    id: "accbrk",
+    name: "Brokerage",
+    type: "asset",
+    scope: "off-budget",
+    assetClass: "Stocks",
+    openingBalanceCents: 100000,
+    openingDate: null,
+  };
+
+  const useLedger = () => ({
+    accounts: useAccounts(),
+    ledger: useTransactions(),
+    assignments: useAssignments(),
+    balances: useAccountBalances("2026-08"),
+    past: useEnvelopes("2026-01"),
+    now: useEnvelopes("2026-08"),
+    later: useEnvelopes("2030-12"),
+  });
+
+  function setUp() {
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Retirement" }]));
+    localStorage.setItem("assignments", JSON.stringify([]));
+    seedAccounts([CHECKING, CARD, HOLDING, BROKERAGE]);
+    return renderHook(useLedger, { wrapper });
+  }
+
+  const transfer = (fields) => ({
+    kind: TRANSACTION_KINDS.TRANSFER,
+    date: "2026-08-10",
+    amountCents: 20000,
+    ...fields,
+  });
+
+  const balanceOf = (current, id) =>
+    current.balances.rows.find((row) => row.account.id === id).balanceCents;
+
+  function expectAllBalanced(current) {
+    expectBalanced(current.past);
+    expectBalanced(current.now);
+    expectBalanced(current.later);
+  }
+
+  test("a record has to name a second account, and a different one", () => {
+    const { result } = setUp();
+
+    let missing;
+    act(() => {
+      missing = result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, description: "Nowhere" })
+      );
+    });
+    expect(missing).toEqual({ ok: false, error: "Choose the account this moved to." });
+
+    let itself;
+    act(() => {
+      itself = result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: CHECKING.id })
+      );
+    });
+    expect(itself.ok).toBe(false);
+    expect(itself.error).toMatch(/two different accounts/);
+
+    // Neither reached the ledger, so nothing has to be cleaned up after a refusal.
+    expect(result.current.ledger.transactions).toEqual([]);
+  });
+
+  test("the rules run on a patch too, so a transfer cannot be half-unmade", () => {
+    const { result } = setUp();
+    let id;
+    act(() => {
+      id = result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: CARD.id, description: "Card payment" })
+      ).id;
+    });
+
+    let cleared;
+    act(() => {
+      cleared = result.current.ledger.updateTransaction({ id, toAccountId: "" });
+    });
+    expect(cleared.ok).toBe(false);
+    expect(result.current.ledger.transactions[0].toAccountId).toBe(CARD.id);
+
+    let collided;
+    act(() => {
+      collided = result.current.ledger.updateTransaction({ id, accountId: CARD.id });
+    });
+    expect(collided.ok).toBe(false);
+  });
+
+  test("paying a card off moves both balances and no envelope at all", () => {
+    const { result } = setUp();
+
+    const before = result.current.now.toBeAssignedCents;
+    expect(balanceOf(result.current, CARD.id)).toBe(-20000);
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: CARD.id, description: "Card payment" })
+      );
+    });
+
+    // The card is square and checking is down by what it paid.
+    expect(balanceOf(result.current, CARD.id)).toBe(0);
+    expect(balanceOf(result.current, CHECKING.id)).toBe(-20000);
+    // And the plan has not moved: the money was budgeted on its way out through
+    // the card, so the payment is not a second call on any envelope.
+    expect(result.current.now.toBeAssignedCents).toBe(before);
+    expect(result.current.now.periodSpentCents).toBe(0);
+    expect(result.current.now.periodActivityCents).toBe(0);
+    expectAllBalanced(result.current);
+  });
+
+  test("a contribution to a holding is spending, and the holding is credited for it", () => {
+    const { result } = setUp();
+    const before = result.current.now.toBeAssignedCents;
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({
+          accountId: CHECKING.id,
+          toAccountId: HOLDING.id,
+          budgetId: "b1",
+          description: "Contribution",
+        })
+      );
+    });
+
+    // Out of the envelope it was assigned to, exactly as the categorised outflow
+    // this replaces was.
+    expect(envelopeFor(result.current.now, "b1").activityCents).toBe(-20000);
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(20000);
+    expect(result.current.now.toBeAssignedCents).toBe(before);
+    // And on the balance sheet the money is simply somewhere else.
+    expect(balanceOf(result.current, CHECKING.id)).toBe(-20000);
+    expect(balanceOf(result.current, HOLDING.id)).toBe(520000);
+    expectAllBalanced(result.current);
+  });
+
+  test("a crossing transfer with no category lands on Uncategorized and still balances", () => {
+    const { result } = setUp();
+
+    // The store cannot check this — it is mounted above the accounts and cannot
+    // see a scope — so the form is what refuses it. What matters here is that a
+    // record which reaches storage without one has somewhere to land.
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: HOLDING.id })
+      );
+    });
+
+    expect(envelopeFor(result.current.now, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(20000);
+    expectAllBalanced(result.current);
+  });
+
+  test("money drawn out of a holding is income to assign", () => {
+    const { result } = setUp();
+    const before = result.current.now.toBeAssignedCents;
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: HOLDING.id, toAccountId: CHECKING.id, description: "Withdrawal" })
+      );
+    });
+
+    expect(result.current.now.toBeAssignedCents).toBe(before + 20000);
+    expect(result.current.now.periodIncomeCents).toBe(20000);
+    // Income, not a refund: no envelope was given anything.
+    expect(result.current.now.periodActivityCents).toBe(0);
+    expect(balanceOf(result.current, HOLDING.id)).toBe(480000);
+    expect(balanceOf(result.current, CHECKING.id)).toBe(20000);
+    expectAllBalanced(result.current);
+  });
+
+  test("a rollover between two holdings touches the plan nowhere", () => {
+    const { result } = setUp();
+    const before = result.current.now.toBeAssignedCents;
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: HOLDING.id, toAccountId: BROKERAGE.id, description: "Rollover" })
+      );
+    });
+
+    expect(result.current.now.toBeAssignedCents).toBe(before);
+    expect(result.current.now.cumIncomeCents).toBe(0);
+    expect(result.current.now.cumSpentCents).toBe(0);
+    expect(balanceOf(result.current, BROKERAGE.id)).toBe(120000);
+    expectAllBalanced(result.current);
+  });
+
+  test("all four quadrants at once, and the books still balance", () => {
+    const { result } = setUp();
+
+    act(() => {
+      result.current.assignments.setAssignedAmount({
+        budgetId: "b1",
+        period: "2026-08",
+        amountCents: 30000,
+      });
+    });
+    act(() => {
+      result.current.ledger.addTransaction(earn({ date: "2026-08-01", amountCents: 100000 }));
+    });
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: CARD.id })
+      );
+      result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: HOLDING.id, budgetId: "b1" })
+      );
+      result.current.ledger.addTransaction(
+        transfer({ accountId: BROKERAGE.id, toAccountId: CHECKING.id })
+      );
+      result.current.ledger.addTransaction(
+        transfer({ accountId: HOLDING.id, toAccountId: BROKERAGE.id })
+      );
+    });
+
+    expectAllBalanced(result.current);
+
+    // Every dollar still accounted for on the balance sheet as well: the four
+    // transfers net to nothing across the accounts they touched, so the household
+    // holds its openings plus the paycheque.
+    expect(result.current.balances.netCents).toBe(-20000 + 500000 + 100000 + 100000);
+  });
+
+  test("a date or an amount can be corrected on a transfer like any other row", () => {
+    const { result } = setUp();
+    let id;
+    act(() => {
+      id = result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: CARD.id })
+      ).id;
+    });
+
+    act(() => {
+      result.current.ledger.updateTransaction({ id, amount: "150", date: "2026-08-12" });
+    });
+
+    expect(result.current.ledger.transactions[0]).toMatchObject({
+      kind: TRANSACTION_KINDS.TRANSFER,
+      amountCents: 15000,
+      date: "2026-08-12",
+      accountId: CHECKING.id,
+      toAccountId: CARD.id,
+    });
+    expect(balanceOf(result.current, CARD.id)).toBe(-5000);
+    expectAllBalanced(result.current);
+  });
+
+  test("deleting the destination cuts that side loose and keeps the books balanced", () => {
+    const { result } = setUp();
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: HOLDING.id, budgetId: "b1" })
+      );
+    });
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(20000);
+
+    act(() => {
+      result.current.accounts.deleteAccount({ id: HOLDING.id });
+    });
+
+    // The record survives, minus the account that no longer exists.
+    expect(result.current.ledger.transactions[0]).toMatchObject({
+      accountId: CHECKING.id,
+      toAccountId: null,
+    });
+    // A detached side reads as inside the budget — the same stance a detached
+    // ordinary record takes — so the money is back in its envelope rather than
+    // spent out of a holding nothing can show. It is a restatement of history,
+    // which is what deleting an account always is here, and the identity holds
+    // either way.
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(0);
+    expectAllBalanced(result.current);
+  });
+
+  test("deleting a transfer is a delete, with no second leg left behind", () => {
+    const { result } = setUp();
+    let id;
+    act(() => {
+      id = result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: CARD.id })
+      ).id;
+    });
+
+    act(() => {
+      result.current.ledger.deleteTransaction({ id });
+    });
+
+    expect(result.current.ledger.transactions).toEqual([]);
+    expect(balanceOf(result.current, CARD.id)).toBe(-20000);
+    expectAllBalanced(result.current);
+  });
+
+  test("a category is kept rather than cleared when a transfer stops needing one", () => {
+    const { result } = setUp();
+    let id;
+    act(() => {
+      id = result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: HOLDING.id, budgetId: "b1" })
+      ).id;
+    });
+
+    // Re-pointed at an account inside the budget: the transfer stops spending,
+    // but the answer it was given is still on the record, so pointing it back is
+    // one edit rather than two.
+    act(() => {
+      result.current.ledger.updateTransaction({ id, toAccountId: CARD.id });
+    });
+    expect(result.current.ledger.transactions[0].budgetId).toBe("b1");
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(0);
+    expectAllBalanced(result.current);
+
+    act(() => {
+      result.current.ledger.updateTransaction({ id, toAccountId: HOLDING.id });
+    });
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(20000);
+    expectAllBalanced(result.current);
+  });
+
+  test("an account's own list holds the transfers into it as well as out", () => {
+    const { result } = setUp();
+    act(() => {
+      result.current.ledger.addTransaction(
+        transfer({ accountId: CHECKING.id, toAccountId: HOLDING.id, budgetId: "b1" })
+      );
+    });
+
+    expect(result.current.ledger.getAccountTransactions(HOLDING.id)).toHaveLength(1);
+    expect(result.current.ledger.getAccountTransactions(CHECKING.id)).toHaveLength(1);
+  });
+});
+
+describe("payees as records rather than typed text", () => {
+  /** The payee store and the ledger together, which is what a cascade needs. */
+  function withPayees(seed = []) {
+    seedAccounts();
+    if (seed.length > 0) localStorage.setItem("payees", JSON.stringify(seed));
+    return renderHook(() => ({ payees: usePayees(), ledger: useTransactions() }), { wrapper });
+  }
+
+  const nameOf = (result, id) => result.current.payees.payeeById.get(id)?.name;
+
+  test("a payee is a name and, optionally, where it is usually filed", () => {
+    const { result } = withPayees();
+
+    let id;
+    act(() => {
+      id = result.current.payees.addPayee({ name: "  Costco  " }).id;
+    });
+
+    // Trimmed on the way in, and no default: most payees are not always filed the
+    // same way, so null is the ordinary answer rather than a gap.
+    expect(stored("payees")).toEqual([{ id, name: "Costco", defaultBudgetId: null }]);
+  });
+
+  test("two payees cannot share a name, however it is capitalised", () => {
+    const { result } = withPayees();
+
+    act(() => {
+      result.current.payees.addPayee({ name: "Costco" });
+    });
+
+    let second;
+    act(() => {
+      second = result.current.payees.addPayee({ name: "  costco " });
+    });
+
+    expect(second.ok).toBe(false);
+    expect(second.error).toMatch(/already exists/i);
+    expect(result.current.payees.payees).toHaveLength(1);
+  });
+
+  test("punctuation is not identity — two real payees may differ only by it", () => {
+    const { result } = withPayees();
+
+    // The search folds "&" away so that typing "att" finds "AT&T"; identity does
+    // not, because these may genuinely be two different payees and refusing the
+    // second would be the app deciding otherwise.
+    act(() => {
+      expect(result.current.payees.addPayee({ name: "AT&T" }).ok).toBe(true);
+    });
+    act(() => {
+      expect(result.current.payees.addPayee({ name: "ATT" }).ok).toBe(true);
+    });
+    expect(result.current.payees.payees).toHaveLength(2);
+  });
+
+  test("a name is required, and a blank one is refused", () => {
+    const { result } = withPayees();
+
+    act(() => {
+      expect(result.current.payees.addPayee({ name: "   " }).ok).toBe(false);
+    });
+    expect(result.current.payees.payees).toHaveLength(0);
+  });
+
+  test("renaming is one write, and every transaction follows it", () => {
+    const { result } = withPayees([{ id: "p1", name: "Costcko", defaultBudgetId: null }]);
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        spend({ payeeId: "p1", amountCents: 7840, budgetId: "b1", date: todayISO() })
+      );
+    });
+
+    act(() => {
+      expect(result.current.payees.updatePayee({ id: "p1", name: "Costco" }).ok).toBe(true);
+    });
+
+    // The row was never holding the name, which is the whole reason the entity
+    // exists: nothing in the ledger changed and the row says the new name.
+    expect(result.current.ledger.transactions[0].payeeId).toBe("p1");
+    expect(nameOf(result, "p1")).toBe("Costco");
+  });
+
+  test("a rename onto another payee's name is refused, and says to merge", () => {
+    const { result } = withPayees([
+      { id: "p1", name: "Costco", defaultBudgetId: null },
+      { id: "p2", name: "Costco Wholesale", defaultBudgetId: null },
+    ]);
+
+    let outcome;
+    act(() => {
+      outcome = result.current.payees.updatePayee({ id: "p2", name: "costco" });
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error).toMatch(/merge/i);
+    expect(nameOf(result, "p2")).toBe("Costco Wholesale");
+  });
+
+  test("an id the store does not have is refused rather than reported as written", () => {
+    const { result } = withPayees();
+
+    // `useSyncedState` syncs a delete from another device, so the panel can be
+    // open on a row that is gone — a `map` matching nothing would report success.
+    act(() => {
+      expect(result.current.payees.updatePayee({ id: "nope", name: "Costco" }).ok).toBe(false);
+    });
+  });
+
+  test("the default category is set, cleared, and left alone by an unrelated patch", () => {
+    const { result } = withPayees([{ id: "p1", name: "Costco", defaultBudgetId: null }]);
+
+    act(() => {
+      result.current.payees.updatePayee({ id: "p1", defaultBudgetId: "b1" });
+    });
+    expect(stored("payees")[0].defaultBudgetId).toBe("b1");
+
+    // A patch that names only the name leaves the default where it was.
+    act(() => {
+      result.current.payees.updatePayee({ id: "p1", name: "Costco Wholesale" });
+    });
+    expect(stored("payees")[0].defaultBudgetId).toBe("b1");
+
+    // Null is how it comes off, and "" — an unpicked select — means the same.
+    act(() => {
+      result.current.payees.updatePayee({ id: "p1", defaultBudgetId: "" });
+    });
+    expect(stored("payees")[0].defaultBudgetId).toBeNull();
+  });
+
+  test("removing a payee keeps its transactions and detaches them", () => {
+    const { result } = withPayees([{ id: "p1", name: "Costco", defaultBudgetId: null }]);
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        spend({ payeeId: "p1", amountCents: 7840, budgetId: "b1", date: todayISO() })
+      );
+    });
+
+    act(() => {
+      result.current.payees.deletePayee({ id: "p1" });
+    });
+
+    // The money moved; what is gone is only the record of who it went to. Deleting
+    // the row instead would rewrite an envelope balance because a list was tidied.
+    expect(result.current.ledger.transactions).toHaveLength(1);
+    expect(result.current.ledger.transactions[0]).toMatchObject({
+      payeeId: null,
+      amountCents: 7840,
+      budgetId: "b1",
+    });
+  });
+
+  test("merging repoints every transaction and drops the merged payees, in one commit", () => {
+    const { result } = withPayees([
+      { id: "p1", name: "Costco", defaultBudgetId: null },
+      { id: "p2", name: "COSTCO", defaultBudgetId: null },
+      { id: "p3", name: "Costco Wholesale", defaultBudgetId: null },
+    ]);
+
+    act(() => {
+      result.current.ledger.addTransaction(
+        spend({ payeeId: "p2", amountCents: 1000, budgetId: "b1", date: todayISO() })
+      );
+      result.current.ledger.addTransaction(
+        spend({ payeeId: "p3", amountCents: 2000, budgetId: "b1", date: todayISO() })
+      );
+    });
+
+    act(() => {
+      expect(
+        result.current.payees.mergePayees({ fromIds: ["p2", "p3"], intoId: "p1" }).ok
+      ).toBe(true);
+    });
+
+    expect(result.current.payees.payees).toEqual([
+      { id: "p1", name: "Costco", defaultBudgetId: null },
+    ]);
+    expect(result.current.ledger.transactions.map((entry) => entry.payeeId)).toEqual(["p1", "p1"]);
+    // And nothing about the money moved: a merge is about names.
+    expect(result.current.ledger.transactions.map((entry) => entry.amountCents)).toEqual([
+      1000, 2000,
+    ]);
+  });
+
+  test("a merge adopts a default only where the survivor has none", () => {
+    const { result } = withPayees([
+      { id: "p1", name: "Costco", defaultBudgetId: null },
+      { id: "p2", name: "COSTCO", defaultBudgetId: "b1" },
+    ]);
+
+    act(() => {
+      result.current.payees.mergePayees({ fromIds: ["p2"], intoId: "p1" });
+    });
+    // The only answer either of them had is kept.
+    expect(stored("payees")).toEqual([{ id: "p1", name: "Costco", defaultBudgetId: "b1" }]);
+  });
+
+  test("a merge never overwrites an answer the survivor already gave", () => {
+    const { result } = withPayees([
+      { id: "p1", name: "Costco", defaultBudgetId: "b1" },
+      { id: "p2", name: "COSTCO", defaultBudgetId: "b2" },
+    ]);
+
+    act(() => {
+      result.current.payees.mergePayees({ fromIds: ["p2"], intoId: "p1" });
+    });
+    expect(stored("payees")[0].defaultBudgetId).toBe("b1");
+  });
+
+  test("a merge into itself, or of a payee that is gone, is refused whole", () => {
+    const { result } = withPayees([
+      { id: "p1", name: "Costco", defaultBudgetId: null },
+      { id: "p2", name: "COSTCO", defaultBudgetId: null },
+    ]);
+
+    act(() => {
+      expect(result.current.payees.mergePayees({ fromIds: ["p1"], intoId: "p1" }).ok).toBe(false);
+    });
+    act(() => {
+      expect(result.current.payees.mergePayees({ fromIds: [], intoId: "p1" }).ok).toBe(false);
+    });
+    // The whole batch is validated before anything is written, so one unknown id
+    // leaves the good one alone rather than half-merging.
+    act(() => {
+      expect(result.current.payees.mergePayees({ fromIds: ["p2", "gone"], intoId: "p1" }).ok).toBe(
+        false
+      );
+    });
+    expect(result.current.payees.payees).toHaveLength(2);
+  });
+
+  test("a stored record from before the field existed reads as having no default", () => {
+    const { result } = withPayees([{ id: "p1", name: "Costco" }]);
+    expect(result.current.payees.payees).toEqual([
+      { id: "p1", name: "Costco", defaultBudgetId: null },
+    ]);
+  });
+
+  test("the ledger takes a payee but never requires one", () => {
+    const { result } = withPayees();
+
+    // A cash withdrawal names nobody, and a row folded in from before payees
+    // existed names nobody either — refusing those would make rows unfinishable
+    // that were complete before.
+    act(() => {
+      expect(
+        result.current.ledger.addTransaction(
+          spend({ amountCents: 2000, budgetId: "b1", date: todayISO() })
+        ).ok
+      ).toBe(true);
+    });
+    expect(result.current.ledger.transactions[0].payeeId).toBeNull();
+  });
+
+  test("a payee can be put on a row, and taken off again, one patch at a time", () => {
+    const { result } = withPayees([{ id: "p1", name: "Costco", defaultBudgetId: null }]);
+
+    let id;
+    act(() => {
+      id = result.current.ledger.addTransaction(
+        spend({ amountCents: 2000, budgetId: "b1", date: todayISO() })
+      ).id;
+    });
+
+    act(() => {
+      result.current.ledger.updateTransaction({ id, payeeId: "p1" });
+    });
+    expect(result.current.ledger.transactions[0].payeeId).toBe("p1");
+
+    // Clearing it is a real answer, unlike clearing a date or an amount: a row
+    // that names nobody is an ordinary row.
+    act(() => {
+      expect(result.current.ledger.updateTransaction({ id, payeeId: "" }).ok).toBe(true);
+    });
+    expect(result.current.ledger.transactions[0].payeeId).toBeNull();
+  });
+});
+
+describe("one transaction divided between categories", () => {
+  const CHECKING = { ...ACCOUNT, openingBalanceCents: 500000 };
+  const HOLDING = {
+    id: "acc-401k",
+    name: "401(k)",
+    type: "asset",
+    scope: "off-budget",
+    assetClass: "Stocks",
+    openingBalanceCents: 1000000,
+    openingDate: null,
+  };
+
+  const useLedger = () => ({
+    budgets: useBudgets(),
+    ledger: useTransactions(),
+    assignments: useAssignments(),
+    balances: useAccountBalances("2026-08"),
+    past: useEnvelopes("2026-01"),
+    now: useEnvelopes("2026-08"),
+    later: useEnvelopes("2030-12"),
+  });
+
+  function setUp({ transactions, assignments = [] } = {}) {
+    localStorage.setItem(
+      "budgets",
+      JSON.stringify([
+        { id: "b1", name: "Groceries" },
+        { id: "b2", name: "Household" },
+        { id: "b3", name: "Gifts" },
+      ])
+    );
+    if (assignments) localStorage.setItem("assignments", JSON.stringify(assignments));
+    if (transactions) localStorage.setItem("transactions", JSON.stringify(transactions));
+    seedAccounts([CHECKING, HOLDING]);
+    return renderHook(useLedger, { wrapper });
+  }
+
+  // $120 of groceries and household, on one receipt, the way a supermarket run
+  // actually happens.
+  const receipt = (fields) => ({
+    kind: TRANSACTION_KINDS.OUTFLOW,
+    accountId: CHECKING.id,
+    date: "2026-08-12",
+    description: "Costco",
+    amountCents: 12000,
+    splits: [
+      { budgetId: "b1", amountCents: 8000 },
+      { budgetId: "b2", amountCents: 4000 },
+    ],
+    ...fields,
+  });
+
+  const balanceOf = (current, id) =>
+    current.balances.rows.find((row) => row.account.id === id).balanceCents;
+
+  function expectAllBalanced(current) {
+    expectBalanced(current.past);
+    expectBalanced(current.now);
+    expectBalanced(current.later);
+  }
+
+  /**
+   * The envelope view against a reading of the ledger that has no notion of
+   * parts in it at all.
+   *
+   * `expectBalanced` is self-consistent by construction — both of its sides come
+   * out of the same hook — so it would stay green if a division and its whole
+   * drifted apart together. This is the check that cannot: it adds up the
+   * `amountCents` the register shows and the balance sheet spends, and insists
+   * the envelopes cover exactly that. Split the parts wrong and it is the first
+   * thing to go red.
+   */
+  function expectCoversLedger(current) {
+    const gross = current.ledger.transactions
+      .filter((transaction) => transaction.kind === TRANSACTION_KINDS.OUTFLOW)
+      .reduce((sum, transaction) => sum + transaction.amountCents, 0);
+    expect(current.later.cumSpentCents).toBe(gross);
+  }
+
+  test("each part lands in its own envelope while the account loses the whole", () => {
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })] });
+
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(8000);
+    expect(envelopeFor(result.current.now, "b2").spentCents).toBe(4000);
+    expect(envelopeFor(result.current.now, "b3").spentCents).toBe(0);
+    // The two cuts of the same ledger, reading the same money two ways: the
+    // envelopes read the parts, the balance sheet reads the whole, and the sum
+    // rule is the only reason they can both be right.
+    expect(balanceOf(result.current, CHECKING.id)).toBe(500000 - 12000);
+    expectAllBalanced(result.current);
+    expectCoversLedger(result.current);
+  });
+
+  test("parts that do not add up to the whole are refused, and nothing lands", () => {
+    const { result } = setUp();
+
+    let short;
+    act(() => {
+      short = result.current.ledger.addTransaction(
+        receipt({
+          splits: [
+            { budgetId: "b1", amountCents: 8000 },
+            { budgetId: "b2", amountCents: 3000 },
+          ],
+        })
+      );
+    });
+    expect(short.ok).toBe(false);
+    expect(short.error).toMatch(/add up/);
+    expect(result.current.ledger.transactions).toEqual([]);
+  });
+
+  test("a part needs a category and an amount, and one part is not a division", () => {
+    const { result } = setUp();
+
+    let lone;
+    act(() => {
+      lone = result.current.ledger.addTransaction(
+        receipt({ splits: [{ budgetId: "b1", amountCents: 12000 }] })
+      );
+    });
+    expect(lone.ok).toBe(false);
+    expect(lone.error).toMatch(/two or more parts/);
+
+    let unfiled;
+    act(() => {
+      unfiled = result.current.ledger.addTransaction(
+        receipt({
+          splits: [
+            { budgetId: "b1", amountCents: 8000 },
+            { budgetId: "", amountCents: 4000 },
+          ],
+        })
+      );
+    });
+    expect(unfiled.ok).toBe(false);
+
+    // A negative part would be a refund hiding inside an expense, which is the
+    // one thing the two kinds exist to keep apart.
+    let negative;
+    act(() => {
+      negative = result.current.ledger.addTransaction(
+        receipt({
+          splits: [
+            { budgetId: "b1", amountCents: 16000 },
+            { budgetId: "b2", amountCents: -4000 },
+          ],
+        })
+      );
+    });
+    expect(negative.ok).toBe(false);
+    expect(result.current.ledger.transactions).toEqual([]);
+  });
+
+  test("the total cannot be retyped on its own, but moves with the parts in one patch", () => {
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })] });
+
+    // The sum rule names `amountCents` as well as `splits`, so it runs when
+    // either side of it moves — which is exactly why the register sends a split
+    // row's figure to the editor instead of taking it in the cell.
+    let alone;
+    act(() => {
+      alone = result.current.ledger.updateTransaction({ id: "t1", amountCents: 13000 });
+    });
+    expect(alone.ok).toBe(false);
+    expect(alone.error).toMatch(/add up/);
+    expect(result.current.ledger.transactions[0].amountCents).toBe(12000);
+
+    let together;
+    act(() => {
+      together = result.current.ledger.updateTransaction({
+        id: "t1",
+        amountCents: 13000,
+        splits: [
+          { budgetId: "b1", amountCents: 9000 },
+          { budgetId: "b2", amountCents: 4000 },
+        ],
+      });
+    });
+    expect(together.ok).toBe(true);
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(9000);
+    expectAllBalanced(result.current);
+    expectCoversLedger(result.current);
+  });
+
+  test("undoing a division files the whole under one category", () => {
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })] });
+
+    act(() => {
+      result.current.ledger.updateTransaction({ id: "t1", budgetId: "b1", splits: null });
+    });
+
+    expect(result.current.ledger.transactions[0].splits).toBeNull();
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(12000);
+    expect(envelopeFor(result.current.now, "b2").spentCents).toBe(0);
+    expectAllBalanced(result.current);
+    expectCoversLedger(result.current);
+  });
+
+  test("deleting a category moves the part that names it, and the rest stay put", () => {
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })] });
+
+    act(() => {
+      result.current.budgets.deleteBudget({ id: "b1" });
+    });
+
+    expect(result.current.ledger.transactions[0].splits).toEqual([
+      { id: expect.any(String), budgetId: UNCATEGORIZED_BUDGET_ID, amountCents: 8000 },
+      { id: expect.any(String), budgetId: "b2", amountCents: 4000 },
+    ]);
+    expect(envelopeFor(result.current.now, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(8000);
+    expectAllBalanced(result.current);
+    expectCoversLedger(result.current);
+  });
+
+  test("two parts landing on one category merge, and a division of one is no division", () => {
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })] });
+
+    act(() => {
+      result.current.budgets.deleteBudget({ id: "b1" });
+    });
+    act(() => {
+      result.current.budgets.deleteBudget({ id: "b2" });
+    });
+
+    // Both halves are now Uncategorized, which is one answer and not two — and
+    // one part is the record it already was, so the division goes away rather
+    // than being left in a shape the store would refuse from any other caller.
+    const record = result.current.ledger.transactions[0];
+    expect(record.splits).toBeNull();
+    expect(record.budgetId).toBe(UNCATEGORIZED_BUDGET_ID);
+    expect(record.amountCents).toBe(12000);
+    expect(envelopeFor(result.current.now, UNCATEGORIZED_BUDGET_ID).spentCents).toBe(12000);
+    expectAllBalanced(result.current);
+    expectCoversLedger(result.current);
+  });
+
+  test("a divided refund goes back to its envelopes and never to the pool", () => {
+    const { result } = setUp({
+      transactions: [
+        receipt({ id: "t1" }),
+        receipt({
+          id: "t2",
+          kind: TRANSACTION_KINDS.INFLOW,
+          description: "Returned",
+          amountCents: 3000,
+          splits: [
+            { budgetId: "b1", amountCents: 2000 },
+            { budgetId: "b2", amountCents: 1000 },
+          ],
+        }),
+      ],
+    });
+
+    // Money already assigned on its way out comes back where it came from, part
+    // by part — the store's refund rule, applied to each leg of the division.
+    expect(envelopeFor(result.current.now, "b1").refundCents).toBe(2000);
+    expect(envelopeFor(result.current.now, "b2").refundCents).toBe(1000);
+    expect(result.current.now.periodIncomeCents).toBe(0);
+    expect(result.current.now.toBeAssignedCents).toBe(500000);
+    expectAllBalanced(result.current);
+  });
+
+  test("a contribution divided between savings categories still crosses out whole", () => {
+    const { result } = setUp({
+      transactions: [
+        receipt({
+          id: "t1",
+          kind: TRANSACTION_KINDS.TRANSFER,
+          description: "Contribution",
+          toAccountId: HOLDING.id,
+          amountCents: 50000,
+          splits: [
+            { budgetId: "b1", amountCents: 30000 },
+            { budgetId: "b3", amountCents: 20000 },
+          ],
+        }),
+      ],
+    });
+
+    // The matrix decides whether it is spending at all; the division decides
+    // which envelopes it is spending out of. Neither answer reaches into the
+    // other.
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(30000);
+    expect(envelopeFor(result.current.now, "b3").spentCents).toBe(20000);
+    expect(balanceOf(result.current, HOLDING.id)).toBe(1050000);
+    expect(balanceOf(result.current, CHECKING.id)).toBe(450000);
+    expectAllBalanced(result.current);
+  });
+
+  test("money arriving from outside the budget ignores a division left on it", () => {
+    const { result } = setUp({
+      transactions: [
+        receipt({
+          id: "t1",
+          kind: TRANSACTION_KINDS.TRANSFER,
+          description: "Withdrawal",
+          accountId: HOLDING.id,
+          toAccountId: CHECKING.id,
+          amountCents: 50000,
+          splits: [
+            { budgetId: "b1", amountCents: 30000 },
+            { budgetId: "b3", amountCents: 20000 },
+          ],
+        }),
+      ],
+    });
+
+    // All of it is money to assign, and none of it has been spent out of
+    // anything: a split says where money went, and this money has not been
+    // anywhere yet. Inert rather than refused, so re-pointing the transfer
+    // brings the division back.
+    expect(result.current.now.toBeAssignedCents).toBe(550000);
+    expect(envelopeFor(result.current.now, "b1").spentCents).toBe(0);
+    expectAllBalanced(result.current);
+  });
+
+  test("a division that does not add up is dropped on the way in, and the money is not", () => {
+    // A hand-edited file, or one written by some other shape of this app. No
+    // repair is attempted: scaling the parts would invent a decision nobody
+    // made, and leaving it would be the one state in which the envelopes and the
+    // balance sheet disagree about how much money moved.
+    const { result } = setUp({
+      transactions: [
+        receipt({
+          id: "t1",
+          budgetId: "b3",
+          splits: [
+            { budgetId: "b1", amountCents: 8000 },
+            { budgetId: "b2", amountCents: 1000 },
+          ],
+        }),
+      ],
+    });
+
+    expect(result.current.ledger.transactions[0].splits).toBeNull();
+    expect(result.current.ledger.transactions[0].amountCents).toBe(12000);
+    expect(envelopeFor(result.current.now, "b3").spentCents).toBe(12000);
+    expectAllBalanced(result.current);
+    expectCoversLedger(result.current);
+  });
+
+  test("the day-one seed opens each part's category at its own part", () => {
+    // No `assignments` key at all, which is what makes the seed run.
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })], assignments: null });
+
+    const period = currentPeriod();
+    const seeded = result.current.assignments.assignments.filter(
+      (assignment) => assignment.period === period
+    );
+    expect(seeded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ budgetId: "b1", assignedCents: 8000 }),
+        expect.objectContaining({ budgetId: "b2", assignedCents: 4000 }),
+      ])
+    );
+  });
+
+  test("a category lists a divided receipt once, and only the categories it names", () => {
+    const { result } = setUp({ transactions: [receipt({ id: "t1" })] });
+
+    expect(result.current.ledger.getBudgetTransactions("b1").map((entry) => entry.id)).toEqual([
+      "t1",
+    ]);
+    expect(result.current.ledger.getBudgetTransactions("b2").map((entry) => entry.id)).toEqual([
+      "t1",
+    ]);
+    expect(result.current.ledger.getBudgetTransactions("b3")).toEqual([]);
   });
 });

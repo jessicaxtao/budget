@@ -1,12 +1,18 @@
 import { useMemo } from "react";
 import {
   ACCOUNT_TYPES,
+  insideBudget,
   isOffBudget,
   spendsThroughBudget,
   useAccounts,
 } from "../contexts/AccountsContext";
 import { PLAN_BUCKETS, useBudgets } from "../contexts/BudgetsContext";
-import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import {
+  isSplit,
+  isTransfer,
+  TRANSACTION_KINDS,
+  useTransactions,
+} from "../contexts/TransactionsContext";
 import { accountBalancesAt } from "./useAccountBalances";
 import { addMonths, formatCents, formatPeriod, periodLTE, toPeriod } from "../utils";
 
@@ -84,9 +90,9 @@ import { addMonths, formatCents, formatPeriod, periodLTE, toPeriod } from "../ut
  * off-budget holding always does, and the chart bridges those the same way —
  * a straight ledger read for that stretch would erase exactly the history
  * the statements were entered to supply. Only an off-budget holding bends
- * that line toward *where* the evidence says the money moved (a savings- or
- * retirement-bucket outflow elsewhere in the books, since it has no ledger of
- * its own); a spend-through account always takes the even, month-by-month
+ * that line toward *where* the evidence says the money moved (a transfer into
+ * an off-budget account, or a savings- or retirement-bucket outflow elsewhere
+ * in the books); a spend-through account always takes the even, month-by-month
  * ramp, because its own recorded activity is exactly the wrong signal to
  * bend toward — see `interpolatedCents` for why. See also `smoothedEntry`.
  *
@@ -386,8 +392,12 @@ function holdingsAt(accounts, transactions, snapshots, period) {
       // when a statement supersedes it: their difference is the reconciliation.
       derivedCents,
       // Only where both are real answers for the same month. An off-budget
-      // holding's "derived" figure is its opening balance and nothing more, so a
-      // difference from it means nothing and is not reported as drift.
+      // holding's "derived" figure is its opening balance plus whatever has been
+      // transferred into it — which is a real figure, but an incomplete one: what
+      // it is missing is every dollar the market added, and that gap is growth
+      // rather than a disagreement about the books. So it is still not drift. A
+      // spend-through account is the other case, where the ledger is meant to
+      // account for every movement and a difference means one of the two is wrong.
       driftCents:
         snapshot && spendsThroughBudget(account) ? snapshot.amountCents - derivedCents : null,
       // Where the figure came from, which the pages have to be able to say out
@@ -417,27 +427,62 @@ function monthsBetween(a, b) {
 const TRANSFER_BUCKETS = new Set([PLAN_BUCKETS.SAVINGS, PLAN_BUCKETS.RETIREMENT]);
 
 /**
- * period -> cents spent that month from a spending account into a category
- * filed under the **savings** or **retirement** bucket — money that left the
- * books' live arithmetic on its way toward some holding, whichever one.
+ * period -> cents that month that left a spending account on its way toward some
+ * holding, whichever one: a **transfer** into an off-budget account, and an
+ * outflow filed under the **savings** or **retirement** bucket.
  *
- * This is the only signal available for *when*, inside a gap between two
- * off-budget snapshots, the money actually moved: nothing in the ledger names
- * the off-budget account a transfer was headed for (there is no transfer
- * record in this app — an outflow only names a category), so a transfer-bucket
- * outflow is a proxy, not a fact. It is shared across every off-budget
- * holding rather than attributed to one, for the same reason. Built once per
- * render and walked by period, the same shape as `indexSnapshots`.
+ * This is the signal for *when*, inside a gap between two off-budget snapshots,
+ * the money actually moved. The two halves are the same fact recorded two ways.
+ * A transfer names the account the money went to, so it is evidence and not a
+ * guess — its category is not consulted at all, because the destination being off
+ * budget is the whole of what the bucket was ever standing in for. A categorised
+ * outflow names only a category, so it remains a **proxy**: it cannot tell money
+ * headed for this holding from money headed for another, which is why the weight
+ * is shared across every off-budget holding rather than attributed to one. Where
+ * such an outflow is divided between categories, only the parts filed under one
+ * of the two buckets count — a $300 supermarket shop with $50 put aside is fifty
+ * dollars of evidence, not three hundred.
+ *
+ * Both are counted because a household's books will hold both — years of
+ * contributions recorded as savings-bucket outflows before transfers existed, and
+ * transfers from the day they did. Dropping the older half would take the
+ * weighting out from under exactly the history it was drawn for; keeping only it
+ * would lose the signal the moment the user started recording transfers properly.
+ * Per-account attribution off the transfers alone is the next step here and
+ * deliberately not taken yet — it would change the shape of every smoothed line,
+ * which is its own piece of work.
+ *
+ * Built once per render and walked by period, the same shape as `indexSnapshots`.
  */
-function indexSavingsSpend(transactions, budgets) {
+function indexSavingsSpend(transactions, budgets, inside) {
   const bucketOf = new Map(budgets.map((budget) => [budget.id, budget.bucket]));
+  const towardHoldings = (transaction) => {
+    // A transfer names the account the money arrived in, so its category is not
+    // consulted and neither is any division of it: the whole of what left is
+    // known to have reached a holding.
+    if (isTransfer(transaction)) {
+      return inside(transaction.accountId) && !inside(transaction.toAccountId)
+        ? transaction.amountCents
+        : 0;
+    }
+    if (transaction.kind !== TRANSACTION_KINDS.OUTFLOW) return 0;
+    if (isSplit(transaction)) {
+      return transaction.splits.reduce(
+        (cents, part) =>
+          cents + (TRANSFER_BUCKETS.has(bucketOf.get(part.budgetId)) ? part.amountCents : 0),
+        0
+      );
+    }
+    return TRANSFER_BUCKETS.has(bucketOf.get(transaction.budgetId)) ? transaction.amountCents : 0;
+  };
+
   const byPeriod = new Map();
   for (const transaction of transactions) {
-    if (transaction.kind !== TRANSACTION_KINDS.OUTFLOW) continue;
-    if (!TRANSFER_BUCKETS.has(bucketOf.get(transaction.budgetId))) continue;
+    const cents = towardHoldings(transaction);
+    if (cents === 0) continue;
     const period = toPeriod(transaction.date);
     if (period == null) continue;
-    byPeriod.set(period, (byPeriod.get(period) ?? 0) + transaction.amountCents);
+    byPeriod.set(period, (byPeriod.get(period) ?? 0) + cents);
   }
   return byPeriod;
 }
@@ -453,16 +498,24 @@ function indexSavingsSpend(transactions, budgets) {
  */
 function indexAccountActivePeriods(transactions) {
   const byAccount = new Map();
-  for (const transaction of transactions) {
-    if (transaction.accountId == null) continue;
-    const period = toPeriod(transaction.date);
-    if (period == null) continue;
-    let periods = byAccount.get(transaction.accountId);
+  const mark = (accountId, period) => {
+    if (accountId == null) return;
+    let periods = byAccount.get(accountId);
     if (!periods) {
       periods = new Set();
-      byAccount.set(transaction.accountId, periods);
+      byAccount.set(accountId, periods);
     }
     periods.add(period);
+  };
+
+  for (const transaction of transactions) {
+    const period = toPeriod(transaction.date);
+    if (period == null) continue;
+    mark(transaction.accountId, period);
+    // A transfer *into* an account is a month the ledger answers for that account
+    // too, which is what keeps `withCurrentBridge` from bridging across a stretch
+    // where the only thing recorded was money arriving.
+    mark(transaction.toAccountId, period);
   }
   return byAccount;
 }
@@ -506,11 +559,13 @@ const EMPTY_PERIOD_MAP = new Map();
  * even ramp under-credits the holding for however long the gap runs, and the
  * total net worth line reads as though that money briefly went missing
  * before "catching up". `weightByPeriod` (`indexSavingsSpend`) is the best
- * evidence available for *when*: money leaving a spending account toward
- * some holding, since nothing here names which holding a transfer was headed
- * for. **Only a proxy** — it cannot tell a transfer bound for *this* holding
- * from one bound for another — so where the gap holds no savings- or
- * retirement-bucket spend at all, it falls back to the even ramp.
+ * evidence available for *when*: money leaving a spending account toward some
+ * holding, whether recorded as a transfer into an off-budget account or as a
+ * savings-bucket outflow. **Still shared rather than attributed** — the weight
+ * is spread across every off-budget holding, because a categorised outflow
+ * cannot say which holding it was bound for and this function does not yet ask
+ * the transfers that can — so where the gap holds no such movement at all, it
+ * falls back to the even ramp.
  *
  * **A spend-through account always takes the even ramp** — `weightByPeriod`
  * is passed empty for one. Its own transaction activity looks like the
@@ -820,7 +875,8 @@ export default function useNetWorth(period, { months, spanKey = DEFAULT_CHANGE_R
 
   return useMemo(() => {
     const snapshots = indexSnapshots(balances);
-    const savingsByPeriod = indexSavingsSpend(transactions, budgets);
+    const inside = insideBudget(accounts);
+    const savingsByPeriod = indexSavingsSpend(transactions, budgets, inside);
     const firstPeriod = firstKnownPeriod(accounts, transactions, balances);
 
     const range =

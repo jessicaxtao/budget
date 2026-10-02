@@ -36,11 +36,11 @@ import { amountAtRest, amountEditing, formatCents, formatDayShort, toCents } fro
 // `overflow-x-auto` box, which puts a scrollbar under the whole page.
 // Sized to what each column actually holds — a short date, a name, two figures,
 // a checkbox — and kept as narrow as the contents allow, because everything they
-// take comes out of the description, which is the only cell holding a phrase.
+// take comes out of the payee cell, which is the only one holding a phrase.
 const COLUMNS = [
   { key: "date", label: "Date", width: "w-20" },
   { key: "recipient", label: "Organization", width: "w-40" },
-  { key: "description", label: "Description" },
+  { key: "payee", label: "Payee" },
   { key: "amount", label: "Given", width: "w-20", numeric: true },
   // Wider than the column beside it by one step, for the two things only this
   // cell can hold: a figure with the clamp note under it, and the flag that a
@@ -71,7 +71,7 @@ const cellSelect = (index) => `${cellBase} ${rowBg(index)}`;
 const figureCell = "whitespace-nowrap px-3 py-1 text-right font-mono text-row tabular-nums";
 
 /** What a gift is called when something has to be said about it out loud. */
-const nameOf = (row) => row.description || row.recipientName || "untitled gift";
+const nameOf = (row) => row.payeeName || row.description || row.recipientName || "untitled gift";
 
 const OVER_GIFT_ERROR = "A deduction cannot be larger than the gift it comes out of.";
 
@@ -170,10 +170,14 @@ function DonationRow({ row, index, recipients, error, onCommit, onReject, onRemo
             )}
           </select>
         </td>
-        {/* Read-only: the description is the ledger's, and the register is where
-            it is corrected. */}
+        {/* Read-only: who the money went to and any note on it are the ledger's,
+            and the register is where they are corrected. The payee leads with the
+            note behind it, the order the register stacks them in. */}
         <td className="truncate px-3 py-1 font-sans text-row text-ink">
-          {row.description || "—"}
+          {row.payeeName || row.description || "—"}
+          {row.payeeName && row.description && (
+            <span className="ml-2 text-ink-soft">{row.description}</span>
+          )}
           {row.returned && (
             <span className="ml-2 font-mono text-label uppercase text-ink-soft">returned</span>
           )}

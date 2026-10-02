@@ -8,6 +8,7 @@ import ReportSummary from "../components/ReportSummary";
 import SegmentedControl from "../components/SegmentedControl";
 import SpendingByCategoryTable from "../components/SpendingByCategoryTable";
 import { useAccounts } from "../contexts/AccountsContext";
+import { usePayees } from "../contexts/PayeesContext";
 import useSpendingReport, {
   DEFAULT_REPORT_RANGE,
   REPORT_RANGES,
@@ -66,6 +67,10 @@ export default function ReportsPage() {
 
   const report = useSpendingReport(endPeriod, rangeKey);
   const { accounts } = useAccounts();
+  // Names for the drill-in's payee column. Resolved here rather than in
+  // `useSpendingReport`, which reads the ledger and the plan's own arrangement and
+  // nothing else — a payee's name is not money, and the hook stays about money.
+  const { payeeById } = usePayees();
   const coverage = coverageNote(report);
   // A category can drop out of the ranking entirely when the range moves — it
   // simply did not spend in the new window — so the selection is resolved
@@ -260,6 +265,7 @@ export default function ReportsPage() {
               row={selectedRow}
               months={report.months}
               accounts={accounts}
+              payeeById={payeeById}
               onClose={() => setSelectedBudgetId(null)}
             />
           )}

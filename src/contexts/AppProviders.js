@@ -1,5 +1,6 @@
 import { DonationsProvider } from "./DonationsContext";
 import { TransactionsProvider } from "./TransactionsContext";
+import { PayeesProvider } from "./PayeesContext";
 import { BudgetsProvider } from "./BudgetsContext";
 import { IncomePlanProvider } from "./IncomePlanContext";
 import { PayScheduleProvider } from "./PayScheduleContext";
@@ -8,6 +9,7 @@ import { AccountsProvider } from "./AccountsContext";
 import { RetirementProvider } from "./RetirementContext";
 import { SavingsGoalsProvider } from "./SavingsGoalsContext";
 import { SavingsGoalAssignmentsProvider } from "./SavingsGoalAssignmentsContext";
+import { SchedulesProvider } from "./SchedulesContext";
 
 // Composes every store in one place so index.js and the tests wrap the app the
 // same way, and adding a store does not mean editing both.
@@ -28,6 +30,11 @@ import { SavingsGoalAssignmentsProvider } from "./SavingsGoalAssignmentsContext"
 //     has to hand its spend and its funding to Uncategorized.
 //   - Transactions also wraps Accounts, because deleting an account has to cut
 //     its transactions loose without destroying them.
+//   - Transactions wraps Payees for exactly that reason again: deleting a payee
+//     detaches every row that named it and merging two repoints them, and both
+//     of those are writes only the ledger can make. Nothing deletes *into*
+//     Payees — a payee's default category is inert rather than cascaded when the
+//     category goes, see PayeesContext — so its position is otherwise free.
 //   - Donations wraps Transactions, because a donation record is a statement
 //     *about* an outflow — which organisation it went to, how much of it is
 //     deductible — and deleting the money has to take the statement with it.
@@ -51,6 +58,15 @@ import { SavingsGoalAssignmentsProvider } from "./SavingsGoalAssignmentsContext"
 // record saying when the next paycheque lands, and nothing deletes into it — so
 // its position in the cascade is free.
 //
+// Schedules is independent in both directions too, and more strictly than any
+// other store here: a schedule is a *prediction*, so nothing derived from the
+// books reads one, and it references a payee, an account and a category only by
+// id and never reads any of them back. A reference to something deleted is inert
+// but kept — the rule a payee's default category follows — so nothing cascades
+// in either, and its position in this order is free. Turning an occurrence into
+// a real transaction is a page's write, not a store's: see the dashboard's
+// upcoming panel.
+//
 // SavingsGoals is independent of every other store: a goal names no category,
 // no account, and no transaction, so nothing outside this pair deletes into or
 // out of it. SavingsGoalAssignments is the money-actually-put-in half of a
@@ -63,21 +79,25 @@ export default function AppProviders({ children }) {
   return (
     <DonationsProvider>
       <TransactionsProvider>
-        <AssignmentsProvider>
-          <BudgetsProvider>
-            <IncomePlanProvider>
-              <PayScheduleProvider>
-                <AccountsProvider>
-                  <RetirementProvider>
-                    <SavingsGoalAssignmentsProvider>
-                      <SavingsGoalsProvider>{children}</SavingsGoalsProvider>
-                    </SavingsGoalAssignmentsProvider>
-                  </RetirementProvider>
-                </AccountsProvider>
-              </PayScheduleProvider>
-            </IncomePlanProvider>
-          </BudgetsProvider>
-        </AssignmentsProvider>
+        <PayeesProvider>
+          <AssignmentsProvider>
+            <BudgetsProvider>
+              <IncomePlanProvider>
+                <PayScheduleProvider>
+                  <AccountsProvider>
+                    <RetirementProvider>
+                      <SavingsGoalAssignmentsProvider>
+                        <SavingsGoalsProvider>
+                          <SchedulesProvider>{children}</SchedulesProvider>
+                        </SavingsGoalsProvider>
+                      </SavingsGoalAssignmentsProvider>
+                    </RetirementProvider>
+                  </AccountsProvider>
+                </PayScheduleProvider>
+              </IncomePlanProvider>
+            </BudgetsProvider>
+          </AssignmentsProvider>
+        </PayeesProvider>
       </TransactionsProvider>
     </DonationsProvider>
   );

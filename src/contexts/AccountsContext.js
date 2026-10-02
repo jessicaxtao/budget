@@ -90,6 +90,29 @@ export const spendsThroughBudget = (account) => account.scope !== ACCOUNT_SCOPES
 /** Its complement, so the two readings of the line are never spelled differently. */
 export const isOffBudget = (account) => !spendsThroughBudget(account);
 
+/**
+ * The same question asked by id rather than by record: `insideBudget(accounts)`
+ * returns a predicate over an `accountId`.
+ *
+ * Built once and shared because three derivations now have to ask it per
+ * transaction — `useEnvelopes`, `useSpendingReport` and `useNetWorth`, all of
+ * which resolve a transfer's effect from which side of the budget each of its
+ * two accounts sits on — and a `find` over the accounts per record per render is
+ * the wrong shape for a ledger of any size.
+ *
+ * **`null` is inside.** A transaction cut loose from a deleted account keeps its
+ * money in the envelope maths and loses only its place on the balance sheet, which
+ * is the stance `accountBalancesAt` and `detachAccountTransactions` already take;
+ * reading a detached side as off-budget instead would make money appear to leave
+ * the household because an account was tidied away. An id naming no account at
+ * all — reachable only by editing storage by hand — reads as off budget, which is
+ * the cautious answer: it asks for a category rather than quietly moving money.
+ */
+export const insideBudget = (accounts) => {
+  const ids = new Set(accounts.filter(spendsThroughBudget).map((account) => account.id));
+  return (accountId) => accountId == null || ids.has(accountId);
+};
+
 /** What to call the scope on screen; an unrecognised one reads as the default. */
 export const scopeLabel = (account) =>
   ACCOUNT_SCOPE_LABELS[account.scope] ?? ACCOUNT_SCOPE_LABELS[DEFAULT_SCOPE];

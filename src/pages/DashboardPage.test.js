@@ -217,3 +217,156 @@ test("an empty file renders the page rather than a wall of zeroes with no way ou
   expect(screen.getByRole("link", { name: /add one on the budget plan/i })).toBeInTheDocument();
   expect(screen.getByText(/no accounts yet/i)).toBeInTheDocument();
 });
+
+/**
+ * Upcoming bills, through the real stores — because what is worth checking here is
+ * that pressing Enter lands *both* writes: the transaction, and the schedule's
+ * cursor. The panel's own contract is in `UpcomingBills.test.js` and the calendar
+ * arithmetic in `recurrence.test.js`; neither of those can see that the money
+ * arrived in the ledger.
+ */
+describe("what is due", () => {
+  const LANDLORD = { id: "p1", name: "Landlord", defaultBudgetId: "b1" };
+
+  /** A schedule, due `offset` days from today, with nothing dealt with yet. */
+  const schedule = (offset = 0, overrides = {}) => ({
+    id: "s1",
+    kind: TRANSACTION_KINDS.OUTFLOW,
+    payeeId: "p1",
+    amountCents: 180000,
+    accountId: "acc1",
+    budgetId: "b1",
+    description: "Rent",
+    cadence: "monthly",
+    startDate: addDays(TODAY, offset),
+    endsOn: null,
+    enteredThrough: null,
+    ...overrides,
+  });
+
+  const stored = (key) => JSON.parse(localStorage.getItem(key));
+  const ledger = () => stored("transactions");
+
+  function openDue(offset = 0, overrides = {}) {
+    seed({ payees: [LANDLORD], schedules: [schedule(offset, overrides)] });
+    renderPage();
+    return addDays(TODAY, offset);
+  }
+
+  test("a scheduled bill shows by its payee, with what it is filed under", () => {
+    openDue();
+
+    expect(screen.getByText("Landlord")).toBeInTheDocument();
+    expect(screen.getByText("Everyday · Rent")).toBeInTheDocument();
+    expect(screen.getByText("$1,800 going out in the next 28 days.")).toBeInTheDocument();
+  });
+
+  test("one nobody entered is still on the list, and says it is late", () => {
+    openDue(-6);
+
+    expect(screen.getByText("1 is overdue")).toBeInTheDocument();
+    expect(screen.getByText(/6 days ago/)).toBeInTheDocument();
+  });
+
+  test("entering it writes the transaction and marks the occurrence dealt with", () => {
+    const date = openDue();
+
+    fireEvent.click(screen.getByRole("button", { name: `Enter Landlord due ${formatDateMedium(date)}` }));
+    fireEvent.click(screen.getByRole("button", { name: "Record it" }));
+
+    // The ledger first, then the cursor — the order `AddDonationModal` takes, and
+    // chosen for which half is survivable alone.
+    const entered = ledger().find((row) => row.id !== "t1");
+    expect(entered).toMatchObject({
+      kind: TRANSACTION_KINDS.OUTFLOW,
+      payeeId: "p1",
+      accountId: "acc1",
+      budgetId: "b1",
+      amountCents: 180000,
+      date,
+      description: "Rent",
+    });
+    expect(stored("schedules")[0].enteredThrough).toBe(date);
+    // And it is off the list, so it cannot be entered twice by accident.
+    expect(screen.queryByRole("button", { name: /^Enter Landlord/ })).not.toBeInTheDocument();
+  });
+
+  test("the amount is what the statement said, not what the schedule guessed", () => {
+    const date = openDue();
+
+    fireEvent.click(screen.getByRole("button", { name: `Enter Landlord due ${formatDateMedium(date)}` }));
+    // The whole reason this is a form rather than a one-click write: the electric
+    // bill is never the same twice.
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "$1,847.20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record it" }));
+
+    expect(ledger().find((row) => row.id !== "t1").amountCents).toBe(184720);
+    // What is *expected* from now on is unmoved — that is edited on the schedule.
+    expect(stored("schedules")[0].amountCents).toBe(180000);
+  });
+
+  test("the date is seeded with the day it was due, not today", () => {
+    const date = openDue(-6);
+
+    fireEvent.click(screen.getByRole("button", { name: `Enter Landlord due ${formatDateMedium(date)}` }));
+
+    // Seeding today would quietly restate every overdue bill as paid on time.
+    expect(screen.getByLabelText("Date it went out")).toHaveValue(date);
+  });
+
+  test("an occurrence paid late still only retires the one it was for", () => {
+    const date = openDue(-6);
+
+    fireEvent.click(screen.getByRole("button", { name: `Enter Landlord due ${formatDateMedium(date)}` }));
+    fireEvent.change(screen.getByLabelText("Date it went out"), { target: { value: TODAY } });
+    fireEvent.click(screen.getByRole("button", { name: "Record it" }));
+
+    // The money moved today; the occurrence it settled was six days ago. Stamping
+    // today would swallow anything else falling in between.
+    expect(ledger().find((row) => row.id !== "t1").date).toBe(TODAY);
+    expect(stored("schedules")[0].enteredThrough).toBe(date);
+  });
+
+  test("a refused figure keeps the form open on what was typed", () => {
+    const date = openDue();
+
+    fireEvent.click(screen.getByRole("button", { name: `Enter Landlord due ${formatDateMedium(date)}` }));
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "twelve apples" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record it" }));
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(ledger()).toHaveLength(1);
+    expect(stored("schedules")[0].enteredThrough).toBeNull();
+  });
+
+  test("skipping moves the cursor and touches no money at all", () => {
+    const date = openDue();
+
+    fireEvent.click(screen.getByRole("button", { name: `Skip Landlord due ${formatDateMedium(date)}` }));
+
+    // A month the gym was closed. The one thing a bill reminder has to be able to
+    // do without lying about the books.
+    expect(ledger()).toHaveLength(1);
+    expect(stored("schedules")[0].enteredThrough).toBe(date);
+    expect(screen.queryByRole("button", { name: /^Skip Landlord/ })).not.toBeInTheDocument();
+  });
+
+  test("a schedule naming something deleted says so rather than looking refiled", () => {
+    seed({ payees: [], schedules: [schedule(0, { payeeId: "gone", budgetId: "gone" })] });
+    renderPage();
+
+    // Every reference on a schedule is inert but kept, so each one has to be able
+    // to report that what it names has gone.
+    expect(screen.getByText("Unknown payee")).toBeInTheDocument();
+    expect(screen.getByText("Everyday · Unknown category")).toBeInTheDocument();
+  });
+
+  test("with nothing scheduled the panel points at where one is written", () => {
+    seed();
+    renderPage();
+
+    expect(
+      screen.getByRole("link", { name: /add a scheduled transaction/i })
+    ).toHaveAttribute("href", "/plan");
+  });
+});

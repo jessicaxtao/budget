@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { useAccounts, isOffBudget } from "../contexts/AccountsContext";
+import { useAccounts, insideBudget, isOffBudget } from "../contexts/AccountsContext";
 import { useAssignments } from "../contexts/AssignmentsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
-import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import { budgetLegs, TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import { periodLTE, toPeriod } from "../utils";
 
@@ -41,6 +41,23 @@ import { periodLTE, toPeriod } from "../utils";
  * below: a goal has no ledger of its own, so its `availableCents` is nothing
  * but that same cumulative assignment, and the two terms cancel the way a
  * budget's assignment and activity do.
+ *
+ * **Every record is read through `budgetLegs`, which is a list because one
+ * movement of money can be divided between categories.** A receipt split three
+ * ways is three legs against three envelopes, adding up to the one figure the
+ * account lost — the store refuses a division that does not, which is what lets
+ * the sums below read the parts while `useAccountBalances` reads the whole.
+ *
+ * **A transfer is read through the same function, and three quarters of the time
+ * it is nothing here.** Money moved between two accounts the budget spends through is
+ * still exactly where the budget thought it was — that is what lets a credit card
+ * be paid off without the payment being funded a second time — and money moved
+ * between two off-budget holdings was never the budget's to begin with. Only a
+ * transfer that *crosses* the boundary moves anything: out of the budget it is
+ * spending against its category, into the budget it is income to assign. Both
+ * sides of the identity below are built from the same leg, which is what makes
+ * that safe: count a transfer as cash on one side and miss it on the other and the
+ * tripwire says so immediately.
  *
  * **An inflow with a category is a refund, not income.** Money paid back into a
  * category — a friend's half of dinner, a returned jacket — was already assigned
@@ -102,27 +119,41 @@ export default function useEnvelopes(period) {
     // money out of nothing.
     let cumPoolIncomeCents = 0;
 
+    // Which accounts are on the budget's side of the line, which is the only thing
+    // a transfer's effect here depends on. Built once for the whole ledger.
+    const inside = insideBudget(accounts);
+
     for (const transaction of transactions) {
+      // When it happened is a fact about the record, not about any one of its
+      // parts: a split lands whole, in one month, however many envelopes it
+      // touches.
       const transactionPeriod = toPeriod(transaction.date);
-      const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
       const counted = transactionPeriod == null || periodLTE(transactionPeriod, period);
-      if (inflow && counted) cumIncomeCents += transaction.amountCents;
 
-      // Income: an inflow naming no category. It is the only kind of inflow the
-      // pool ever sees.
-      if (inflow && transaction.budgetId == null) {
-        if (transactionPeriod === period) periodIncomeCents += transaction.amountCents;
-        if (counted) cumPoolIncomeCents += transaction.amountCents;
-        continue;
-      }
+      // What this record means to the budget: one leg per part, and for the three
+      // quarters of the transfer matrix that move no budget money, no legs at all.
+      // Both sides of the identity below are built from these same legs, so
+      // nothing can be counted as cash on one side and missed on the other.
+      for (const leg of budgetLegs(transaction, inside)) {
+        const inflow = leg.kind === TRANSACTION_KINDS.INFLOW;
+        if (inflow && counted) cumIncomeCents += leg.amountCents;
 
-      const entry = bucket(transaction.budgetId ?? UNCATEGORIZED_BUDGET_ID);
-      const field = inflow ? "refund" : "spent";
-      if (transactionPeriod === period) entry[`${field}Now`] += transaction.amountCents;
-      // Undated movement already happened, so it belongs behind us rather than
-      // in this month's column.
-      else if (transactionPeriod == null || periodLTE(transactionPeriod, period)) {
-        entry[`${field}Before`] += transaction.amountCents;
+        // Income: an inflow naming no category. It is the only kind of inflow the
+        // pool ever sees.
+        if (inflow && leg.budgetId == null) {
+          if (transactionPeriod === period) periodIncomeCents += leg.amountCents;
+          if (counted) cumPoolIncomeCents += leg.amountCents;
+          continue;
+        }
+
+        const entry = bucket(leg.budgetId ?? UNCATEGORIZED_BUDGET_ID);
+        const field = inflow ? "refund" : "spent";
+        if (transactionPeriod === period) entry[`${field}Now`] += leg.amountCents;
+        // Undated movement already happened, so it belongs behind us rather than
+        // in this month's column.
+        else if (counted) {
+          entry[`${field}Before`] += leg.amountCents;
+        }
       }
     }
 

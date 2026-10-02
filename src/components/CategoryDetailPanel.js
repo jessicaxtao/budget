@@ -23,11 +23,17 @@ import { formatCents, formatDateMedium } from "../utils";
  * the amount, the date, the description and the account are the ledger's, so
  * they are shown as the ledger has them and corrected on the register, not
  * here.
+ *
+ * **A row of a divided receipt shows the part, and says so.** The figure has to
+ * be the part or the rows would not add up to the total above them, but a $20
+ * line against a receipt the register shows as $124 would read as a
+ * disagreement — so the whole is named beside it, which turns it into the
+ * explanation it is.
  */
 
 const figureCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
 
-function TransactionRow({ transaction, accounts, striped }) {
+function TransactionRow({ transaction, accounts, payeeById, striped }) {
   const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
   const account = accounts.find((candidate) => candidate.id === transaction.accountId);
 
@@ -39,7 +45,21 @@ function TransactionRow({ transaction, accounts, striped }) {
       >
         {transaction.date ? formatDateMedium(transaction.date) : "Undated"}
       </th>
-      <td className="px-3 py-2 font-sans text-row text-ink">{transaction.description || "—"}</td>
+      {/* Who it was paid to, with the note under it where there is one — the same
+          two lines the register stacks, and the same order: the payee identifies
+          the row and the note explains it. A row from before payees existed has
+          only the note, which is what it always had. */}
+      <td className="px-3 py-2 font-sans text-row text-ink">
+        {payeeById?.get(transaction.payeeId)?.name || transaction.description || "—"}
+        {payeeById?.get(transaction.payeeId) && transaction.description && (
+          <span className="ml-2 font-sans text-row text-ink-soft">{transaction.description}</span>
+        )}
+        {transaction.wholeAmountCents != null && (
+          <span className="ml-2 whitespace-nowrap font-mono text-label uppercase text-ink-soft">
+            part of {formatCents(transaction.wholeAmountCents)}
+          </span>
+        )}
+      </td>
       <td className="whitespace-nowrap px-3 py-2 font-sans text-row text-ink-soft">
         {account?.name ?? "—"}
       </td>
@@ -56,7 +76,7 @@ function TransactionRow({ transaction, accounts, striped }) {
   );
 }
 
-export default function CategoryDetailPanel({ row, months, accounts, onClose }) {
+export default function CategoryDetailPanel({ row, months, accounts, payeeById, onClose }) {
   return (
     <section className="border border-azure/60 bg-panel">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
@@ -86,7 +106,7 @@ export default function CategoryDetailPanel({ row, months, accounts, onClose }) 
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                {["Date", "Description", "Account", "Out", "In"].map((label, index) => (
+                {["Date", "Payee", "Account", "Out", "In"].map((label, index) => (
                   <th
                     key={label}
                     scope="col"
@@ -105,6 +125,7 @@ export default function CategoryDetailPanel({ row, months, accounts, onClose }) 
                   key={transaction.id}
                   transaction={transaction}
                   accounts={accounts}
+                  payeeById={payeeById}
                   striped={index % 2 === 1}
                 />
               ))}

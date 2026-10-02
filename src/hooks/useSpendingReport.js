@@ -4,7 +4,8 @@ import {
   PLAN_BUCKET_ORDER,
   useBudgets,
 } from "../contexts/BudgetsContext";
-import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import { insideBudget, useAccounts } from "../contexts/AccountsContext";
+import { budgetLegs, TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import { toSections } from "../planLayout";
 import { addMonths, periodLTE, toPeriod } from "../utils";
@@ -20,12 +21,13 @@ import { addMonths, periodLTE, toPeriod } from "../utils";
  * question — what has been happening — and it cannot be answered a month at a
  * time, because the whole point of it is that one month is not evidence.
  *
- * It reads the ledger and the plan's arrangement, and **nothing else**. Not
- * assignments: what was put into an envelope is a decision, and a report is
- * about what actually happened. Not account balances: a report of spending is
- * indifferent to which account it left from. Not the opening balances, for the
- * same reason `useEnvelopes` keeps them out of income — money the household
- * already had is not money it earned this year.
+ * It reads the ledger and the plan's arrangement, and of the accounts nothing but
+ * **which side of the budget each one sits on** — that being the only thing a
+ * transfer's meaning depends on. Not assignments: what was put into an envelope is
+ * a decision, and a report is about what actually happened. Not account balances:
+ * a report of spending is indifferent to how much was in the account it left from.
+ * Not the opening balances, for the same reason `useEnvelopes` keeps them out of
+ * income — money the household already had is not money it earned this year.
  *
  * ## The three quantities, and why there are three rather than two
  *
@@ -33,6 +35,13 @@ import { addMonths, periodLTE, toPeriod } from "../utils";
  *   refunded(b, p)  = inflows naming b, in p                    ← gross, ≥ 0
  *   netSpent(b, p)  = spent − refunded                          ← what it cost
  *   income(p)       = inflows naming no category, in p
+ *
+ * A record divided between categories contributes one figure to each of them,
+ * adding up to the whole — `budgetLegs` in TransactionsContext is where that
+ * division is read, and it is read the same way here as in `useEnvelopes`. The
+ * ranking below is therefore a ranking of where money actually went rather than
+ * of which receipt it happened to arrive on, which is the entire reason a
+ * household splits one.
  *
  * The refund rule is the store's, unchanged: **an inflow with a category is
  * money coming back to that category, and an inflow without one is income.**
@@ -65,6 +74,30 @@ import { addMonths, periodLTE, toPeriod } from "../utils";
  * **A month outside the window is outside the window**, including a future-dated
  * record beyond the end month. Nothing accumulates from before the start: this
  * is a report of a span, not a balance at the end of one.
+ *
+ * **A transfer that moves no budget money is in no report** — not as spending, not
+ * as income, and not in the undated count either. Paying a credit card is not an
+ * expense; it is the same money in a different account, and a report that counted
+ * it would say the household spent it twice.
+ *
+ * A transfer that crosses **out** of the budget *is* spending, against its own
+ * category, exactly as the categorised outflow it replaces was — which is what
+ * keeps `buckets` below comparable with the share of the estimates `usePlanHealth`
+ * reports. A transfer **in** is the one place this hook parts company with
+ * `useEnvelopes`, deliberately: there it is money to assign, because it is money
+ * that can now be spent, while here it is not income, because the household did
+ * not earn it. Draw $5,000 out of an emergency fund to fix a roof and this report
+ * says $5,000 of spending against whatever was actually earned — which is the
+ * month the household really had. Counting the withdrawal as income would report
+ * it as $5,000 better off in the month its net worth fell by that much, and it
+ * would carry into the savings rate. `useGiving` keeps the same distinction for
+ * the same reason.
+ *
+ * The asymmetry between the two directions is real rather than an oversight: the
+ * outbound half is the shape the app already had (money set aside is one of the
+ * four buckets a plan allocates to) and the inbound half has no such precedent to
+ * keep faith with. `budgetLegs` in TransactionsContext owns the matrix itself;
+ * this is the one line on top of it.
  */
 
 /**
@@ -177,8 +210,14 @@ const emptyCategory = (budgetId) => ({
 export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_RANGE) {
   const { groups, budgets } = useBudgets();
   const { transactions } = useTransactions();
+  // Read for one reason only: a transfer's effect on the books depends on which
+  // side of the budget boundary each of its two accounts sits. Nothing else here
+  // asks an account anything — a report is about the money, not about where it sat.
+  const { accounts } = useAccounts();
 
   return useMemo(() => {
+    const inside = insideBudget(accounts);
+
     // The first month anything was recorded in, which is what "all" reaches back
     // to and what the average below is honestly divisible by.
     let firstPeriod = null;
@@ -215,50 +254,88 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
     let undatedIncomeCents = 0;
 
     for (const transaction of transactions) {
-      const period = toPeriod(transaction.date);
-      const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
-      const amountCents = transaction.amountCents;
-
-      if (period == null) {
-        undatedCount += 1;
-        if (inflow && transaction.budgetId == null) undatedIncomeCents += amountCents;
-        else undatedSpentCents += inflow ? -amountCents : amountCents;
+      // A transfer the budget never sees is in no report either — it is money the
+      // household moved, not money it earned or spent, and a report of the books is
+      // a report of what happened to them. A transfer *out* of the budget reads
+      // here exactly as the categorised outflow it replaces, which is what keeps
+      // `buckets` below comparable with `usePlanHealth`'s share of the estimates.
+      // A split reads as one leg per part. See `budgetLegs` in TransactionsContext.
+      const legs = budgetLegs(transaction, inside);
+      if (legs.length === 0) continue;
+      // **And a transfer *into* the budget is not income here, though it is money
+      // to assign in `useEnvelopes`.** That divergence is the same one `useGiving`
+      // keeps, and it is what makes `netCents` mean something: a household that
+      // draws $5,000 out of its emergency fund to fix a roof and spends it has not
+      // earned $5,000, it has spent down a holding, and counting the withdrawal as
+      // income would report the month as $4,000 better off in the month its net
+      // worth fell. Excluded rather than netted, so it cannot reach the savings
+      // rate through either half of the ratio.
+      if (
+        transaction.kind === TRANSACTION_KINDS.TRANSFER &&
+        legs[0].kind === TRANSACTION_KINDS.INFLOW
+      ) {
         continue;
       }
 
-      const month = byMonth.get(period);
+      const period = toPeriod(transaction.date);
+      const month = period == null ? null : byMonth.get(period);
       // Outside the window — earlier than the start, or dated past the end.
       // Neither accumulates into it: this is a report of a span.
-      if (!month) continue;
+      if (period != null && !month) continue;
+      // **Counted once, however many categories it touched.** `undatedCount` is a
+      // count of records the report could not place, and it is printed beside the
+      // register's own row count — a receipt split three ways is one row there and
+      // has to be one here.
+      if (period == null) undatedCount += 1;
 
-      // Income is an inflow naming no category, and it is the only inflow the
-      // household actually earned.
-      if (inflow && transaction.budgetId == null) {
-        month.incomeCents += amountCents;
-        continue;
+      for (const leg of legs) {
+        const inflow = leg.kind === TRANSACTION_KINDS.INFLOW;
+        const amountCents = leg.amountCents;
+
+        if (period == null) {
+          if (inflow && leg.budgetId == null) undatedIncomeCents += amountCents;
+          else undatedSpentCents += inflow ? -amountCents : amountCents;
+          continue;
+        }
+
+        // Income is an inflow naming no category, and it is the only inflow the
+        // household actually earned.
+        if (inflow && leg.budgetId == null) {
+          month.incomeCents += amountCents;
+          continue;
+        }
+
+        const entry = categoryEntry(leg.budgetId ?? UNCATEGORIZED_BUDGET_ID);
+        const field = inflow ? "refundCents" : "spentCents";
+        month[field] += amountCents;
+        entry[field] += amountCents;
+        entry.months.add(period);
+
+        let entryMonth = entry.monthly.get(period);
+        if (!entryMonth) {
+          entryMonth = { spentCents: 0, refundCents: 0 };
+          entry.monthly.set(period, entryMonth);
+        }
+        entryMonth[field] += amountCents;
+
+        entry.transactions.push({
+          id: transaction.id,
+          date: transaction.date,
+          // The reference, never the name: this hook reads the ledger and
+          // `toSections` and nothing else, and a payee's name is not money. The
+          // page it feeds resolves it — see `ReportsPage`.
+          payeeId: transaction.payeeId,
+          description: transaction.description,
+          // **The part, not the receipt.** A row here is what this category was
+          // charged, and it is what the figures above it add up to; the whole is
+          // carried beside it so the drill-in can say the row is a part of
+          // something larger rather than appearing to contradict the register.
+          amountCents,
+          wholeAmountCents: amountCents === transaction.amountCents ? null : transaction.amountCents,
+          kind: transaction.kind,
+          accountId: transaction.accountId,
+        });
       }
-
-      const entry = categoryEntry(transaction.budgetId ?? UNCATEGORIZED_BUDGET_ID);
-      const field = inflow ? "refundCents" : "spentCents";
-      month[field] += amountCents;
-      entry[field] += amountCents;
-      entry.months.add(period);
-
-      let entryMonth = entry.monthly.get(period);
-      if (!entryMonth) {
-        entryMonth = { spentCents: 0, refundCents: 0 };
-        entry.monthly.set(period, entryMonth);
-      }
-      entryMonth[field] += amountCents;
-
-      entry.transactions.push({
-        id: transaction.id,
-        date: transaction.date,
-        description: transaction.description,
-        amountCents,
-        kind: transaction.kind,
-        accountId: transaction.accountId,
-      });
     }
 
     // How many months the per-month average is honestly divided by.
@@ -435,5 +512,5 @@ export default function useSpendingReport(endPeriod, rangeKey = DEFAULT_REPORT_R
       hasLedger: transactions.length > 0,
       firstPeriod,
     };
-  }, [groups, budgets, transactions, endPeriod, rangeKey]);
+  }, [groups, budgets, transactions, accounts, endPeriod, rangeKey]);
 }

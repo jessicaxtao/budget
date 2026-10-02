@@ -752,3 +752,177 @@ test("a zero snapshot is a balance, not a missing one", () => {
   expect(read(PERIOD).current.debtCents).toBe(0);
   expect(read(BEFORE).current.debtCents).toBe(50000);
 });
+
+describe("transfers into a holding", () => {
+  const transfer = (fields) => ({
+    kind: TRANSACTION_KINDS.TRANSFER,
+    accountId: "acc-cash",
+    toAccountId: "acc-401k",
+    ...fields,
+  });
+
+  test("a contribution raises the holding the ledger can now account for", () => {
+    seed({
+      accounts: [EVERYDAY, BROKERAGE],
+      budgets: [{ id: "b-retire", name: "401(k)", bucket: PLAN_BUCKETS.RETIREMENT }],
+      transactions: [
+        transfer({ id: "t1", budgetId: "b-retire", amountCents: 250000, date: `${PERIOD}-05` }),
+      ],
+    });
+
+    const { rows, current } = read();
+    const holding = rows.find((row) => row.account.id === "acc-401k");
+
+    // Before transfers existed, a holding's derived figure could only ever be its
+    // opening balance. It is now the opening balance plus what has been paid in,
+    // which is a real, if incomplete, reading of the account.
+    expect(holding.derivedCents).toBe(1250000);
+    expect(holding.valueCents).toBe(1250000);
+    // And the money left the everyday account, so the household is no better off.
+    expect(current.netCents).toBe(1000000 + 200000);
+  });
+
+  test("the gap between a statement and the contributions is growth, not drift", () => {
+    seed({
+      accounts: [EVERYDAY, BROKERAGE],
+      budgets: [{ id: "b-retire", name: "401(k)", bucket: PLAN_BUCKETS.RETIREMENT }],
+      accountBalances: [
+        { id: "bal1", accountId: "acc-401k", period: PERIOD, amountCents: 1400000 },
+      ],
+      transactions: [
+        transfer({ id: "t1", budgetId: "b-retire", amountCents: 250000, date: `${PERIOD}-05` }),
+      ],
+    });
+
+    const { rows } = read();
+    const holding = rows.find((row) => row.account.id === "acc-401k");
+
+    // The statement is $1,500 above the opening plus contributions, and every
+    // dollar of that is the market. Reported as drift it would read as a
+    // disagreement between the books and the bank, which is what a reconciliation
+    // is for and this is not.
+    expect(holding.valueCents).toBe(1400000);
+    expect(holding.derivedCents).toBe(1250000);
+    expect(holding.driftCents).toBeNull();
+  });
+
+  test("a transfer weights the ramp the way a savings-bucket outflow does", () => {
+    // The same fixture as the two weighting tests above, with the contribution
+    // recorded as the transfer it actually is. It has to move the ramp exactly as
+    // the categorised outflow did — the destination being off budget is the whole
+    // of what the bucket was ever standing in for, so the signal has not weakened,
+    // it has become a fact.
+    const from = addMonths(PERIOD, -6);
+    const transferMonth = addMonths(PERIOD, -5);
+    const quietMonth = addMonths(PERIOD, -4);
+
+    seed({
+      accounts: [EVERYDAY, BROKERAGE],
+      // No category at all on it, and no budget records anywhere: a transfer is
+      // read off its two accounts, never off a bucket.
+      accountBalances: [
+        { id: "bal1", accountId: "acc-401k", period: from, amountCents: 1000000 },
+        { id: "bal2", accountId: "acc-401k", period: PERIOD, amountCents: 1500000 },
+      ],
+      transactions: [
+        transfer({ id: "t1", amountCents: 500000, date: `${transferMonth}-15` }),
+      ],
+    });
+
+    const { chartSeries } = read();
+    const valueAt = (period) =>
+      chartSeries.find((entry) => entry.period === period).values["acc-401k"];
+
+    expect(valueAt(transferMonth)).toBe(1500000);
+    expect(valueAt(quietMonth)).toBe(1500000);
+  });
+
+  test("a transfer between two spending accounts weights nothing", () => {
+    // It never left the budget, so it is no evidence at all about when a holding
+    // moved — and an even ramp is what is left, exactly as before.
+    const from = addMonths(PERIOD, -2);
+    const middle = addMonths(PERIOD, -1);
+    const CARD = account({
+      id: "acc-card",
+      name: "Visa",
+      type: "liability",
+      scope: "credit-card",
+      assetClass: "Other",
+    });
+
+    seed({
+      accounts: [EVERYDAY, CARD, BROKERAGE],
+      accountBalances: [
+        { id: "bal1", accountId: "acc-401k", period: from, amountCents: 1000000 },
+        { id: "bal2", accountId: "acc-401k", period: PERIOD, amountCents: 1200000 },
+      ],
+      transactions: [
+        transfer({
+          id: "t1",
+          toAccountId: "acc-card",
+          amountCents: 500000,
+          date: `${middle}-15`,
+        }),
+      ],
+    });
+
+    const { chartSeries } = read();
+    const valueAt = (period) =>
+      chartSeries.find((entry) => entry.period === period).values["acc-401k"];
+
+    // Halfway along a two-month gap, not pinned to the month of the card payment.
+    expect(valueAt(middle)).toBe(1100000);
+  });
+});
+
+describe("a divided outflow as a weighting signal", () => {
+  test("only the part filed under a holding bucket bends the ramp", () => {
+    // Two months of spending inside one four-month gap, each a receipt that put
+    // some money aside and spent the rest. What weights the gap is the money
+    // that went toward a holding — $1,500 in the first month and $500 in the
+    // second — and not the $6,000 of receipts those parts arrived on.
+    const from = addMonths(PERIOD, -4);
+    const heavy = addMonths(PERIOD, -3);
+    const light = addMonths(PERIOD, -2);
+
+    const divided = (id, date, saved, spent) => ({
+      id,
+      kind: TRANSACTION_KINDS.OUTFLOW,
+      accountId: "acc-cash",
+      budgetId: null,
+      amountCents: saved + spent,
+      date,
+      splits: [
+        { id: `${id}-a`, budgetId: "b-save", amountCents: saved },
+        { id: `${id}-b`, budgetId: "b-food", amountCents: spent },
+      ],
+    });
+
+    seed({
+      accounts: [EVERYDAY, BROKERAGE],
+      budgets: [
+        { id: "b-save", name: "Savings", bucket: PLAN_BUCKETS.SAVINGS },
+        { id: "b-food", name: "Groceries", bucket: PLAN_BUCKETS.ESSENTIALS },
+      ],
+      accountBalances: [
+        { id: "bal1", accountId: "acc-401k", period: from, amountCents: 1000000 },
+        { id: "bal2", accountId: "acc-401k", period: PERIOD, amountCents: 1200000 },
+      ],
+      transactions: [
+        divided("t1", `${heavy}-10`, 150000, 50000),
+        divided("t2", `${light}-10`, 50000, 350000),
+      ],
+    });
+
+    const { chartSeries } = read();
+    const valueAt = (period) =>
+      chartSeries.find((entry) => entry.period === period).values["acc-401k"];
+
+    // Three quarters of the $2,000 gap belongs to the first month, because three
+    // quarters of what was set aside was set aside then. Weighted by the whole
+    // receipts instead it would be a third, and the line would bend the wrong way
+    // for the wrong reason.
+    expect(valueAt(heavy)).toBe(1150000);
+    expect(valueAt(light)).toBe(1200000);
+  });
+});

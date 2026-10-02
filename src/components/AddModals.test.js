@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { useState } from "react";
 import AddTransactionModal from "./AddTransactionModal";
@@ -277,24 +277,110 @@ describe("one form for both directions", () => {
     expect(screen.getByLabelText(/^category$/i)).not.toHaveValue("");
   });
 
-  test("an expense is stored against its account and category", () => {
+  test("an expense is stored against its account, category and payee", () => {
     openHarness();
 
-    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Coffee" } });
+    // "Paid to" is the payee field now, and nobody named Blue Bottle exists yet —
+    // so submitting is what brings the payee into being, which is the rule this
+    // form keeps and the register's cell cannot: a form abandoned half-typed
+    // leaves nothing behind.
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Blue Bottle" } });
     fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "4.50" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    const payees = JSON.parse(localStorage.getItem("payees"));
+    expect(payees).toEqual([
+      { id: expect.any(String), name: "Blue Bottle", defaultBudgetId: null },
+    ]);
 
     expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([
       {
         id: expect.any(String),
         kind: "outflow",
-        description: "Coffee",
+        // The reference, and the note left empty: the payee is not a copy of the
+        // text, it is where the text went.
+        payeeId: payees[0].id,
+        description: "",
         amountCents: 450,
         date: todayISO(),
         accountId: "acc1",
+        toAccountId: null,
+        splits: null,
         budgetId: "a",
       },
     ]);
+  });
+
+  test("a payee already on the list is taken rather than duplicated", () => {
+    openHarness();
+
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Blue Bottle" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "4.50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    fireEvent.click(screen.getByText("open a"));
+    // Differently capitalised, and with the spacing a human leaves behind: one
+    // payee, because that is what identity means here.
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "  blue bottle " } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "3.25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    const payees = JSON.parse(localStorage.getItem("payees"));
+    expect(payees).toHaveLength(1);
+    const ledger = JSON.parse(localStorage.getItem("transactions"));
+    expect(ledger).toHaveLength(2);
+    expect(ledger[1].payeeId).toBe(payees[0].id);
+  });
+
+  test("a payee's default category seeds the form, until the user answers it", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
+    // Stated up front, the way the payee panel lets it be: this one is usually
+    // filed under the second category.
+    localStorage.setItem(
+      "payees",
+      JSON.stringify([{ id: "p1", name: "Shell", defaultBudgetId: "b" }])
+    );
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    const field = screen.getByLabelText(/paid to/i);
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "shel" } });
+    fireEvent.click(screen.getByRole("option", { name: /Shell/ }));
+
+    // The category followed the payee, which is the whole point of a default.
+    expect(screen.getByLabelText(/^category$/i)).toHaveValue("b");
+  });
+
+  test("a category the user picked is not overwritten by a payee's default", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
+    localStorage.setItem(
+      "payees",
+      JSON.stringify([{ id: "p1", name: "Shell", defaultBudgetId: "b" }])
+    );
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    // An answer given is an answer. A default that overrode it would be a
+    // preference the app had about the user's own filing.
+    fireEvent.change(screen.getByLabelText(/^category$/i), { target: { value: "a" } });
+
+    const field = screen.getByLabelText(/paid to/i);
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "shell" } });
+    fireEvent.click(screen.getByRole("option", { name: /Shell/ }));
+
+    expect(screen.getByLabelText(/^category$/i)).toHaveValue("a");
   });
 
   test("income is stored with no category at all", () => {
@@ -1148,5 +1234,279 @@ describe("editing an account", () => {
     expect(screen.getByLabelText(/starting balance/i)).toHaveValue("");
     expect(screen.getByLabelText(/balance as of/i)).toHaveValue(todayISO());
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+  });
+});
+
+describe("recording a transfer", () => {
+  const CHECKING = { id: "acc1", name: "Everyday", openingBalanceCents: 100000 };
+  const CARD = {
+    id: "acc2",
+    name: "Visa",
+    type: "liability",
+    scope: "credit-card",
+    assetClass: "Other",
+    openingBalanceCents: -20000,
+  };
+  const HOLDING = {
+    id: "acc3",
+    name: "401(k)",
+    scope: "off-budget",
+    assetClass: "Stocks",
+    openingBalanceCents: 1000000,
+  };
+
+  function openHarness(accounts = [CHECKING, CARD, HOLDING]) {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts(accounts);
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+  }
+
+  test("both ends are asked for, and a holding is on offer on each", () => {
+    openHarness();
+
+    // The one form where an off-budget account belongs: nobody logs each tick of a
+    // 401(k), but everybody knows when they paid into one.
+    expect(screen.getByLabelText(/^from$/i)).toBeInTheDocument();
+    const to = screen.getByLabelText(/^to$/i);
+    expect(within(to).getByRole("option", { name: /401\(k\)/ })).toBeInTheDocument();
+    // And never itself, since the store refuses a transfer that names one account
+    // twice and a form should not offer what cannot be saved.
+    expect(within(to).queryByRole("option", { name: /Everyday/ })).not.toBeInTheDocument();
+  });
+
+  test("a card payment is stored with no category, because it costs the plan nothing", () => {
+    openHarness();
+
+    // Both accounts are ones the budget spends through, so there is nothing to
+    // file it under and the form does not pretend otherwise.
+    expect(screen.queryByLabelText(/comes out of/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/description/i), { target: { value: "Card payment" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([
+      {
+        id: expect.any(String),
+        kind: "transfer",
+        // A transfer moves money between the household's own accounts, so there
+        // is nobody it went to — and the form asks for a description rather than
+        // a payee for exactly that reason.
+        payeeId: null,
+        description: "Card payment",
+        amountCents: 20000,
+        date: todayISO(),
+        accountId: "acc1",
+        toAccountId: "acc2",
+        splits: null,
+        budgetId: null,
+      },
+    ]);
+  });
+
+  test("pointing it at a holding is what asks for a category", () => {
+    openHarness();
+
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: "acc3" } });
+
+    const category = screen.getByLabelText(/comes out of/i);
+    // Blank rather than the first category: which savings category a contribution
+    // comes out of is exactly what the app cannot guess.
+    expect(category).toHaveValue("");
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "500" } });
+    fireEvent.change(category, { target: { value: "b" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("transactions"))[0]).toMatchObject({
+      kind: "transfer",
+      accountId: "acc1",
+      toAccountId: "acc3",
+      budgetId: "b",
+      amountCents: 50000,
+    });
+  });
+
+  test("money leaving the budget with no category is refused before anything is written", () => {
+    openHarness();
+
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: "acc3" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "500" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // The rule the store cannot check, enforced where the scopes are in hand — and
+    // nothing lands, so the form stays open on what was typed.
+    expect(screen.getByRole("alert")).toHaveTextContent(/comes out of a category/i);
+    expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([]);
+    // Still open on what was typed, so the figure does not have to be re-entered.
+    expect(screen.getByLabelText(/amount/i)).toHaveValue("500");
+  });
+
+  test("choosing the source the destination already holds moves the destination", () => {
+    openHarness();
+
+    // Everyday → Visa to start with. Making Visa the source cannot leave it as the
+    // destination too, so the destination has to give way.
+    fireEvent.change(screen.getByLabelText(/^from$/i), { target: { value: "acc2" } });
+
+    expect(screen.getByLabelText(/^from$/i)).toHaveValue("acc2");
+    expect(screen.getByLabelText(/^to$/i)).not.toHaveValue("acc2");
+  });
+
+  test("switching back to money out drops an off-budget account it could not offer", () => {
+    openHarness();
+
+    fireEvent.change(screen.getByLabelText(/^from$/i), { target: { value: "acc3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Money out" }));
+
+    // "Paid from" offers only the accounts the budget spends through, so a holding
+    // left selected would be a name that is not in its own list.
+    expect(screen.getByLabelText(/paid from/i)).toHaveValue("acc1");
+  });
+
+  test("a second opening starts clean rather than on the last transfer", () => {
+    openHarness();
+
+    fireEvent.change(screen.getByLabelText(/^to$/i), { target: { value: "acc3" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText(/comes out of/i), { target: { value: "b" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    fireEvent.click(screen.getByText("open a"));
+
+    // Back to money out, with nothing of the transfer left behind — the modal
+    // never unmounts, so this is the re-seed effect and not React.
+    expect(screen.getByLabelText(/paid to/i)).toHaveValue("");
+    expect(screen.getByLabelText(/amount/i)).toHaveValue("");
+    expect(screen.queryByLabelText(/^to$/i)).not.toBeInTheDocument();
+  });
+
+  test("one account is not enough to transfer between, and the form says so", () => {
+    openHarness([CHECKING]);
+
+    expect(screen.getByText(/only one so far/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+  });
+});
+
+describe("dividing a receipt as it is entered", () => {
+  function openForm() {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+  }
+
+  const type = (label, value) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+  test("the single category gives way to parts, seeded with the answer already given", () => {
+    openForm();
+    type(/amount/i, "124");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+
+    // Carried across rather than starting blank: the category picked and the
+    // whole amount against it, which is what the record already says. Typing
+    // this part down is what makes the rest appear as still to place.
+    expect(screen.getByLabelText("Category of part 1")).toHaveValue("a");
+    expect(screen.getByLabelText("Amount of part 1")).toHaveValue("$124");
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+  });
+
+  test("a part added takes whatever is left over", () => {
+    openForm();
+    type(/amount/i, "124");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+    type("Amount of part 1", "100");
+    fireEvent.click(screen.getByRole("button", { name: "Add a part" }));
+
+    expect(screen.getByLabelText("Amount of part 2")).toHaveValue("$24");
+  });
+
+  test("the whole receipt lands in one write, divided", () => {
+    openForm();
+    type(/paid to/i, "Costco");
+    type(/amount/i, "124");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+    type("Amount of part 1", "100");
+    fireEvent.click(screen.getByRole("button", { name: "Add a part" }));
+    type("Category of part 2", "b");
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([
+      {
+        id: expect.any(String),
+        kind: "outflow",
+        // The payee came into being on submit alongside the division, which is
+        // what makes this one write from the user's side.
+        payeeId: expect.any(String),
+        description: "",
+        amountCents: 12400,
+        date: todayISO(),
+        accountId: "acc1",
+        toAccountId: null,
+        // Null while the parts carry the answer — it is what the record falls
+        // back to if the division is ever undone, and this one never had a
+        // single category to fall back to.
+        budgetId: null,
+        splits: [
+          { id: expect.any(String), budgetId: "a", amountCents: 10000 },
+          { id: expect.any(String), budgetId: "b", amountCents: 2400 },
+        ],
+      },
+    ]);
+  });
+
+  test("parts that do not add up stop the write, and say how far off they are", () => {
+    openForm();
+    type(/amount/i, "124");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+    type("Amount of part 1", "100");
+    fireEvent.click(screen.getByRole("button", { name: "Add a part" }));
+    type("Category of part 2", "b");
+    type("Amount of part 2", "10");
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // Nothing lands, so the receipt is never in the ledger filed under nothing —
+    // and the message has the figure in it, which the store's own cannot.
+    expect(screen.getByRole("alert")).toHaveTextContent("$14 short of the $124 total");
+    expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([]);
+  });
+
+  test("a part with no category is refused before anything is written", () => {
+    openForm();
+    type(/amount/i, "124");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+    type("Amount of part 1", "100");
+    fireEvent.click(screen.getByRole("button", { name: "Add a part" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // The new part came in holding the $24 but nobody has said where it goes,
+    // and a prompt is what its select shows rather than the first category.
+    expect(screen.getByLabelText("Category of part 2")).toHaveValue("");
+    expect(screen.getByRole("alert")).toHaveTextContent(/names the category/i);
+    expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([]);
+  });
+
+  test("a second opening is back to one category, with no parts left behind", () => {
+    openForm();
+    type(/amount/i, "124");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+    fireEvent.click(screen.getByLabelText("Close"));
+    fireEvent.click(screen.getByText("open a"));
+
+    // The modal never unmounts, so this is the re-seed effect and not React.
+    expect(screen.queryByLabelText("Amount of part 1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Category")).toBeInTheDocument();
   });
 });

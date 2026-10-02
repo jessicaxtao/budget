@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { readStoredLedger, TRANSACTION_KINDS } from "./TransactionsContext";
+import { isSplit, readStoredLedger, TRANSACTION_KINDS } from "./TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "./constants";
 import { currentPeriod, periodLTE, toCents, toPeriod } from "../utils";
 
@@ -66,8 +66,17 @@ function seedFromExistingSpend() {
       // it would open that envelope in credit for money still to go out.
       if (spentPeriod != null && !periodLTE(spentPeriod, period)) continue;
 
-      const budgetId = transaction.budgetId ?? UNCATEGORIZED_BUDGET_ID;
-      spentByBudget.set(budgetId, (spentByBudget.get(budgetId) ?? 0) + transaction.amountCents);
+      // A receipt divided between categories opens each of them at its own part,
+      // for the same reason the undivided one opens its category at the whole:
+      // what was spent out of a category is what that category has to have been
+      // given.
+      const add = (id, cents) => {
+        const budgetId = id ?? UNCATEGORIZED_BUDGET_ID;
+        spentByBudget.set(budgetId, (spentByBudget.get(budgetId) ?? 0) + cents);
+      };
+      if (isSplit(transaction)) {
+        for (const part of transaction.splits) add(part.budgetId, part.amountCents);
+      } else add(transaction.budgetId, transaction.amountCents);
     }
 
     return [...spentByBudget]
