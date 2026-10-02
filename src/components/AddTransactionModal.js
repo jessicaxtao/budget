@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import Elder, { ELDER_MOODS } from "./Elder";
 import Dialog from "./Dialog";
 import Field, { SelectField } from "./Field";
 import Button from "./Button";
@@ -402,7 +403,8 @@ export default function AddTransactionModal({
       </div>
 
       {blocked ? (
-        <div className="font-sans text-row text-chalk-soft">
+        <div className="flex items-start gap-4 font-sans text-row text-chalk-soft">
+          <Elder mood={ELDER_MOODS.PONDERING} className="h-14 w-16" />
           {isTransfer && accounts.length < 2 ? (
             <p>
               A transfer moves money between two accounts, and there is only one so far —{" "}

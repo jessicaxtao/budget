@@ -1,4 +1,14 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, session, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  protocol,
+  session,
+  shell,
+} = require("electron");
 const fs = require("fs");
 const path = require("path");
 const books = require("./books");
@@ -239,13 +249,45 @@ function hardenSession() {
   });
 }
 
+/**
+ * `ledger` — the page's own ground — in each of the Grove's two modes, so a
+ * cold start does not flash the wrong one before the first paint arrives.
+ *
+ * **Hard-coded, because the main process cannot read a CSS variable.** These
+ * are the two `--c-ledger` values in `src/index.css`, and moving one there
+ * means moving it here; `public/index.html`'s `theme-color` is the third copy
+ * of the same idea and is the header's green rather than the page's ground.
+ */
+const GROUND = { light: "#F6F1E7", dark: "#14110E" };
+
+/**
+ * Which ground to open on.
+ *
+ * The app's own answer is `useTheme`'s: a stored choice, and the system
+ * preference while there is none. **Main cannot see the stored choice** — it
+ * lives in the renderer's `localStorage`, which does not exist until there is a
+ * renderer, and this figure is needed to construct one. So the system
+ * preference is what is available, and it is the right answer for everybody who
+ * has not pinned a mode, which is everybody until they touch the switch.
+ *
+ * The residual: somebody who pins a mode *against* their OS gets one frame of
+ * the other ground on a cold start. Closing that would mean main keeping its
+ * own copy of the preference on disk, which is a second home for a fact the
+ * renderer already owns — not worth it for one frame, and a worse trade than
+ * the flash. `nativeTheme` is read at construction rather than cached, so a
+ * relaunch after an OS change is already right.
+ */
+function groundColor() {
+  return nativeTheme.shouldUseDarkColors ? GROUND.dark : GROUND.light;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: "#0C1014", // `ledger`, so a cold start does not flash white
+    backgroundColor: groundColor(),
     show: false,
     title: "Household Books",
     webPreferences: {

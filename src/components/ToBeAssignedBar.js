@@ -1,5 +1,6 @@
 import { formatCents } from "../utils";
 import Button from "./Button";
+import Elder, { ELDER_MOODS } from "./Elder";
 
 /**
  * Money that has arrived and has not been given a job yet.
@@ -30,17 +31,34 @@ export default function ToBeAssignedBar({
   // it needs a decision. Zero is the goal, so it reads as income green.
   const tone =
     toBeAssignedCents < 0
-      ? { border: "border-vermilion/60", text: "text-vermilion", label: "Over-assigned" }
+      ? {
+          border: "border-vermilion/60",
+          text: "text-vermilion",
+          label: "Over-assigned",
+          mood: ELDER_MOODS.CONCERNED,
+        }
       : toBeAssignedCents > 0
-      ? { border: "border-sulfur/50", text: "text-sulfur", label: "Unassigned" }
-      : { border: "border-verdant/50", text: "text-verdant", label: "All assigned" };
+      ? {
+          border: "border-sulfur/50",
+          text: "text-sulfur",
+          label: "Unassigned",
+          mood: ELDER_MOODS.PONDERING,
+        }
+      : {
+          border: "border-verdant/50",
+          text: "text-verdant",
+          label: "All assigned",
+          mood: ELDER_MOODS.CONTENT,
+        };
 
   return (
     <div
-      className={`mb-4 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border ${tone.border} bg-panel px-4 py-3`}
+      className={`mb-4 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 rounded-2xl border ${tone.border} bg-panel py-2 pl-3 pr-3`}
     >
-      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-        <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+        <div className="flex items-center gap-3">
+          {/* The label beside him says the same thing in words. */}
+          <Elder mood={tone.mood} className="h-9 w-10" />
           <span className="font-mono text-label uppercase text-chalk-soft">To be assigned</span>
           {/* No tabular-nums: equal-width digits make a large standalone figure
               look loose, and this one is not in a column of anything. */}

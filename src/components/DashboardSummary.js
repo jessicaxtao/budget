@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { formatCents, formatDateMedium, formatDayDelta, formatPeriod } from "../utils";
+import Elder, { ELDER_MOODS } from "./Elder";
 import TallyGauge from "./TallyGauge";
 
 /**
@@ -21,17 +22,24 @@ import TallyGauge from "./TallyGauge";
 // has read the Transactions page reads this one the same way: money with no job
 // yet needs a decision, money over-assigned is an error, and zero is the goal.
 function availableTone(cents) {
-  if (cents < 0) return { text: "text-vermilion", label: "Over-assigned" };
-  if (cents > 0) return { text: "text-sulfur", label: "Unassigned" };
-  return { text: "text-verdant", label: "All assigned" };
+  if (cents < 0) return { text: "text-vermilion", label: "Over-assigned", mood: ELDER_MOODS.CONCERNED };
+  if (cents > 0) return { text: "text-sulfur", label: "Unassigned", mood: ELDER_MOODS.PONDERING };
+  return { text: "text-verdant", label: "All assigned", mood: ELDER_MOODS.CONTENT };
 }
 
-function Tile({ label, figure, tone = "text-chalk", note }) {
+function Tile({ label, figure, tone = "text-chalk", note, mood }) {
   return (
-    <div className="bg-panel px-4 py-3">
+    <div className={`relative bg-panel px-4 py-3 ${mood ? "pr-20" : ""}`}>
       <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-figure font-medium tabular-nums ${tone}`}>{figure}</dd>
-      <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>
+      <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+        {note}
+        {/* The Elder answers the dashboard's first question beside the figure
+            that states it, in the mood that figure's tone already says. Inside
+            a <dd> because a <dl>'s groups may hold nothing else; hidden from
+            assistive tech, so the note's text is still the whole of it. */}
+        {mood && <Elder mood={mood} className="absolute right-3 top-3 h-12 w-14" />}
+      </dd>
     </div>
   );
 }
@@ -50,7 +58,7 @@ export default function DashboardSummary({
   const tone = availableTone(availableToBudgetCents);
 
   return (
-    <section className="border border-edge bg-panel">
+    <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           {formatPeriod(period)}
@@ -66,6 +74,7 @@ export default function DashboardSummary({
           figure={formatCents(availableToBudgetCents)}
           tone={tone.text}
           note={tone.label}
+          mood={tone.mood}
         />
         <Tile
           label="Budgeted this month"

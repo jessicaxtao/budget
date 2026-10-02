@@ -1,14 +1,17 @@
 // Variants are named for the job, not the colour, and each one states the
-// surface it belongs on — the app runs a dark chrome with inverted light data
-// rows inside it, so a button that reads well in one is often illegible in the
-// other.
+// surface it belongs on: the page and its cards, or the data rows inside them.
+// In both of the Grove's modes those two are the same lightness, but the split
+// is kept so the rows can drift from the cards without a button going
+// illegible.
 //
 // Every variant carries a border, transparent where it is not drawn: the
 // bordered ones would otherwise stand 2px taller than the rest, and these sit
 // side by side in headers and toolbars where that shows.
 const variants = {
-  // On dark chrome.
-  primary: "border border-transparent bg-azure text-panel hover:bg-chalk",
+  // On the page and its cards. `primary` wears `action`, the canopy green, not
+  // `azure`: azure is a figure and bucket colour, and a button the same blue as
+  // the essentials share would read as part of the chart beside it.
+  primary: "border border-transparent bg-action text-on-action hover:bg-chalk hover:text-panel",
   outline: "border border-edge text-chalk hover:border-chalk-soft hover:bg-panel-raised",
   danger: "border border-vermilion/60 text-vermilion hover:bg-vermilion hover:text-panel",
   // On light data rows. `row` is the quiet one that turns red under the pointer
@@ -17,6 +20,13 @@ const variants = {
   // rather than as bare text and stays in the ink range throughout.
   row: "border border-transparent text-ink-soft hover:bg-band hover:text-vermilion-ink",
   "row-action": "border border-rule text-ink-soft hover:border-ink-soft hover:bg-band hover:text-ink",
+  // On the canopy band itself, which is the one surface in the app that is the
+  // *same* deep green in both modes — so this is the one variant whose colours
+  // do not move when the mode does. `outline` is wrong there twice over: `edge`
+  // and `panel-raised` are the chrome's own greys, and on green they read as a
+  // smudge rather than as an edge.
+  canopy:
+    "border border-on-canopy-soft/40 text-on-canopy hover:border-on-canopy-soft hover:bg-on-canopy/10",
 };
 
 const sizes = {

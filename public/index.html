@@ -4,11 +4,19 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- `ledger`. The browser paints this around the page and the desktop
-         shell paints it behind the window, so a cold start on either never
-         flashes white before the app's own background arrives. -->
-    <meta name="theme-color" content="#0C1014" />
+    <!-- `canopy`, the header's own green in both modes. The browser paints
+         this around the page and the desktop shell paints it behind the
+         window, so a cold start on either never flashes white before the
+         app's own background arrives. The shell's copy of this figure is in
+         `electron/main.js`, which cannot read a CSS variable. -->
+    <meta name="theme-color" content="#1F4A36" />
     <meta name="description" content="A household's budget, on their own computer." />
+    <!-- Blocking, and in the <head> before anything else: it sets `data-theme`
+         on <html> so the first paint is already in the right mode. A file
+         rather than an inline block so that `script-src 'self'` covers it in
+         both content-security policies with no hash to keep in step; the
+         reasoning is written out in `public/theme.js` itself. -->
+    <script src="%PUBLIC_URL%/theme.js"></script>
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <!--
