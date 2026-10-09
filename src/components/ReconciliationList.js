@@ -17,11 +17,32 @@ import { formatCents, formatDateMedium, formatDayDelta } from "../utils";
  * The caller hands this only the accounts the budget spends through — an
  * off-budget holding is reconciled from the Net worth page instead, where its
  * balance is actually used.
+ *
+ * **Two controls, because there are two sizes of answer.** Most months the
+ * statement simply agrees, and `ReconcileModal` makes that cost a press to open
+ * and a press to confirm a figure nobody needed to change — so the tick box is
+ * the whole of that act in one click, and the dialog is kept for the day the two
+ * disagree and the difference has to be settled. The box is the *state* as well
+ * as the action: it reads ticked for exactly the accounts the header is not
+ * counting, so the box, the tone of the date beside it and "N need checking"
+ * cannot tell three different stories.
  */
 
 // A month. Long enough that an account checked at the last statement is not
 // nagged about, short enough that a figure nobody has confirmed this cycle is.
 const STALE_AFTER_DAYS = 31;
+
+/**
+ * The panel's one definition of up to date, read by the tick box and the header
+ * count alike so neither can drift from the other.
+ *
+ * `daysSince` is null exactly when nothing has been reconciled, which is why the
+ * date is tested rather than the age — `null <= 31` is true in JS, and an
+ * account nobody has ever checked is the one case this must never call settled.
+ */
+function isUpToDate(account, daysSince) {
+  return account.reconciledOn != null && daysSince <= STALE_AFTER_DAYS;
+}
 
 /**
  * How the date reads, and whether it needs attention.
@@ -48,6 +69,7 @@ function ReconciliationRow({
   striped,
   onReconcile,
   onPayOff,
+  onConfirm,
   sortable,
 }) {
   const item = useSortableItem(account.id, { disabled: !sortable });
@@ -83,7 +105,7 @@ function ReconciliationRow({
         </div>
       </div>
 
-      <div className="mt-0.5 flex items-start gap-3">
+      <div className="mt-0.5 flex flex-wrap items-start gap-x-3 gap-y-1">
         {/* This line **wraps rather than truncates**, which is the one thing it
             must do differently from the name above it. Both the day and how
             long ago it was are on it — the exact date is the fact, the relative
@@ -92,7 +114,13 @@ function ReconciliationRow({
             that carries the tone; a name is still recognisable from its start,
             but "SEP 28, 2026 · 3 D…" is not a date anybody can read. So it is
             allowed a second line instead, and nothing is hidden. */}
-        <div className="min-w-0 flex-1 font-mono text-label uppercase">
+        {/* Sized to its content rather than `flex-1`, which is what makes the
+            wrap fall in the right place: a flex item that may not shrink below
+            its own content pushes the action group onto a line of its own the
+            moment the two no longer fit, instead of the date being squeezed to
+            three ragged lines beside it. On a wider container they share one
+            line, and nothing had to name a breakpoint to say so. */}
+        <div className="font-mono text-label uppercase">
           <span className="text-ink-soft">{scopeLabel(account)}</span>
           <span className="text-ink-soft"> · </span>
           {/* Each half is unbreakable on its own, so the wrap falls between
@@ -103,26 +131,47 @@ function ReconciliationRow({
         </div>
         {/* A card is settled rather than checked: paying it off is the act a
             household does with one each month, and it confirms the same thing
-            a reconciliation does. Everything else opens the reconcile dialog,
-            which can adjust the books when the statement disagrees. */}
+            a reconciliation does — so it needs no tick box of its own, since
+            the payment already stamps it. Everything else gets both answers:
+            the box for "it agrees", the dialog for when it does not. */}
         {account.scope === ACCOUNT_SCOPES.CREDIT_CARD ? (
           <Button
             variant="row-action"
             size="sm"
+            className="ml-auto"
             aria-label={`Record paying off ${account.name}`}
             onClick={() => onPayOff(account)}
           >
             Paid off
           </Button>
         ) : (
-          <Button
-            variant="row-action"
-            size="sm"
-            aria-label={`Reconcile ${account.name}`}
-            onClick={() => onReconcile(account)}
-          >
-            Reconcile
-          </Button>
+          /* The pair is one shrink-0 group so the status line keeps every pixel
+             the two of them do not need, and `flex-wrap` on the line above lets
+             the group drop below the date rather than squeezing it at 355px. */
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-1.5 font-mono text-label uppercase text-ink-soft">
+              <input
+                type="checkbox"
+                checked={isUpToDate(account, daysSince)}
+                onChange={(event) => onConfirm(account, event.target.checked)}
+                /* Every row would otherwise be a control called "Accurate",
+                   so the account's name is in the accessible name — and the
+                   visible word leads it, which is what keeps the two in step
+                   for anyone driving this by voice. */
+                aria-label={`Accurate — ${account.name}`}
+                className="h-3.5 w-3.5 shrink-0 accent-ink-soft"
+              />
+              Accurate
+            </label>
+            <Button
+              variant="row-action"
+              size="sm"
+              aria-label={`Reconcile ${account.name}`}
+              onClick={() => onReconcile(account)}
+            >
+              Reconcile
+            </Button>
+          </div>
         )}
       </div>
     </div>
@@ -134,10 +183,14 @@ function ReconciliationRow({
  * accounts in the household's own order — the order every account list in the
  * app reads.
  */
-export default function ReconciliationList({ rows, onReconcile, onPayOff, onReorder }) {
-  const unchecked = rows.filter(
-    (row) => row.account.reconciledOn == null || row.daysSince > STALE_AFTER_DAYS
-  ).length;
+export default function ReconciliationList({
+  rows,
+  onReconcile,
+  onPayOff,
+  onConfirm,
+  onReorder,
+}) {
+  const unchecked = rows.filter((row) => !isUpToDate(row.account, row.daysSince)).length;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
@@ -178,6 +231,7 @@ export default function ReconciliationList({ rows, onReconcile, onPayOff, onReor
               striped={index % 2 === 1}
               onReconcile={onReconcile}
               onPayOff={onPayOff}
+              onConfirm={onConfirm}
               sortable={onReorder != null}
             />
           ))}

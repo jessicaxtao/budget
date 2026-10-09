@@ -217,6 +217,68 @@ test("reconciling with the statement left blank stamps today without touching th
   expect(JSON.parse(localStorage.getItem("transactions"))).toHaveLength(1);
 });
 
+test("ticking a statement off is one click, and writes no row at all", () => {
+  seed();
+  renderPage();
+
+  fireEvent.click(screen.getByRole("checkbox", { name: "Accurate — Everyday" }));
+
+  // No dialog opened and nothing had to be confirmed: the whole act was the tick.
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem("accounts"))[0].reconciledOn).toBe(TODAY);
+  // The books said what the account held, so there was nothing to settle.
+  expect(JSON.parse(localStorage.getItem("transactions"))).toHaveLength(1);
+  expect(screen.getByText("$800")).toBeInTheDocument();
+
+  // The box, the date and the header count all now say the same thing.
+  expect(screen.getByRole("checkbox", { name: "Accurate — Everyday" })).toBeChecked();
+  expect(screen.getByText("All up to date")).toBeInTheDocument();
+});
+
+test("the box reads ticked for exactly the accounts the header is not counting", () => {
+  const stale = { ...ACCOUNT, id: "acc2", name: "Savings", reconciledOn: addDays(TODAY, -40) };
+  const fresh = { ...ACCOUNT, id: "acc3", name: "Joint", reconciledOn: addDays(TODAY, -3) };
+  seed({ accounts: [ACCOUNT, stale, fresh] });
+  renderPage();
+
+  // Never checked, and checked beyond the stale month: both unticked.
+  expect(screen.getByRole("checkbox", { name: "Accurate — Everyday" })).not.toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Accurate — Savings" })).not.toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Accurate — Joint" })).toBeChecked();
+  expect(screen.getByText("2 need checking")).toBeInTheDocument();
+});
+
+test("clearing the box undoes a reconciliation entered by mistake", () => {
+  seed({ accounts: [{ ...ACCOUNT, reconciledOn: TODAY }] });
+  renderPage();
+
+  const box = screen.getByRole("checkbox", { name: "Accurate — Everyday" });
+  expect(box).toBeChecked();
+  fireEvent.click(box);
+
+  // Cleared rather than restored to some earlier date — only one is kept — and
+  // the row says so in the tone it uses for an account nobody has checked.
+  expect(JSON.parse(localStorage.getItem("accounts"))[0].reconciledOn).toBe(null);
+  expect(screen.getByText(/Never/)).toBeInTheDocument();
+  expect(screen.getByText("1 need checking")).toBeInTheDocument();
+});
+
+test("a card is settled rather than ticked, since paying it off already stamps it", () => {
+  const CARD = {
+    ...ACCOUNT,
+    id: "card1",
+    name: "Visa",
+    type: "liability",
+    scope: "credit-card",
+    openingBalanceCents: -30000,
+  };
+  seed({ accounts: [ACCOUNT, CARD] });
+  renderPage();
+
+  expect(screen.queryByRole("checkbox", { name: "Accurate — Visa" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Record paying off Visa" })).toBeInTheDocument();
+});
+
 test("a statement that disagrees adjusts the books before reconciling", () => {
   seed();
   renderPage();

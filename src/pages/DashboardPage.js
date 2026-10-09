@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const today = todayISO();
   const period = currentPeriod();
 
-  const { accounts, reorderAccounts } = useAccounts();
+  const { accounts, reconcileAccount, reorderAccounts } = useAccounts();
   const { budgets, reorderBudgets, reorderGroups } = useBudgets();
   const { payeeById } = usePayees();
   const { addTransaction } = useTransactions();
@@ -315,6 +315,16 @@ export default function DashboardPage() {
             rows={accountRows}
             onReconcile={(account) => setReconcilingId(account.id)}
             onPayOff={(account) => setPayingOffId(account.id)}
+            /* Ticking the box is the whole act: the books already say what the
+               account holds, so confirming it costs no figure and writes no
+               row. Clearing it passes `null`, which is the store's own way of
+               undoing a reconciliation entered by mistake — and it clears
+               rather than restores whatever date was there before, since only
+               one is kept. The row says so immediately, in the tone it uses
+               for an account nobody has checked. */
+            onConfirm={(account, accurate) =>
+              reconcileAccount({ id: account.id, date: accurate ? today : null })
+            }
             onReorder={reorderAccounts}
           />
         </div>
@@ -323,8 +333,8 @@ export default function DashboardPage() {
       {accountRows.length > 0 && (
         <p className="mt-3 font-sans text-row text-chalk-soft">
           Balances are the opening figure plus every transaction through the account, so they
-          follow the ledger — reconciling records that they agreed with the bank today, and adjusts
-          the books where the statement says otherwise.
+          follow the ledger. Tick one off where the statement agrees; reconcile it where the
+          statement says otherwise, and the difference is written into the books.
         </p>
       )}
 
