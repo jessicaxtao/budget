@@ -60,6 +60,16 @@ const PAY = {
 function renderRegister({
   transactions = [SPEND, PAY],
   payees = PAYEES,
+  // The page's own view state, handed in as the page hands it: which rows are
+  // ticked, how many the window held before a filter narrowed it, and one
+  // account's running balances where the filter names one.
+  selected = new Set(),
+  shownOf,
+  allMonths,
+  balances,
+  onSelect = () => {},
+  onSelectShown = () => {},
+  onClearFilter = () => {},
   onChange,
   onPayeeChange = () => ({ ok: true }),
   onDelete = () => {},
@@ -70,6 +80,12 @@ function renderRegister({
     <TransactionRegister
       period={PERIOD}
       transactions={transactions}
+      shownOf={shownOf ?? transactions.length}
+      allMonths={allMonths}
+      balances={balances}
+      selected={selected}
+      onSelect={onSelect}
+      onSelectShown={onSelectShown}
       budgets={BUDGETS}
       accounts={ACCOUNTS}
       payees={payees}
@@ -78,6 +94,7 @@ function renderRegister({
       onPayeeChange={onPayeeChange}
       onDelete={onDelete}
       onAdd={() => {}}
+      onClearFilter={onClearFilter}
       onSplit={onSplit}
     />
   );

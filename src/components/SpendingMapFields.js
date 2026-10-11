@@ -1,35 +1,10 @@
 import { useMemo, useState } from "react";
+import Chip from "./Chip";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { toSections } from "../planLayout";
 
 const legend = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
-const chipBase =
-  "border px-2 py-0.5 font-sans text-label tracking-wide transition-colors";
-const chipOn = "border-azure bg-azure/20 font-medium text-chalk";
-const chipOff = "border-edge text-chalk-soft hover:border-chalk-soft hover:text-chalk";
-
-/**
- * On or off in an id list — the one operation a chip performs, exported so the
- * two forms that hold these lists do not each write it.
- */
-export function toggleId(list, id) {
-  return list.includes(id) ? list.filter((other) => other !== id) : [...list, id];
-}
-
-/** One name, on or off. `aria-pressed` is what makes it a toggle rather than a link. */
-function Chip({ label, on, onToggle }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onToggle}
-      className={`${chipBase} ${on ? chipOn : chipOff}`}
-    >
-      {label}
-    </button>
-  );
-}
 
 /**
  * What spending a promise applies to: all of it, or these categories, or these

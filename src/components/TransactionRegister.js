@@ -78,6 +78,15 @@ import { amountAtRest, amountEditing, formatCents, formatPeriod, toCents } from 
  * belong to no month, so a register that only ever showed one month would put
  * them out of reach forever. They get a band of their own, below the month, and
  * typing a date into one is what files it.
+ *
+ * **A tick box leads every row and a running balance can end it.** The first is
+ * always there, because selecting rows is how forty of them are refiled at once
+ * and a mode that had to be turned on first is a mode nobody finds; the header's
+ * box ticks everything *shown*, which is the only thing it can honestly offer.
+ * The second is drawn only when the rows are one account's — see `columnsFor` for
+ * the arithmetic that makes those two columns a pair that trade places, and
+ * `runningBalances` in `useAccountBalances.js` for why the figure is the ledger's
+ * own order rather than the order on screen.
  */
 
 // Header and body cells are driven off one list for the same reason
@@ -88,7 +97,30 @@ import { amountAtRest, amountEditing, formatCents, formatPeriod, toCents } from 
 // whatever happened to be typed in it would not be one. Each is sized to what
 // the column actually holds: a date, a category name, an account name, a figure.
 // Description names no width and so takes whatever is left.
-const COLUMNS = [
+/**
+ * The columns, which is **almost** the same list on every row of every month.
+ *
+ * A function of one question rather than a constant, because the running balance
+ * and the Account cell are the one pair that cannot both be on the grid: the six
+ * fixed widths already come to 712px, the tick box takes 32 more, and another
+ * `w-28` would put the sum past the 768px container the whole layout is sized to.
+ *
+ * **They are the pair to trade precisely because they are never both wanted.** A
+ * running balance only means anything against one account — a column of figures
+ * mixing a current account and a credit card is a column of nothing — so it is
+ * drawn only when the filter names exactly one, which is the one case where the
+ * Account cell is repeating on sixty rows what the filter bar already says once.
+ * The cost is stated rather than worked around: while that column is on, a
+ * transfer's two accounts cannot be re-pointed where they sit, and clearing the
+ * account filter is what brings them back.
+ *
+ * The balance goes at the **far right**, after the two amount columns, because
+ * that is where a chequebook stub carries it and where the eye adds down.
+ */
+const columnsFor = (showBalance) => [
+  // No heading: a tick box in a header cell would want a name, and the name is
+  // the control itself — see the select-all below.
+  { key: "select", label: "", width: "w-8" },
   { key: "date", label: "Date", width: "w-36" },
   // Two fields in one column, which is the transfer's own precedent applied
   // again: the six fixed widths already come to 712px and the grid has to stay
@@ -96,17 +128,25 @@ const COLUMNS = [
   // payee leads because it identifies the row; the note is the mark after it.
   { key: "payee", label: "Payee & note" },
   { key: "budgetId", label: "Category", width: "w-40" },
-  { key: "accountId", label: "Account", width: "w-36" },
+  ...(showBalance ? [] : [{ key: "accountId", label: "Account", width: "w-36" }]),
   { key: "in", label: "In", width: "w-28", numeric: true },
   { key: "out", label: "Out", width: "w-28", numeric: true },
+  ...(showBalance ? [{ key: "balance", label: "Balance", width: "w-28", numeric: true }] : []),
 ];
 
 // Everything to the left of the two amount columns, which is what a subtotal
-// label spans. Derived rather than written as a number, so reordering the list
-// above cannot leave a stale colspan behind.
-const LEAD_SPAN = COLUMNS.findIndex((column) => column.numeric);
-// The remove button has a column of its own with no heading.
-const FULL_SPAN = COLUMNS.length + 1;
+// label spans, and everything to the right of them, which a subtotal has nothing
+// to say about. Both derived rather than written as numbers, so moving a column
+// cannot leave a stale colspan behind — and the balance column is deliberately
+// in the second: a running balance is a figure about one row, not a sum of the
+// rows above it, and a total drawn under it would be the one number on the grid
+// that means nothing at all.
+const spansOf = (columns) => {
+  const lead = columns.findIndex((column) => column.numeric);
+  // Every column but the lead and the two amounts — the balance, where it is
+  // drawn, and the remove button, which has a column of its own with no heading.
+  return { lead, trail: columns.length - lead - 2 + 1, full: columns.length + 1 };
+};
 
 const rowBg = (index) => (index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt");
 
@@ -357,6 +397,11 @@ function RegisterRow({
   payeeById,
   inside,
   error,
+  spans,
+  selected,
+  onSelect,
+  balanceCents,
+  showBalance,
   onCommit,
   onPayeeCommit,
   onDelete,
@@ -457,6 +502,18 @@ function RegisterRow({
       {/* `group` is what lets the note's mark appear with the pointer: it is the
           only thing on the row that is not drawn at rest. */}
       <tr className={`group ${rowBg(index)}`}>
+        {/* Unlabelled in the stacked phone layout — `data-label` is what makes a
+            cell a "LABEL … value" line there, and the tick belongs with the
+            controls at the foot of the card rather than among the figures. */}
+        <td className="px-1 py-1">
+          <input
+            type="checkbox"
+            checked={selected}
+            aria-label={`Select ${label}`}
+            onChange={() => onSelect(transaction.id)}
+            className="h-3.5 w-3.5 shrink-0 accent-azure"
+          />
+        </td>
         <td data-label="Date" className="px-3 py-1">
           <input
             type="date"
@@ -593,32 +650,37 @@ function RegisterRow({
         </td>
         {/* Both ends of a transfer live here, stacked, rather than in a column of
             their own: another fixed width would push the grid past its container
-            at 768px, and the two are one answer read top to bottom. */}
-        <td data-label="Account" className="px-3 py-1">
-          <AccountSelect
-            value={transaction.accountId}
-            label={transfer ? `Transferred from, for ${label}` : `Account of ${label}`}
-            offered={offered}
-            accounts={accounts}
-            index={index}
-            onChange={(accountId) => onCommit(transaction, { accountId })}
-          />
-          {transfer && (
-            <div className="flex items-baseline gap-1">
-              <span aria-hidden="true" className="font-mono text-row text-ink-soft">
-                →
-              </span>
-              <AccountSelect
-                value={transaction.toAccountId}
-                label={`Transferred to, for ${label}`}
-                offered={accounts.filter((account) => account.id !== transaction.accountId)}
-                accounts={accounts}
-                index={index}
-                onChange={(toAccountId) => onCommit(transaction, { toAccountId })}
-              />
-            </div>
-          )}
-        </td>
+            at 768px, and the two are one answer read top to bottom.
+
+            Absent entirely while the running balance is drawn — see `columnsFor`
+            for why those two are the pair that trade places. */}
+        {!showBalance && (
+          <td data-label="Account" className="px-3 py-1">
+            <AccountSelect
+              value={transaction.accountId}
+              label={transfer ? `Transferred from, for ${label}` : `Account of ${label}`}
+              offered={offered}
+              accounts={accounts}
+              index={index}
+              onChange={(accountId) => onCommit(transaction, { accountId })}
+            />
+            {transfer && (
+              <div className="flex items-baseline gap-1">
+                <span aria-hidden="true" className="font-mono text-row text-ink-soft">
+                  →
+                </span>
+                <AccountSelect
+                  value={transaction.toAccountId}
+                  label={`Transferred to, for ${label}`}
+                  offered={accounts.filter((account) => account.id !== transaction.accountId)}
+                  accounts={accounts}
+                  index={index}
+                  onChange={(toAccountId) => onCommit(transaction, { toAccountId })}
+                />
+              </div>
+            )}
+          </td>
+        )}
         <AmountCell
           transaction={transaction}
           label={label}
@@ -633,6 +695,26 @@ function RegisterRow({
           onCommit={onCommit}
           onSplit={onSplit}
         />
+        {/* What the account held once this row had been through it. Read-only,
+            because it is not a field: it is the sum of everything above it, and
+            the way to change it is to change one of those. No colour either way —
+            a credit card is legitimately negative and a current account can be
+            overdrawn, so red here would be the app's one definition of trouble
+            borrowed for something that is not it. */}
+        {showBalance && (
+          <td
+            data-label="Balance"
+            className="whitespace-nowrap px-3 py-1 text-right font-mono text-row tabular-nums text-ink"
+          >
+            {balanceCents == null ? (
+              <span aria-hidden="true" className="text-ink-soft">
+                —
+              </span>
+            ) : (
+              formatCents(balanceCents)
+            )}
+          </td>
+        )}
         <td className="px-1 py-1 text-right">
           <Button
             variant="row"
@@ -648,7 +730,7 @@ function RegisterRow({
           change the width of a column the eye is reading down. */}
       {error && (
         <tr className={rowBg(index)}>
-          <td colSpan={FULL_SPAN} className="px-3 pb-2">
+          <td colSpan={spans.full} className="px-3 pb-2">
             <p role="alert" className="font-sans text-row text-vermilion-ink">
               {error}
             </p>
@@ -660,12 +742,12 @@ function RegisterRow({
 }
 
 /** A subtotal band across the sheet, on the same shade the group bands use. */
-function Band({ name, totals }) {
+function Band({ name, totals, spans }) {
   return (
     <tr className="bg-band">
       <th
         scope="colgroup"
-        colSpan={LEAD_SPAN}
+        colSpan={spans.lead}
         className="px-3 py-1.5 text-left font-mono text-label uppercase text-ink"
       >
         {name}
@@ -676,7 +758,7 @@ function Band({ name, totals }) {
       <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono text-label tabular-nums text-ink">
         {formatCents(totals.outCents)}
       </td>
-      <td />
+      <td colSpan={spans.trail} />
     </tr>
   );
 }
@@ -688,10 +770,22 @@ export default function TransactionRegister({
   accounts,
   payees,
   payeeById,
+  // How many rows the window holds before the filter narrowed it, and whether
+  // the window is every month. Both are the page's answers: this component is
+  // handed its rows and has no idea what was left out, and a register that said
+  // "12 entries" while a filter was quietly hiding thirty would be the one way
+  // this screen could lie.
+  shownOf,
+  allMonths = false,
+  balances = null,
+  selected,
+  onSelect,
+  onSelectShown,
   onChange,
   onPayeeChange,
   onDelete,
   onAdd,
+  onClearFilter,
   onSplit,
 }) {
   // One at a time, keyed on the row it belongs to: a rejection is a reply to
@@ -730,6 +824,22 @@ export default function TransactionRegister({
   const undated = transactions.filter((transaction) => transaction.date == null);
   const totals = totalsOf(dated);
 
+  const showBalance = balances != null;
+  const columns = columnsFor(showBalance);
+  const spans = spansOf(columns);
+
+  // The window the footing is a footing *of*. A register showing every month it
+  // holds has no month to name, and naming the one the stepper happens to be on
+  // would label a total that is not that month's.
+  const windowName = allMonths ? "Every month" : formatPeriod(period);
+
+  // Some, all or none of what is on screen — which is the whole of what a
+  // select-all box can honestly say, since the rows it is not showing are not
+  // the ones it would tick.
+  const shownIds = transactions.map((transaction) => transaction.id);
+  const pickedCount = shownIds.filter((id) => selected.has(id)).length;
+  const allPicked = pickedCount > 0 && pickedCount === shownIds.length;
+
   // The zebra runs across the whole table rather than restarting under the
   // undated band, so two rows of the same shade never end up either side of it.
   let stripe = 0;
@@ -746,6 +856,14 @@ export default function TransactionRegister({
         payeeById={payeeById}
         inside={inside}
         error={error?.id === transaction.id ? error.message : null}
+        spans={spans}
+        selected={selected.has(transaction.id)}
+        onSelect={onSelect}
+        showBalance={showBalance}
+        // `undefined` where the account never held this row, which cannot happen
+        // while the filter names it — but a map that does not know a row is not a
+        // row whose balance is zero, and a dash says so.
+        balanceCents={balances?.get(transaction.id) ?? null}
         onCommit={commit}
         onPayeeCommit={commitPayee}
         onDelete={onDelete}
@@ -758,22 +876,47 @@ export default function TransactionRegister({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Register</h2>
         <span className="font-mono text-label uppercase text-chalk-soft">
-          {dated.length} {dated.length === 1 ? "entry" : "entries"} in {formatPeriod(period)}
+          {/* "12 of 48" wherever a filter is narrowing, so what is missing is a
+              figure on screen rather than something the reader has to notice. */}
+          {shownOf != null && shownOf > transactions.length
+            ? `${transactions.length} of ${shownOf} entries`
+            : `${dated.length} ${dated.length === 1 ? "entry" : "entries"}`}{" "}
+          {allMonths ? "across every month" : `in ${formatPeriod(period)}`}
         </span>
       </div>
 
       {transactions.length === 0 ? (
-        <p className="px-4 py-5 font-sans text-row text-chalk-soft">
-          Nothing recorded in {formatPeriod(period)}.{" "}
-          <button
-            type="button"
-            onClick={onAdd}
-            className="text-azure underline underline-offset-2 hover:text-chalk"
-          >
-            Add a transaction
-          </button>{" "}
-          and it will appear here, editable where it sits.
-        </p>
+        // Two empty states, because they are two different facts and only one of
+        // them is the user's to fix: an empty month wants an entry, and a filter
+        // that matches nothing wants clearing. Offering "Add a transaction" to
+        // somebody who has just searched for "costco" would answer a question
+        // they did not ask.
+        shownOf > 0 ? (
+          <p className="px-4 py-5 font-sans text-row text-chalk-soft">
+            Nothing here matches that search.{" "}
+            <button
+              type="button"
+              onClick={onClearFilter}
+              className="text-azure underline underline-offset-2 hover:text-chalk"
+            >
+              Clear the filter
+            </button>{" "}
+            to see {shownOf === 1 ? "the one entry" : `all ${shownOf} entries`}{" "}
+            {allMonths ? "on the books" : `in ${formatPeriod(period)}`}.
+          </p>
+        ) : (
+          <p className="px-4 py-5 font-sans text-row text-chalk-soft">
+            Nothing recorded in {allMonths ? "the books yet" : formatPeriod(period)}.{" "}
+            <button
+              type="button"
+              onClick={onAdd}
+              className="text-azure underline underline-offset-2 hover:text-chalk"
+            >
+              Add a transaction
+            </button>{" "}
+            and it will appear here, editable where it sits.
+          </p>
+        )
       ) : (
         <div className="overflow-x-auto">
           {/* No `min-width` floor under the grid, tempting as one is: Chrome
@@ -785,7 +928,7 @@ export default function TransactionRegister({
           <table className="reflow w-full table-fixed border-collapse">
             <thead>
               <tr className="bg-panel-raised">
-                {COLUMNS.map((column) => (
+                {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
@@ -793,7 +936,26 @@ export default function TransactionRegister({
                       column.width ?? ""
                     } ${column.numeric ? "text-right" : "text-left"}`}
                   >
-                    {column.label}
+                    {column.key === "select" ? (
+                      <input
+                        type="checkbox"
+                        checked={allPicked}
+                        // Partly ticked is a third state and the only honest one
+                        // for "some of these": without it, a box drawn empty over
+                        // nine ticked rows reads as a selection that has been
+                        // lost. The DOM property is the only way to set it.
+                        ref={(box) => {
+                          if (box) box.indeterminate = pickedCount > 0 && !allPicked;
+                        }}
+                        aria-label={
+                          allPicked ? "Clear the selection" : "Select every entry shown"
+                        }
+                        onChange={() => onSelectShown(allPicked ? [] : shownIds)}
+                        className="h-3.5 w-3.5 shrink-0 accent-azure"
+                      />
+                    ) : (
+                      column.label
+                    )}
                   </th>
                 ))}
                 <th scope="col" className="w-10 px-1 py-2">
@@ -809,7 +971,7 @@ export default function TransactionRegister({
                 vanishing from all of them. */}
             {undated.length > 0 && (
               <tbody>
-                <Band name="Undated" totals={totalsOf(undated)} />
+                <Band name="Undated" totals={totalsOf(undated)} spans={spans} />
                 {rowsFor(undated)}
               </tbody>
             )}
@@ -822,10 +984,10 @@ export default function TransactionRegister({
               <tr className="bg-panel-raised">
                 <th
                   scope="row"
-                  colSpan={LEAD_SPAN}
+                  colSpan={spans.lead}
                   className="px-3 py-2 text-left font-mono text-label uppercase text-chalk"
                 >
-                  {formatPeriod(period)}
+                  {windowName}
                 </th>
                 <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-verdant">
                   {formatCents(totals.inCents)}
@@ -833,7 +995,7 @@ export default function TransactionRegister({
                 <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-vermilion">
                   {formatCents(totals.outCents)}
                 </td>
-                <td />
+                <td colSpan={spans.trail} />
               </tr>
             </tfoot>
           </table>
