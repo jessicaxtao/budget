@@ -14,6 +14,7 @@ import { EmergencyFundProvider } from "./EmergencyFundContext";
 import { LifeEventsProvider } from "./LifeEventsContext";
 import { ScenariosProvider } from "./ScenariosContext";
 import { RewardsProvider } from "./RewardsContext";
+import { SavedFiltersProvider } from "./SavedFiltersContext";
 
 // Composes every store in one place so index.js and the tests wrap the app the
 // same way, and adding a store does not mean editing both.
@@ -96,6 +97,12 @@ import { RewardsProvider } from "./RewardsContext";
 // kept — useCardOffers resolves them, the store never reads them back.
 // Nothing cascades either way, so its position here is free.
 //
+// SavedFilters is independent in both directions: a saved search names
+// categories, accounts and tags, by id and inert but kept — the page resolves
+// them, the store never reads them back, and nothing cascades either way, so its
+// position here is free. It holds no money: nothing derived from the books reads
+// it, so saving a search moves no figure anywhere.
+//
 // SavingsGoals is independent of every other store: a goal names no category,
 // no account, and no transaction, so nothing outside this pair deletes into or
 // out of it. SavingsGoalAssignments is the money-actually-put-in half of a
@@ -121,7 +128,9 @@ export default function AppProviders({ children }) {
                             <EmergencyFundProvider>
                               <LifeEventsProvider>
                                 <ScenariosProvider>
-                                  <RewardsProvider>{children}</RewardsProvider>
+                                  <RewardsProvider>
+                                    <SavedFiltersProvider>{children}</SavedFiltersProvider>
+                                  </RewardsProvider>
                                 </ScenariosProvider>
                               </LifeEventsProvider>
                             </EmergencyFundProvider>

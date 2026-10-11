@@ -441,20 +441,56 @@ export const DonationsProvider = ({ children }) => {
    * Both callers want the same thing and neither wants the money touched. On the
    * donations page it is the user saying the outflow was misfiled, and the
    * outflow stays on the register because it still happened; from
-   * `deleteTransaction` it is the cascade, and by then there is nothing left to
+   * `deleteTransactions` it is the cascade, and by then there is nothing left to
    * describe.
+   *
+   * **It hands back the statement it took**, which the ledger's undo stack needs:
+   * restoring a deleted outflow has to restore what was said about it, and
+   * `deleteTransactions` reading this store to find out would make that mutator
+   * change identity on every write to donations and ripple through every consumer
+   * of the ledger. See `restoreDonations`.
    */
   const removeDonation = useCallback(
     ({ transactionId }) => {
-      // The file goes with the statement it belonged to. Best effort and after
-      // the fact: a stray file costs some space, and nothing reads it.
-      const receipt = donationsRef.current.find(
-        (donation) => donation.transactionId === transactionId
-      )?.receipt;
+      const removed =
+        donationsRef.current.find((donation) => donation.transactionId === transactionId) ?? null;
       setDonations((previous) =>
         previous.filter((donation) => donation.transactionId !== transactionId)
       );
-      if (receipt) deleteReceipt(receipt);
+      // The file goes with the statement it belonged to. Best effort and after
+      // the fact: a stray file costs some space, and nothing reads it.
+      if (removed?.receipt) deleteReceipt(removed.receipt);
+      return { ok: true, removed };
+    },
+    [setDonations]
+  );
+
+  /**
+   * Put statements back that a cascade took — the other half of the ledger's
+   * undo, and nothing else's business.
+   *
+   * No validation, because there is nothing new to validate: every record it
+   * writes is one this store produced and checked on the way in, being put back
+   * exactly as it was. A record whose transaction is already described is skipped
+   * rather than duplicated, since a statement is keyed on its transaction and two
+   * of them would be one gift counted twice.
+   *
+   * What it cannot put back is the **receipt file**: that was deleted with the
+   * gift, best effort, and nothing here can re-upload it. So a restored statement
+   * may point at a file that is gone — a dangling reference, inert but kept, like
+   * every other one in these stores.
+   */
+  const restoreDonations = useCallback(
+    (records) => {
+      const list = Array.isArray(records) ? records : [];
+      if (list.length === 0) return { ok: true };
+      setDonations((previous) => {
+        const described = new Set(previous.map((donation) => donation.transactionId));
+        const back = list.filter(
+          (donation) => donation?.transactionId && !described.has(donation.transactionId)
+        );
+        return back.length === 0 ? previous : [...previous, ...back];
+      });
       return { ok: true };
     },
     [setDonations]
@@ -543,6 +579,7 @@ export const DonationsProvider = ({ children }) => {
       recordDonation,
       updateDonation,
       removeDonation,
+      restoreDonations,
       setGivingGoal,
       setGivingCategories,
       setGiftExcluded,
@@ -560,6 +597,7 @@ export const DonationsProvider = ({ children }) => {
       recordDonation,
       updateDonation,
       removeDonation,
+      restoreDonations,
       setGivingGoal,
     ]
   );

@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo } from "react";
+import React, { useCallback, useContext, useMemo, useState } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
 import { readKey } from "../storage";
@@ -92,6 +92,35 @@ import { isValidISODate, toCents, todayISO } from "../utils";
  * register can commit one cell at a time and a row folded in from the old
  * stores — no date, no account — can still have its description fixed without
  * being asked to invent the rest. See `RULES` and `firstBroken`.
+ *
+ * **Several records can be corrected in one commit**, which is what a bulk edit
+ * on the register is: `updateTransactions` takes a patch per row and
+ * `deleteTransactions` a list of ids. Both check the **whole batch before writing
+ * any of it**, the rule every batch mutator here keeps — forty rows refiled where
+ * one of them is an outflow that would be left with no category is forty rows
+ * half-refiled, and the user cannot tell which half. One write either way, so a
+ * reader of storage never sees the batch partly applied and the sum across it is
+ * unchanged at every point they could look.
+ *
+ * **This store keeps its own undo stack, and it is the only store that can.**
+ * Every movement of money in the app is written through the five mutators below,
+ * so a history kept here sees every write by construction — and sees *only* the
+ * writes a person made, since a document arriving from another device moves the
+ * state through `useSyncedState` and never through a mutator. A stack kept in a
+ * page could not say either of those things: the entry form is in the header on
+ * every page and the split editor writes from a modal, and a stack that missed
+ * one of them would offer to put the ledger back into a state that never
+ * existed.
+ *
+ * **A step is the inverse write, not a snapshot of the ledger.** Undoing an edit
+ * sends the fields back to what they held; undoing a delete puts the records back
+ * where they sat; undoing an add removes it. That is more to carry than a copy of
+ * the whole array and it is what makes the stack safe to keep: a step touches
+ * only the records it recorded, so a row edited on another device in between is
+ * left alone rather than reverted, and a step whose record is gone is **refused
+ * and dropped** instead of resurrecting it. Every inverse goes through the same
+ * `RULES` as the edit it undoes, so undo cannot write a record the store would
+ * have refused.
  */
 const TransactionsContext = React.createContext();
 
@@ -517,6 +546,43 @@ function firstBroken(record, touched) {
   return { ok: true };
 }
 
+/**
+ * The fields one patch actually writes, normalised at this boundary.
+ *
+ * Pulled out of `updateTransaction` so the batch mutator reads a patch exactly
+ * the way the single one does — a second copy of this would be a second set of
+ * answers about what a cleared select is worth, and the two would drift on the
+ * first field added.
+ *
+ * It reads **keys, not values**: sending no `splits` at all leaves a division
+ * alone, which is what every one-cell edit on the register does, while sending
+ * `null` is how a division is undone.
+ */
+function changesOf(patch) {
+  const changes = {};
+  if ("kind" in patch) changes.kind = patch.kind;
+  // A row may legitimately name nobody, so clearing this is a real answer
+  // rather than an abandoned edit — unlike a blank date or a blank amount,
+  // which no record can have.
+  if ("payeeId" in patch) changes.payeeId = patch.payeeId || null;
+  if ("description" in patch) changes.description = (patch.description ?? "").trim();
+  if ("amountCents" in patch) changes.amountCents = patch.amountCents;
+  else if ("amount" in patch) changes.amountCents = toCents(patch.amount);
+  if ("date" in patch) changes.date = patch.date;
+  // Normalised at this boundary exactly as on the way in, so a cleared
+  // select reads the same whichever mutator it went through.
+  if ("accountId" in patch) changes.accountId = patch.accountId || null;
+  if ("toAccountId" in patch) changes.toAccountId = patch.toAccountId || null;
+  // A `toAccountId` left on a record whose kind moved away from transfer is
+  // **kept, not cleared**, and is inert while it is not a transfer — the rule
+  // a switched-away-from pay cadence follows, for the same reason: switching
+  // back is the point, and only `budgetLegs` and `accountBalancesAt` read it,
+  // both of which ask the kind first.
+  if ("budgetId" in patch) changes.budgetId = patch.budgetId || null;
+  if ("splits" in patch) changes.splits = readSplits(patch.splits);
+  return changes;
+}
+
 /** Two divisions that say the same thing, part for part and in the same order. */
 function sameSplits(a, b) {
   if (a == null || b == null) return a === b;
@@ -529,13 +595,125 @@ function sameSplits(a, b) {
   );
 }
 
+/**
+ * Whether a patch's changes actually move the record.
+ *
+ * `splits` is the one field that is not a scalar, so it is compared part by part
+ * — an editor that re-submits a division untouched has changed nothing, and a
+ * fresh array is not a change.
+ */
+function moves(current, changes) {
+  return Object.keys(changes).some((field) =>
+    field === "splits"
+      ? !sameSplits(changes.splits, current.splits)
+      : changes[field] !== current[field]
+  );
+}
+
+/** The patch that puts a change back: the same fields, at the values they hold. */
+function inverseOf(current, changes) {
+  const back = { id: current.id };
+  for (const field of Object.keys(changes)) back[field] = current[field];
+  return back;
+}
+
+/**
+ * How many steps back the stack reaches.
+ *
+ * Bounded because each step holds whole records for a delete, and an afternoon's
+ * reconciliation is thousands of writes. Fifty is far more than anyone walks back
+ * by hand and small enough that the oldest step is never worth more than the
+ * memory it costs.
+ */
+const MAX_HISTORY = 50;
+
+const STALE_STEP =
+  "That change cannot be undone any more — the entries it touched are no longer as they were.";
+
+/**
+ * Whether one inverse write still applies to the ledger as it stands.
+ *
+ * The whole step is checked before any of it is written, which is the batch rule
+ * — and the reason undo can be offered at all after the books have moved on
+ * underneath it. A record restored twice would duplicate money, a patch on a row
+ * that has since been deleted would resurrect it, and a patch that breaks a rule
+ * is refused here exactly as the edit that made it would have been.
+ */
+function checkOp(transactions, op) {
+  const byId = new Map(transactions.map((transaction) => [transaction.id, transaction]));
+
+  for (const { record } of op.restore ?? []) {
+    if (byId.has(record.id)) return { ok: false, error: STALE_STEP };
+  }
+  for (const id of op.remove ?? []) {
+    if (!byId.has(id)) return { ok: false, error: STALE_STEP };
+  }
+  for (const patch of op.patches ?? []) {
+    const current = byId.get(patch.id);
+    if (!current) return { ok: false, error: STALE_STEP };
+    const changes = changesOf(patch);
+    const result = firstBroken({ ...current, ...changes }, new Set(Object.keys(changes)));
+    if (!result.ok) return result;
+  }
+  return { ok: true };
+}
+
 export const TransactionsProvider = ({ children }) => {
   const [transactions, setTransactions] = useSyncedState(
     "transactions",
     foldLegacyLedger,
     migrateTransactions
   );
-  const { removeDonation } = useDonations();
+  const { removeDonation, restoreDonations } = useDonations();
+
+  // What has been done and what has been undone. State rather than a ref,
+  // because whether there is anything to undo is drawn on screen — and one
+  // object rather than two, since every write to either side is a write to both:
+  // doing something clears the future, and undoing moves a step across.
+  const [history, setHistory] = useState({ past: [], future: [] });
+
+  /** One inverse write, applied. The ledger moves once however much is in it. */
+  const applyOp = useCallback(
+    (op) => {
+      setTransactions((previous) => {
+        let next = previous;
+        if (op.restore?.length) {
+          next = [...next];
+          // Ascending, so each record lands at the index it actually held: the
+          // array's order is the order things were logged, which the register's
+          // tie-break and `recentAccounts` both read.
+          for (const { index, record } of [...op.restore].sort((a, b) => a.index - b.index)) {
+            next.splice(Math.min(index, next.length), 0, record);
+          }
+        }
+        if (op.patches?.length) {
+          const byId = new Map(op.patches.map((patch) => [patch.id, changesOf(patch)]));
+          next = next.map((transaction) =>
+            byId.has(transaction.id) ? { ...transaction, ...byId.get(transaction.id) } : transaction
+          );
+        }
+        if (op.remove?.length) {
+          const gone = new Set(op.remove);
+          next = next.filter((transaction) => !gone.has(transaction.id));
+        }
+        return next;
+      });
+
+      // A statement *about* a row goes and comes back with it, the same cascade
+      // `deleteTransaction` runs. What does not come back is the receipt file:
+      // that was deleted with the gift on a best-effort basis and nothing here
+      // can re-upload it, so a restored statement may point at a file that is
+      // gone — a dangling reference, inert but kept, like any other.
+      if (op.donations?.length) restoreDonations(op.donations);
+      for (const id of op.remove ?? []) removeDonation({ transactionId: id });
+    },
+    [setTransactions, restoreDonations, removeDonation]
+  );
+
+  /** Remember a step, and drop whatever had been undone: this is a new branch. */
+  const remember = useCallback((step) => {
+    setHistory(({ past }) => ({ past: [...past, step].slice(-MAX_HISTORY), future: [] }));
+  }, []);
 
   // The two literal kinds, and a transfer is in neither: it is money the household
   // moved rather than money it earned or spent, and what the *budget* makes of one
@@ -636,9 +814,17 @@ export const TransactionsProvider = ({ children }) => {
       if (!result.ok) return result;
 
       setTransactions((prevTransactions) => [...prevTransactions, transaction]);
+      // Undone by taking it back off; done again by putting it back at the end,
+      // which is where an add puts it — the index is clamped to the length, so
+      // "last" survives whatever else has been logged in between.
+      remember({
+        label: "adding an entry",
+        undo: { remove: [id] },
+        redo: { restore: [{ index: Number.MAX_SAFE_INTEGER, record: transaction }] },
+      });
       return { ok: true, id };
     },
-    [setTransactions]
+    [setTransactions, remember]
   );
 
   /**
@@ -663,30 +849,7 @@ export const TransactionsProvider = ({ children }) => {
       // deleted record back into the ledger.
       if (!current) return { ok: false, error: "That transaction is no longer in the ledger." };
 
-      const changes = {};
-      if ("kind" in patch) changes.kind = patch.kind;
-      // A row may legitimately name nobody, so clearing this is a real answer
-      // rather than an abandoned edit — unlike a blank date or a blank amount,
-      // which no record can have.
-      if ("payeeId" in patch) changes.payeeId = patch.payeeId || null;
-      if ("description" in patch) changes.description = (patch.description ?? "").trim();
-      if ("amountCents" in patch) changes.amountCents = patch.amountCents;
-      else if ("amount" in patch) changes.amountCents = toCents(patch.amount);
-      if ("date" in patch) changes.date = patch.date;
-      // Normalised at this boundary exactly as on the way in, so a cleared
-      // select reads the same whichever mutator it went through.
-      if ("accountId" in patch) changes.accountId = patch.accountId || null;
-      if ("toAccountId" in patch) changes.toAccountId = patch.toAccountId || null;
-      // A `toAccountId` left on a record whose kind moved away from transfer is
-      // **kept, not cleared**, and is inert while it is not a transfer — the rule
-      // a switched-away-from pay cadence follows, for the same reason: switching
-      // back is the point, and only `budgetLegs` and `accountBalancesAt` read it,
-      // both of which ask the kind first.
-      if ("budgetId" in patch) changes.budgetId = patch.budgetId || null;
-      // `null` is how a split is undone, and it is the reason this reads the key
-      // rather than the value: sending no `splits` at all leaves the division
-      // alone, which is what every one-cell edit on the register does.
-      if ("splits" in patch) changes.splits = readSplits(patch.splits);
+      const changes = changesOf(patch);
 
       const next = { ...current, ...changes };
       const result = firstBroken(next, new Set(Object.keys(changes)));
@@ -694,44 +857,136 @@ export const TransactionsProvider = ({ children }) => {
 
       // Nothing actually moved. Writing anyway would re-render every consumer
       // of the ledger, and in a grid whose cells commit on blur, tabbing across
-      // one row would do that once per column. `splits` is the one field that is
-      // not a scalar, so it is compared part by part — an editor that re-submits
-      // a division untouched has changed nothing, and a fresh array is not a
-      // change.
-      const moved = Object.keys(changes).some((field) =>
-        field === "splits"
-          ? !sameSplits(changes.splits, current.splits)
-          : changes[field] !== current[field]
-      );
-      if (!moved) return { ok: true, id: current.id };
+      // one row would do that once per column — and it would put a step on the
+      // undo stack for an edit nobody made.
+      if (!moves(current, changes)) return { ok: true, id: current.id };
 
       setTransactions((prevTransactions) =>
         prevTransactions.map((transaction) => (transaction.id === current.id ? next : transaction))
       );
+      remember({
+        label: "that edit",
+        undo: { patches: [inverseOf(current, changes)] },
+        redo: { patches: [{ id: current.id, ...changes }] },
+      });
       return { ok: true, id: current.id };
     },
-    [transactions, setTransactions]
+    [transactions, setTransactions, remember]
   );
 
   /**
-   * Take one record off the ledger, and with it anything said *about* that
-   * record elsewhere.
+   * Correct several records in one commit — what a bulk edit on the register is.
+   *
+   * A patch per row rather than one patch for all of them, because the commonest
+   * bulk edits are not one value written everywhere: adding a tag to forty notes
+   * is forty different notes, each with a word appended. The caller works out
+   * what each row should say — `src/tags.js` is where that string arithmetic
+   * lives — and this is what makes the forty of them one write.
+   *
+   * **The whole batch is checked before any of it is written.** A refusal names
+   * the rule and says that nothing landed, so the user can fix the one row and
+   * try the lot again; a half-applied batch would leave them to work out which
+   * half, and on forty rows that is not a thing anybody can do. Rows the patch
+   * would not actually move are dropped rather than refused — a category set to
+   * the one a row already has is not a reason to refuse the other thirty-nine.
+   */
+  const updateTransactions = useCallback(
+    (patches) => {
+      const list = Array.isArray(patches) ? patches : [];
+      if (list.length === 0) return { ok: false, error: "Choose the entries to change." };
+
+      const byId = new Map(transactions.map((transaction) => [transaction.id, transaction]));
+      const writes = [];
+
+      for (const patch of list) {
+        const current = byId.get(patch?.id);
+        if (!current) return { ok: false, error: "One of those entries is no longer in the ledger." };
+
+        const changes = changesOf(patch);
+        const next = { ...current, ...changes };
+        const result = firstBroken(next, new Set(Object.keys(changes)));
+        if (!result.ok) {
+          return {
+            ok: false,
+            error:
+              list.length === 1
+                ? result.error
+                : `${result.error} One of the ${list.length} entries cannot take that change, so none of them did.`,
+          };
+        }
+        if (moves(current, changes)) writes.push({ current, changes, next });
+      }
+
+      if (writes.length === 0) return { ok: true, count: 0 };
+
+      const nextById = new Map(writes.map((write) => [write.current.id, write.next]));
+      setTransactions((prevTransactions) =>
+        prevTransactions.map((transaction) => nextById.get(transaction.id) ?? transaction)
+      );
+      remember({
+        label: writes.length === 1 ? "that edit" : `editing ${writes.length} entries`,
+        undo: { patches: writes.map((write) => inverseOf(write.current, write.changes)) },
+        redo: { patches: writes.map((write) => ({ id: write.current.id, ...write.changes })) },
+      });
+      return { ok: true, count: writes.length };
+    },
+    [transactions, setTransactions, remember]
+  );
+
+  /**
+   * Take records off the ledger, and with them anything said *about* those
+   * records elsewhere.
    *
    * A donation is the only such statement so far: it holds no money of its own,
    * only which organisation an outflow went to and how much of it is deductible,
    * so once the outflow is gone there is nothing left for it to describe. That
    * is a cascade rather than a detach, unlike an account's transactions — those
    * are the money, and the money still moved.
+   *
+   * One write for however many rows, so the balance sheet and the envelopes are
+   * never read halfway through a bulk delete — and one step on the undo stack,
+   * because clearing a statement's worth of duplicates is one thing the user did.
    */
-  const deleteTransaction = useCallback(
-    ({ id }) => {
+  const deleteTransactions = useCallback(
+    (ids) => {
+      const wanted = [...new Set(Array.isArray(ids) ? ids : [])];
+      // An id that is not there is already in the state being asked for, so it
+      // is dropped rather than refused — unlike a patch, a delete is idempotent.
+      const doomed = [];
+      transactions.forEach((transaction, index) => {
+        if (wanted.includes(transaction.id)) doomed.push({ index, record: transaction });
+      });
+      if (doomed.length === 0) {
+        return { ok: false, error: "Those entries are no longer in the ledger." };
+      }
+
+      const gone = new Set(doomed.map(({ record }) => record.id));
       setTransactions((prevTransactions) =>
-        prevTransactions.filter((transaction) => transaction.id !== id)
+        prevTransactions.filter((transaction) => !gone.has(transaction.id))
       );
-      removeDonation({ transactionId: id });
+      // The statements go with the money, and are captured on the way out so
+      // undoing the delete can put them back. `removeDonation` hands back what it
+      // took precisely so this does not have to read the donations store itself —
+      // which would make this mutator change identity on every write to it, and
+      // ripple through every consumer of the ledger.
+      const statements = [];
+      for (const id of gone) {
+        const { removed } = removeDonation({ transactionId: id });
+        if (removed) statements.push(removed);
+      }
+
+      remember({
+        label: doomed.length === 1 ? "removing an entry" : `removing ${doomed.length} entries`,
+        undo: { restore: doomed, donations: statements },
+        redo: { remove: [...gone] },
+      });
+      return { ok: true, count: doomed.length };
     },
-    [setTransactions, removeDonation]
+    [transactions, setTransactions, removeDonation, remember]
   );
+
+  /** One record off the ledger — `deleteTransactions` with a batch of one. */
+  const deleteTransaction = useCallback(({ id }) => deleteTransactions([id]), [deleteTransactions]);
 
   /**
    * Move everything filed under one category onto another, in one commit.
@@ -857,6 +1112,64 @@ export const TransactionsProvider = ({ children }) => {
     [setTransactions]
   );
 
+  /**
+   * Put the ledger back the way it was before the last thing that was done to
+   * it — and then forward again.
+   *
+   * One function written twice over, since the two differ only in which end of
+   * the stack they take a step from and which end they put it on. A step that no
+   * longer applies is **dropped** rather than left at the top of the stack to be
+   * refused again on the next keystroke: the user's next Ctrl+Z should reach the
+   * edit before it rather than the same message a second time. What is reported
+   * is the same `{ ok, error }` every mutator here returns, and the caller has to
+   * surface it — an undo that silently did nothing is worse than one that says
+   * why it could not.
+   *
+   * The cascades (`reassignBudgetTransactions` and the three detaches) are
+   * deliberately **not** on the stack. Each is a consequence of a delete in
+   * another store — a category, an account, a payee — and an undo that put the
+   * ledger's half back without the record that was deleted would leave the books
+   * referring to something that no longer exists. Those deletes are undone by
+   * adding the thing back, not by walking this stack.
+   */
+  const walk = useCallback(
+    (direction) => {
+      const taking = direction === "undo" ? "past" : "future";
+      const putting = direction === "undo" ? "future" : "past";
+      const stack = history[taking];
+      const entry = stack[stack.length - 1];
+      if (!entry) {
+        return {
+          ok: false,
+          error: direction === "undo" ? "There is nothing to undo." : "There is nothing to redo.",
+        };
+      }
+
+      const check = checkOp(transactions, entry[direction]);
+      if (!check.ok) {
+        setHistory((previous) => ({ ...previous, [taking]: previous[taking].slice(0, -1) }));
+        return check;
+      }
+
+      applyOp(entry[direction]);
+      setHistory((previous) => ({
+        [taking]: previous[taking].slice(0, -1),
+        [putting]: [...previous[putting], entry].slice(-MAX_HISTORY),
+      }));
+      return { ok: true, label: entry.label };
+    },
+    [history, transactions, applyOp]
+  );
+
+  const undo = useCallback(() => walk("undo"), [walk]);
+  const redo = useCallback(() => walk("redo"), [walk]);
+
+  // What the controls need to draw themselves: whether there is a step, and what
+  // it was. The label is the phrase after "Undo", so a button can say what it
+  // will actually put back rather than offering an unlabelled arrow.
+  const lastDone = history.past[history.past.length - 1] ?? null;
+  const lastUndone = history.future[history.future.length - 1] ?? null;
+
   // Memoised so a change in any other store does not re-render every consumer
   // of this one.
   const value = useMemo(
@@ -868,11 +1181,17 @@ export const TransactionsProvider = ({ children }) => {
       getAccountTransactions,
       addTransaction,
       updateTransaction,
+      updateTransactions,
       deleteTransaction,
+      deleteTransactions,
       reassignBudgetTransactions,
       detachAccountTransactions,
       detachPayeeTransactions,
       repointPayeeTransactions,
+      undo,
+      redo,
+      undoLabel: lastDone?.label ?? null,
+      redoLabel: lastUndone?.label ?? null,
     }),
     [
       transactions,
@@ -882,11 +1201,17 @@ export const TransactionsProvider = ({ children }) => {
       getAccountTransactions,
       addTransaction,
       updateTransaction,
+      updateTransactions,
       deleteTransaction,
+      deleteTransactions,
       reassignBudgetTransactions,
       detachAccountTransactions,
       detachPayeeTransactions,
       repointPayeeTransactions,
+      undo,
+      redo,
+      lastDone,
+      lastUndone,
     ]
   );
 

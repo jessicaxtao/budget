@@ -130,6 +130,79 @@ export function accountBalancesAt(accounts, transactions, period) {
   };
 }
 
+/**
+ * What one account held **after each row that moved it** — the running balance
+ * a chequebook stub carries down its right-hand column.
+ *
+ * In the same file as `accountBalancesAt` and not beside the register, because
+ * the two are one definition read at two resolutions: this walks the movements in
+ * order and that one sums them to a month end, so **the figure on the last row of
+ * a month is the figure `accountBalancesAt` reports for that month**. Written
+ * anywhere else it would be a second reading of what an account holds, free to
+ * drift from the one shown on the balance sheet, which is the disagreement the
+ * "derived, never stored" rule exists to prevent. `useAccountBalances.test.js`
+ * asserts the two agree at every month boundary.
+ *
+ * **The order is the books' own, not the screen's.** Undated rows first — they
+ * count in every period's carried-in figure, so they are already inside whatever
+ * the account held when the first dated row landed — then by date, ties broken by
+ * the order they were logged in. The register draws newest first; that is a
+ * reading order and must not change what a row's balance *is*. Which is also why
+ * this is computed over the **whole ledger for the account** rather than over the
+ * rows on screen: a running balance that counted only the rows a filter left
+ * behind would be a number that matches nothing — not the statement, not the
+ * balance sheet, not itself a month later.
+ *
+ * The opening balance takes its place in that order rather than being added to
+ * the front, so an account opened in March does not lend its opening figure to a
+ * row dated February — the same rule `accountBalancesAt` keeps when it counts the
+ * opening only once the month it was opened in has arrived.
+ *
+ * Signed throughout, like the rest of this file: a card's balance goes more
+ * negative as it is spent on, and the row says so.
+ */
+export function runningBalances(account, transactions) {
+  if (!account) return new Map();
+
+  // What this account's balance does for one record: nothing, where the record
+  // does not name it. A transfer is the one that can be either side, and the
+  // `continue`-free shape here is deliberately the same case analysis
+  // `accountBalancesAt` makes above.
+  const movementOf = (transaction) => {
+    if (transaction.kind === TRANSACTION_KINDS.TRANSFER) {
+      if (transaction.accountId === account.id) return -transaction.amountCents;
+      if (transaction.toAccountId === account.id) return transaction.amountCents;
+      return null;
+    }
+    if (transaction.accountId !== account.id) return null;
+    return transaction.kind === TRANSACTION_KINDS.INFLOW
+      ? transaction.amountCents
+      : -transaction.amountCents;
+  };
+
+  const steps = [];
+  // The opening, as a movement of its own at the date it happened. Index -1 so
+  // it comes before anything logged on the same day: money cannot have moved
+  // through an account before it held its opening figure.
+  steps.push({ id: null, at: account.openingDate ?? "", index: -1, cents: account.openingBalanceCents ?? 0 });
+
+  transactions.forEach((transaction, index) => {
+    const cents = movementOf(transaction);
+    if (cents == null) return;
+    steps.push({ id: transaction.id, at: transaction.date ?? "", index, cents });
+  });
+
+  steps.sort((a, b) => a.at.localeCompare(b.at) || a.index - b.index);
+
+  const balances = new Map();
+  let running = 0;
+  for (const step of steps) {
+    running += step.cents;
+    if (step.id != null) balances.set(step.id, running);
+  }
+  return balances;
+}
+
 export default function useAccountBalances(period) {
   const { accounts } = useAccounts();
   const { transactions } = useTransactions();
