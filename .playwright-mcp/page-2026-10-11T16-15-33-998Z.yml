@@ -1,0 +1,116 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Canopy Budget
+        - generic [ref=e24]:
+          - generic [ref=e25]:
+            - button "Add transaction" [ref=e26] [cursor=pointer]:
+              - generic [aria-hidden] [ref=e27]: +
+              - text: Add transaction
+            - button "Transfer" [ref=e28] [cursor=pointer]:
+              - generic [aria-hidden] [ref=e29]: ⇄
+              - text: Transfer
+          - button "Dark mode" [pressed] [ref=e30] [cursor=pointer]
+          - generic [ref=e34]:
+            - generic "Your books are in this browser. Nothing is sent anywhere." [ref=e35]: On this browser
+            - button "Turn on sync" [ref=e36] [cursor=pointer]
+      - navigation "Sections" [ref=e37]:
+        - link "Configuration" [ref=e38] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=e39] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=e40] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=e41] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=e42] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=e43] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=e44] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=e45] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=e46] [cursor=pointer]:
+          - /url: /rewards
+  - main [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]: Planning ahead
+        - heading "Savings goals" [level=1] [ref=e51]
+        - paragraph [ref=e52]: Medium-term goals expected to exceed the normal budget — a new camera, a wedding, a special event — planned for on purpose instead of blowing through an envelope's estimate.
+      - button "Add goal" [ref=e54] [cursor=pointer]
+    - generic [ref=e55]:
+      - paragraph [ref=e56]: To be assigned -$17,125 — money not yet assigned to a category or a goal.
+      - region "Savings goals" [ref=e57]:
+        - heading "Goals" [level=2] [ref=e59]
+        - table [ref=e61]:
+          - rowgroup [ref=e62]:
+            - row [ref=e63]:
+              - columnheader "Goal" [ref=e64]
+              - columnheader "Target" [ref=e65]
+              - columnheader "Saved" [ref=e66]
+              - columnheader "October 2026" [ref=e67]
+              - columnheader "Remaining" [ref=e68]
+              - columnheader "Actions" [ref=e69]
+          - rowgroup [ref=e71]:
+            - row [ref=e276]:
+              - rowheader "Wedding By Dec 12, 2027 $12,000 held in Brokerage" [ref=e277]:
+                - text: Wedding
+                - generic [ref=e74]: By Dec 12, 2027
+                - generic [ref=e278]: $12,000 held in Brokerage
+              - cell "$25,000" [ref=e75]
+              - cell "$19,200 77 $7,200 assigned" [ref=e279]:
+                - generic [ref=e77]:
+                  - generic [ref=e78]: $19,200
+                  - progressbar "77 percent of the way to Wedding" [ref=e280]
+                  - generic [ref=e281]: $7,200 assigned
+              - cell [ref=e105]:
+                - textbox "Assign to Wedding this period" [ref=e106]:
+                  - /placeholder: $0
+              - cell "$5,800" [ref=e282]
+              - cell [ref=e108]:
+                - generic [ref=e109]:
+                  - 'button "Edit goal: Wedding" [active] [ref=e110] [cursor=pointer]': Edit
+                  - 'button "Remove goal: Wedding" [ref=e111] [cursor=pointer]': Remove
+            - row [ref=e112]:
+              - rowheader "Camera kit By Mar 1, 2027" [ref=e113]:
+                - text: Camera kit
+                - generic [ref=e114]: By Mar 1, 2027
+              - cell "$3,200" [ref=e115]
+              - cell "$2,400 75" [ref=e116]:
+                - generic [ref=e117]:
+                  - generic [ref=e118]: $2,400
+                  - progressbar "75 percent of the way to Camera kit" [ref=e120]
+              - cell [ref=e145]:
+                - textbox "Assign to Camera kit this period" [ref=e146]:
+                  - /placeholder: $0
+              - cell "$800" [ref=e147]
+              - cell [ref=e148]:
+                - generic [ref=e149]:
+                  - 'button "Edit goal: Camera kit" [ref=e150] [cursor=pointer]': Edit
+                  - 'button "Remove goal: Camera kit" [ref=e151] [cursor=pointer]': Remove
+            - row [ref=e152]:
+              - rowheader "Roof replacement" [ref=e153]
+              - cell "$12,000" [ref=e154]
+              - cell "$3,600 30" [ref=e155]:
+                - generic [ref=e156]:
+                  - generic [ref=e157]: $3,600
+                  - progressbar "30 percent of the way to Roof replacement" [ref=e159]
+              - cell [ref=e184]:
+                - textbox "Assign to Roof replacement this period" [ref=e185]:
+                  - /placeholder: $0
+              - cell "$8,400" [ref=e186]
+              - cell [ref=e187]:
+                - generic [ref=e188]:
+                  - 'button "Edit goal: Roof replacement" [ref=e189] [cursor=pointer]': Edit
+                  - 'button "Remove goal: Roof replacement" [ref=e190] [cursor=pointer]': Remove
+        - paragraph [ref=e191]: Type a figure in the October 2026 column to set this month's contribution, or start it with a plus — +250 — to add that much to what is already there.
+      - generic [ref=e192]:
+        - generic [ref=e193]:
+          - generic [ref=e194]: Not built
+          - heading "Still to come" [level=2] [ref=e195]
+        - list [ref=e196]:
+          - listitem [ref=e197]:
+            - generic [ref=e199]: Linking a goal to the category it draws from
