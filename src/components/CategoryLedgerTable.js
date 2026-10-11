@@ -152,10 +152,17 @@ function cellFor(row, key) {
   return { cents: row[key], tone: "text-ink" };
 }
 
-/** What clicking a row's Available figure will do, said before the click. */
+/**
+ * What clicking a row's Available figure will do, said before the click.
+ *
+ * Either way the row clicked is where the money is *going* — the figure is
+ * read as "this envelope needs something", which is the thought that makes
+ * somebody reach for it. An overspent one is worded as covering it, because
+ * the shortfall is already typed in.
+ */
 function moveLabel(row) {
   if (row.availableCents < 0) return `Cover ${row.name}`;
-  return `Move money out of ${row.name}`;
+  return `Move money into ${row.name}`;
 }
 
 /**
@@ -183,8 +190,8 @@ function CategoryRow({ row, striped, onMove, sortable = false }) {
             tone={tone}
             className={visibility(column)}
             onClick={movable ? () => onMove(row) : undefined}
-            // Which way the move goes is decided from the figure, so the label
-            // says which rather than leaving the reader to find out by clicking.
+            // The row clicked is always the destination; the label says so,
+            // rather than leaving the reader to find out by clicking.
             label={movable ? moveLabel(row) : undefined}
           />
         );

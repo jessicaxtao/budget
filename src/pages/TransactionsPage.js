@@ -49,8 +49,13 @@ export default function TransactionsPage() {
   // Only the pool figures now — the per-category rows this page used to draw
   // are the dashboard's job. Read at the period on screen, so stepping back
   // reports what was unassigned then rather than what is unassigned now.
-  const { toBeAssignedCents, periodIncomeCents, periodAssignedCents, emergencyReservedCents } =
-    useEnvelopes(period);
+  const {
+    toBeAssignedCents,
+    periodIncomeCents,
+    periodAssignedCents,
+    emergencyReservedCents,
+    assignedAheadCents,
+  } = useEnvelopes(period);
 
   // The month's rows, newest first, plus every undated one — those belong to no
   // month, and a register that dropped them would leave money on the books with
@@ -113,6 +118,7 @@ export default function TransactionsPage() {
         periodIncomeCents={periodIncomeCents}
         periodAssignedCents={periodAssignedCents}
         reservedCents={emergencyReservedCents}
+        assignedAheadCents={assignedAheadCents}
         onAssignClick={() => setShowAssignModal(true)}
       />
 

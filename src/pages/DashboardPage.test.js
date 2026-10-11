@@ -4,7 +4,14 @@ import AppProviders from "../contexts/AppProviders";
 import DashboardPage from "./DashboardPage";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
 import { routerFuture } from "../routerFuture";
-import { addDays, currentPeriod, formatDateLong, formatDateMedium, todayISO } from "../utils";
+import {
+  addDays,
+  addMonths,
+  currentPeriod,
+  formatDateLong,
+  formatDateMedium,
+  todayISO,
+} from "../utils";
 
 /**
  * The dashboard through the real stores, because almost everything on it is
@@ -105,6 +112,27 @@ test("the headline figures are this month's, not all time", () => {
   expect(within(tile("Available to budget")).getByText("$500")).toBeInTheDocument();
   expect(within(tile("Budgeted this month")).getByText("$1,500")).toBeInTheDocument();
   expect(within(tile("Spent this month")).getByText("$1,200")).toBeInTheDocument();
+});
+
+/**
+ * The dashboard carries no month, so a month funded ahead is invisible here
+ * except in what it took out of the pool — which is exactly why the tile has to
+ * name it. A figure that shrank with no transaction to explain it reads as a
+ * bug.
+ */
+test("a month funded ahead is named on the tile it came out of", () => {
+  seed({
+    assignments: [
+      { id: "as1", budgetId: "b1", period: PERIOD, assignedCents: 150000 },
+      { id: "as2", budgetId: "b1", period: addMonths(PERIOD, 1), assignedCents: 30000 },
+    ],
+  });
+  renderPage();
+
+  const tile = screen.getByText("Available to budget").closest("div");
+  // $2,000 opening, $1,500 for this month, $300 for next: $200 left free.
+  expect(within(tile).getByText("$200")).toBeInTheDocument();
+  expect(within(tile).getByText(/\$300 assigned ahead/)).toBeInTheDocument();
 });
 
 test("money refunded into a category comes off what was spent this month", () => {
@@ -217,53 +245,58 @@ test("reconciling with the statement left blank stamps today without touching th
   expect(JSON.parse(localStorage.getItem("transactions"))).toHaveLength(1);
 });
 
-test("ticking a statement off is one click, and writes no row at all", () => {
+test("marking an account accurate is one click, and writes no row at all", () => {
   seed();
   renderPage();
 
-  fireEvent.click(screen.getByRole("checkbox", { name: "Accurate — Everyday" }));
+  fireEvent.click(screen.getByRole("button", { name: "Mark Everyday accurate today" }));
 
-  // No dialog opened and nothing had to be confirmed: the whole act was the tick.
+  // No dialog opened and nothing had to be confirmed: the whole act was the press.
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(JSON.parse(localStorage.getItem("accounts"))[0].reconciledOn).toBe(TODAY);
   // The books said what the account held, so there was nothing to settle.
   expect(JSON.parse(localStorage.getItem("transactions"))).toHaveLength(1);
   expect(screen.getByText("$800")).toBeInTheDocument();
 
-  // The box, the date and the header count all now say the same thing.
-  expect(screen.getByRole("checkbox", { name: "Accurate — Everyday" })).toBeChecked();
+  // Today is on file, so the button has nothing left to record and says so.
+  expect(screen.getByRole("button", { name: "Everyday was checked today" })).toBeDisabled();
   expect(screen.getByText("All up to date")).toBeInTheDocument();
 });
 
-test("the box reads ticked for exactly the accounts the header is not counting", () => {
+test("the button asks about today, not about whether the account is overdue", () => {
   const stale = { ...ACCOUNT, id: "acc2", name: "Savings", reconciledOn: addDays(TODAY, -40) };
   const fresh = { ...ACCOUNT, id: "acc3", name: "Joint", reconciledOn: addDays(TODAY, -3) };
-  seed({ accounts: [ACCOUNT, stale, fresh] });
+  const done = { ...ACCOUNT, id: "acc4", name: "Holiday", reconciledOn: TODAY };
+  seed({ accounts: [ACCOUNT, stale, fresh, done] });
   renderPage();
 
-  // Never checked, and checked beyond the stale month: both unticked.
-  expect(screen.getByRole("checkbox", { name: "Accurate — Everyday" })).not.toBeChecked();
-  expect(screen.getByRole("checkbox", { name: "Accurate — Savings" })).not.toBeChecked();
-  expect(screen.getByRole("checkbox", { name: "Accurate — Joint" })).toBeChecked();
+  // Never checked, checked beyond the stale month, and checked three days ago:
+  // all three can still be confirmed for today, which is the only thing the
+  // press records. Whether they are overdue is the date's tone and the header's
+  // count, and the button is not a third voice on it.
+  expect(screen.getByRole("button", { name: "Mark Everyday accurate today" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Mark Savings accurate today" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Mark Joint accurate today" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Holiday was checked today" })).toBeDisabled();
   expect(screen.getByText("2 need checking")).toBeInTheDocument();
 });
 
-test("clearing the box undoes a reconciliation entered by mistake", () => {
+test("a day already on file is not a state to be switched back off", () => {
   seed({ accounts: [{ ...ACCOUNT, reconciledOn: TODAY }] });
   renderPage();
 
-  const box = screen.getByRole("checkbox", { name: "Accurate — Everyday" });
-  expect(box).toBeChecked();
-  fireEvent.click(box);
+  // The press says "the books agreed today", which is a thing that happened —
+  // so the control goes quiet rather than offering to un-happen it. A checkbox
+  // put an account one stray click from reading "Never".
+  const checked = screen.getByRole("button", { name: "Everyday was checked today" });
+  expect(checked).toBeDisabled();
+  fireEvent.click(checked);
 
-  // Cleared rather than restored to some earlier date — only one is kept — and
-  // the row says so in the tone it uses for an account nobody has checked.
-  expect(JSON.parse(localStorage.getItem("accounts"))[0].reconciledOn).toBe(null);
-  expect(screen.getByText(/Never/)).toBeInTheDocument();
-  expect(screen.getByText("1 need checking")).toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem("accounts"))[0].reconciledOn).toBe(TODAY);
+  expect(screen.getByText("All up to date")).toBeInTheDocument();
 });
 
-test("a card is settled rather than ticked, since paying it off already stamps it", () => {
+test("a card is settled rather than checked, since paying it off already stamps it", () => {
   const CARD = {
     ...ACCOUNT,
     id: "card1",
@@ -275,7 +308,9 @@ test("a card is settled rather than ticked, since paying it off already stamps i
   seed({ accounts: [ACCOUNT, CARD] });
   renderPage();
 
-  expect(screen.queryByRole("checkbox", { name: "Accurate — Visa" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Mark Visa accurate today" })
+  ).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Record paying off Visa" })).toBeInTheDocument();
 });
 
@@ -675,15 +710,16 @@ describe("moving money between categories", () => {
     expect(screen.getByLabelText("Move to")).toHaveValue("b2");
   });
 
-  test("a row with money to spare opens the move as the source", () => {
+  test("a row with money to spare still opens the move as the destination", () => {
     seedShortfall();
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Move money out of Rent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move money into Rent" }));
 
-    expect(screen.getByLabelText("Move from")).toHaveValue("b1");
-    // Nothing assumed about where it is going or how much.
-    expect(screen.getByLabelText("Move to")).toHaveValue("");
+    expect(screen.getByLabelText("Move to")).toHaveValue("b1");
+    // Nothing assumed about where it comes from or how much — which neighbour
+    // gives it up is the user's call.
+    expect(screen.getByLabelText("Move from")).toHaveValue("");
     expect(screen.getByLabelText("Amount to move")).toHaveValue("");
   });
 
@@ -691,8 +727,8 @@ describe("moving money between categories", () => {
     seedShortfall();
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Move money out of Rent" }));
-    fireEvent.change(screen.getByLabelText("Move to"), { target: { value: "b2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cover Groceries" }));
+    fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
     fireEvent.change(screen.getByLabelText("Amount to move"), { target: { value: "300" } });
 
     const preview = screen.getByRole("status");
@@ -724,8 +760,8 @@ describe("moving money between categories", () => {
     seedShortfall();
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Move money out of Rent" }));
-    fireEvent.change(screen.getByLabelText("Move to"), { target: { value: "b1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Move money into Rent" }));
+    fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
     fireEvent.change(screen.getByLabelText("Amount to move"), { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: "Move it" }));
 

@@ -72,6 +72,7 @@ test("the envelope identity holds over the invented books", () => {
     goalRows,
     toBeAssignedCents,
     emergencyReservedCents,
+    assignedAheadCents,
     cumIncomeCents,
     cumSpentCents,
     openingCents,
@@ -80,9 +81,9 @@ test("the envelope identity holds over the invented books", () => {
   const available = rows.reduce((sum, row) => sum + row.availableCents, 0);
   const goalAvailable = goalRows.reduce((sum, row) => sum + row.availableCents, 0);
 
-  expect(toBeAssignedCents + emergencyReservedCents + available + goalAvailable).toBe(
-    openingCents + cumIncomeCents - cumSpentCents
-  );
+  expect(
+    toBeAssignedCents + emergencyReservedCents + assignedAheadCents + available + goalAvailable
+  ).toBe(openingCents + cumIncomeCents - cumSpentCents);
 });
 
 test("the pool is left holding a month's worth of unassigned pay", () => {

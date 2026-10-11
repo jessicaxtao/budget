@@ -31,6 +31,16 @@ import { formatBps, formatCents, formatPeriod } from "../utils";
  * divided by the months the books actually cover rather than by the months
  * asked for, so three months of records read as a monthly rate rather than as a
  * quarter of one. The page states which.
+ *
+ * **Where the books cover one month, that second line is not drawn at all**: the
+ * amortised figure *is* the headline above it to the cent, and the same figure
+ * printed twice under two different words is the one thing a reader stops to
+ * check — the reason the page does not reprint the window's months beside the
+ * chart either. The refund line takes its place on the spending tile wherever
+ * there is one, because that is a second fact rather than the same one. It
+ * follows the divisor and not the range, so a year asked for over one month of
+ * records reads the same way: the figures are identical there for identical
+ * reasons.
  */
 
 /** Up is good for what is kept and down is good for what is spent, so the tone
@@ -48,12 +58,14 @@ function netTone(cents) {
 // that a reader carries the colours between them, which a second copy of the
 // map here would eventually break without anything looking wrong in review.
 
-function Tile({ label, figure, tone = "text-chalk", note }) {
+function Tile({ label, figure, tone = "text-chalk", note = null }) {
   return (
     <div className="bg-panel px-4 py-3">
       <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-figure font-medium tabular-nums ${tone}`}>{figure}</dd>
-      <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>
+      {/* Omitted rather than left empty: a tile with nothing to say under its
+          figure says nothing, and an empty line still carries its own margin. */}
+      {note && <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>}
     </div>
   );
 }
@@ -84,12 +96,22 @@ export default function ReportSummary({ report }) {
   // it cannot have.
   const weights = buckets.map((entry) => Math.max(0, entry.netSpentCents));
   const drawable = weights.reduce((sum, weight) => sum + weight, 0) > 0;
+  // Whether a per-month figure is a different figure from the total beside it.
+  // Over one month of books it is the same one, and the note above is why it is
+  // then left off rather than printed twice.
+  const amortised = averagedOverMonths > 1;
 
   return (
     <section aria-label="Report summary" className="border border-edge bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
+        {/* A window of one month is named by that month, not by both of its
+            ends: "October 2026 – October 2026" reads as two months a reader has
+            to compare before noticing they are one, which is the same reason
+            `useSpendingReport` names a one-month range by the month itself. */}
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
-          {formatPeriod(startPeriod)} – {formatPeriod(endPeriod)}
+          {startPeriod === endPeriod
+            ? formatPeriod(startPeriod)
+            : `${formatPeriod(startPeriod)} – ${formatPeriod(endPeriod)}`}
         </h2>
         <span className="font-mono text-label uppercase text-chalk-soft">
           {months.length} {months.length === 1 ? "month" : "months"} · {range.name}
@@ -103,23 +125,27 @@ export default function ReportSummary({ report }) {
           label="Income"
           figure={formatCents(totalIncomeCents)}
           tone="text-verdant"
-          note={`${formatCents(averageIncomeCents)} a month`}
+          note={amortised ? `${formatCents(averageIncomeCents)} a month` : null}
         />
         <Tile
           label="Spending"
           figure={formatCents(netSpentCents)}
           tone="text-vermilion"
+          // The refund line is a second fact rather than the same one restated,
+          // so it is drawn over one month exactly as over a year.
           note={
             totalRefundCents > 0
               ? `${formatCents(totalSpentCents)} out, ${formatCents(totalRefundCents)} back`
-              : `${formatCents(averageSpendCents)} a month`
+              : amortised
+                ? `${formatCents(averageSpendCents)} a month`
+                : null
           }
         />
         <Tile
           label="Net"
           figure={formatCents(netCents)}
           tone={netTone(netCents)}
-          note={`${formatCents(averageNetCents)} a month`}
+          note={amortised ? `${formatCents(averageNetCents)} a month` : null}
         />
         {/* A dash where a rate would be a fiction: no income in the window is
             not a savings rate of nothing, it is a window with nothing to be a
@@ -174,9 +200,11 @@ export default function ReportSummary({ report }) {
                 <dd className="font-mono text-row tabular-nums text-chalk">
                   {formatCents(entry.netSpentCents)}
                 </dd>
+                {/* The share always; the monthly rate only where it differs
+                    from the figure beside it, the tiles' own rule. */}
                 <dd className="font-mono text-label uppercase text-chalk-soft">
-                  {entry.shareBps == null ? "—" : formatBps(entry.shareBps)} ·{" "}
-                  {formatCents(entry.averageCents)}/mo
+                  {entry.shareBps == null ? "—" : formatBps(entry.shareBps)}
+                  {amortised && ` · ${formatCents(entry.averageCents)}/mo`}
                 </dd>
               </div>
             ))}

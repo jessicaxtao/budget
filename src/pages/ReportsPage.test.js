@@ -160,6 +160,43 @@ describe("a year of books", () => {
     expect(rows[0]).toHaveTextContent("$3,500");
   });
 
+  test("this month is one column, and the figures that would only repeat it are not drawn", () => {
+    setup();
+    renderPage();
+
+    pickRange("1M");
+
+    // The window names itself as the month it is rather than as a span —
+    // "October 2026 – October 2026" is two months a reader has to compare
+    // before noticing they are one.
+    expect(
+      within(summary()).getByRole("heading", { name: formatPeriod(PERIOD) })
+    ).toBeInTheDocument();
+    expect(within(summary()).getByText("1 month · this month")).toBeInTheDocument();
+    expect(tile("Income")).toBe("$5,000");
+    // This month's rent, plus the evening out less what was paid back.
+    expect(tile("Spending")).toBe("$1,500");
+    expect(tile("Net")).toBe("$3,500");
+
+    // A per-month figure over one month is the figure above it, so it is not
+    // printed twice under two different words — while the refund line, which is
+    // a second fact rather than the same one, still is.
+    expect(within(summary()).queryByText("$5,000 a month")).not.toBeInTheDocument();
+    expect(within(summary()).getByText("$1,600 out, $100 back")).toBeInTheDocument();
+
+    // And the ranking drops the column that would have copied Spent down the
+    // page — with it goes the judgement against the estimate, which carry-over
+    // can still explain over a single month.
+    const ranking = () => within(screen.getByText("Where the money went").closest("section"));
+    expect(ranking().queryByRole("columnheader", { name: "Per month" })).not.toBeInTheDocument();
+    expect(ranking().getByRole("columnheader", { name: "Spent" })).toBeInTheDocument();
+    expect(ranking().getByText("One month of records")).toBeInTheDocument();
+
+    // Back on a span, the column is back and so is the divisor it is over.
+    pickRange("3M");
+    expect(ranking().getByRole("columnheader", { name: "Per month" })).toBeInTheDocument();
+  });
+
   test("the range moves every figure on the page together", () => {
     setup();
     renderPage();

@@ -144,13 +144,21 @@ export function useAccounts() {
 /**
  * A balance as it is stored, from the figure that was typed.
  *
- * Signed, on the same convention as the rest of the balance sheet: an asset is
- * positive, a debt negative. Every form asks a liability for the amount *owed* as
- * a positive figure, because that is how anyone reads a credit card statement,
- * and this is where that is turned into what it means. Normalising here rather
- * than trusting the caller also repairs a hand-edited record, and keeps the one
- * combination that would quietly corrupt net worth — a debt counted as an asset
- * — out of storage entirely.
+ * Signed, on the same convention as the rest of the balance sheet: what is held
+ * is positive, what is owed negative. Every form asks a liability for the amount
+ * *owed*, because that is how anyone reads a credit card statement, and this is
+ * where that is turned into what it means.
+ *
+ * **A negation, not a clamp** — which is what lets a card be in credit. A
+ * prepaid card loaded with $5,000, a card overpaid, a card carrying a refund
+ * larger than the month's spending: a statement prints each of those as a
+ * negative balance owed, and each is a positive thing held. Forcing the sign
+ * instead read every one of them as a debt of the same size, and no figure the
+ * user could type would say otherwise — the clamp was a guess at what they must
+ * have meant, over a field where the sign is the whole answer. The reading that
+ * takes them at their word is the one that survives a hand-edited record too:
+ * a flipped sign shows up on the balance sheet, where it can be corrected, while
+ * a silently absorbed one cannot.
  *
  * Exported as a pair with its inverse so the forms that ask for a balance — the
  * monthly update on the Net worth page and the backfill grid on Configuration —
@@ -160,13 +168,20 @@ export function useAccounts() {
  */
 export function toStoredBalanceCents(account, cents) {
   if (account.type !== ACCOUNT_TYPES.LIABILITY) return cents;
-  const magnitude = Math.abs(cents);
-  return magnitude === 0 ? 0 : -magnitude;
+  return cents === 0 ? 0 : -cents;
 }
 
-/** Its inverse: what belongs in the field, and what to print beside it. */
+/**
+ * Its inverse: what belongs in the field, and what to print beside it.
+ *
+ * The same negation, because a negation is its own inverse — so a balance read
+ * back into the form it was typed into is the figure that was typed, credit and
+ * all. Kept as a name of its own because the two call sites read in opposite
+ * directions, and `shown = toStoredBalanceCents` would be a lie about which way
+ * the conversion is going.
+ */
 export function toEnteredBalanceCents(account, cents) {
-  return account.type === ACCOUNT_TYPES.LIABILITY ? Math.abs(cents) : cents;
+  return toStoredBalanceCents(account, cents);
 }
 
 /** The same rule for the opening balance, which arrives as a bare type. */
@@ -185,6 +200,14 @@ function signedOpeningCents(cents, type) {
 // saved before reconciliation existed has never been reconciled rather than
 // having been reconciled when it was created.
 //
+// The opening balance is checked for being a number and nothing more: it is
+// stored already signed, and the sign of a liability's is a *negation* of what
+// was typed (`toStoredBalanceCents`), which is not idempotent. Re-applying it
+// on load would read a card in credit as a debt, then as a credit again next
+// load — a figure that flipped every time the app opened. The one repair left
+// is a value that is not a figure at all, from a hand-edited file, which opens
+// at zero rather than spreading NaN through every sum downstream.
+//
 // `institution` is dropped rather than carried: the app never asked what it was
 // for beyond printing it beside the name, and a field that decorates a row is
 // one more thing to keep true about every account. Removed here so a record
@@ -195,7 +218,9 @@ function migrateAccounts(stored) {
   return accounts.map(({ institution, ...account }) => ({
     ...account,
     scope: ACCOUNT_SCOPE_VALUES.includes(account.scope) ? account.scope : DEFAULT_SCOPE,
-    openingBalanceCents: signedOpeningCents(account.openingBalanceCents ?? 0, account.type),
+    openingBalanceCents: Number.isFinite(account.openingBalanceCents)
+      ? account.openingBalanceCents
+      : 0,
     openingDate: isValidISODate(account.openingDate) ? account.openingDate : null,
     reconciledOn: isValidISODate(account.reconciledOn) ? account.reconciledOn : null,
   }));

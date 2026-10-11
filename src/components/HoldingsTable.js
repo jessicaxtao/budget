@@ -1,19 +1,25 @@
 import { Link } from "react-router-dom";
 import { ACCOUNT_TYPES } from "../contexts/AccountsContext";
 import { SortableList, useSortableItem } from "./Sortable";
-import { describeSource, HOLDING_CLASSES } from "../hooks/useNetWorth";
+import { HOLDING_CLASSES } from "../hooks/useNetWorth";
 import { formatCents, formatPeriod } from "../utils";
 
 /**
- * Every account, what it is worth at the selected month, and where that figure
- * came from.
+ * Every account and what it is worth at the selected month.
  *
- * The last column is the point of the table. Some of these figures are derived
- * from the ledger and cannot go stale; others were typed in, and one typed in
- * eight months ago is a number the user should not be reading as today's. Saying
- * which is which — and how old the typed ones are, and where a typed one differs
- * from what the books say — is the difference between a balance sheet and a wall
- * of plausible figures.
+ * Two columns and nothing else: a balance sheet is read down its figures, and a
+ * column of prose beside every one of them — where the figure came from, how old
+ * it is — competed with the money for the eye on every row while being the
+ * answer to a question only a couple of rows actually raise. **Where a figure
+ * came from is said where a figure is entered**, which is `UpdateBalancesModal`:
+ * it prints `describeSource` under each account's figure in force, so a user
+ * typing over the ledger can still see the claim they are contradicting, and the
+ * page says out loud how many holdings are carrying an old figure forward.
+ *
+ * What survives here is the one row that has something to *do* — a statement and
+ * a ledger figure for the same month that disagree. That is an action rather than
+ * a description, it hangs under the account's own name, and it is the only route
+ * to `FixDriftModal`.
  *
  * Grouped by band rather than by account scope, because this table sits under
  * the chart and answers "what is inside that green block". The scope split has
@@ -29,17 +35,12 @@ const SECTIONS = [
   { band: HOLDING_CLASSES.DEBT, label: "Owed", swatch: "bg-vermilion" },
 ];
 
-function HoldingRow({ row, period, striped, onFixDrift, sortable }) {
+function HoldingRow({ row, striped, onFixDrift, sortable }) {
   const item = useSortableItem(row.account.id, { disabled: !sortable });
-  // Shared with the update form rather than written twice: the two screens are
-  // read against each other, and a figure called current in one and carried
-  // forward in the other is worse than either description alone.
-  const { text, stale } = describeSource(row, period);
   const owed = row.account.type === ACCOUNT_TYPES.LIABILITY;
   // The one row that has something to do: a statement and a ledger figure for
   // the same month that do not agree.
   const settleable = onFixDrift && row.driftCents != null && row.driftCents !== 0;
-  const tone = stale ? "text-vermilion-ink" : "text-ink-soft";
 
   return (
     <tr
@@ -50,47 +51,49 @@ function HoldingRow({ row, period, striped, onFixDrift, sortable }) {
     >
       <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
         {row.account.name}
-      </th>
-      <td
-        data-label="Value"
-        className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-ink"
-      >
-        {/* Debts read as the amount owed, positive, as they do everywhere else
-            the user enters or reads one. The sign lives in the maths, not on
-            the page. */}
-        {formatCents(owed ? -row.valueCents : row.valueCents)}
-      </td>
-      <td data-label="Source" className={`whitespace-nowrap text-right font-mono text-label uppercase ${tone}`}>
-        {settleable ? (
+        {/* Under the name rather than in a column of its own, because almost no
+            row has one: a column every row carries to serve the few that can
+            use it is width spent on blanks. */}
+        {settleable && (
           <button
             type="button"
             onClick={() => onFixDrift(row)}
             aria-label={`Settle the ${formatCents(
               Math.abs(row.driftCents)
             )} difference on ${row.account.name}`}
-            className="w-full border-b-2 border-transparent px-3 py-2 text-right uppercase underline decoration-dotted underline-offset-4 transition-colors hover:border-rule hover:decoration-solid"
+            className="mt-0.5 block font-mono text-label uppercase text-vermilion-ink underline decoration-dotted underline-offset-4 transition-colors hover:decoration-solid"
           >
-            {text}
+            {formatCents(row.driftCents)} vs ledger · settle
           </button>
-        ) : (
-          <span className="block px-3 py-2">{text}</span>
         )}
+      </th>
+      {/* Aligned to the top rather than the middle: the one row that carries a
+          settle line under its name is two lines tall, and a figure centred
+          against it would sit between the account it belongs to and the note
+          under it. Single-line rows are unaffected. */}
+      <td
+        data-label="Value"
+        className="whitespace-nowrap px-3 py-2 align-top text-right font-mono text-row font-medium tabular-nums text-ink"
+      >
+        {/* Debts read as the amount owed, positive, as they do everywhere else
+            the user enters or reads one. The sign lives in the maths, not on
+            the page. */}
+        {formatCents(owed ? -row.valueCents : row.valueCents)}
       </td>
     </tr>
   );
 }
 
 /**
- * Read-only but for one thing, and that one thing is the column's own subject.
+ * Read-only but for one thing.
  *
  * Updating the month's figures is not offered here: it already sits in the page
  * header, and a second button with the same label further down the same screen
  * makes a reader stop and work out whether the two do the same thing. What *is*
- * offered is settling a disagreement this table is the only place to see — where
- * the Source cell reads "Entered · $20 vs ledger", that cell is the way to deal
- * with the $20. Noticing the gap and closing it are one thought, so they are one
- * click, and it is the cell that states the gap rather than a new column, which
- * would widen every row to carry a control almost none of them can use.
+ * offered is settling a disagreement this table is the only place to see — a row
+ * reading "$20 vs ledger · settle" is the way to deal with the $20. Noticing the
+ * gap and closing it are one thought, so they are one click, and the thing that
+ * states the gap is the thing that closes it.
  */
 /**
  * `onReorder`, where given, lets a row be dragged within its band. The order is
@@ -132,9 +135,6 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
                 <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
                   Value
                 </th>
-                <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
-                  Source
-                </th>
               </tr>
             </thead>
 
@@ -156,7 +156,6 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
                     <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono text-label tabular-nums text-ink">
                       {formatCents(owed ? -subtotal : subtotal)}
                     </td>
-                    <td />
                   </tr>
                   <SortableList
                     ids={section.rows.map((row) => row.account.id)}
@@ -166,7 +165,6 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
                       <HoldingRow
                         key={row.account.id}
                         row={row}
-                        period={period}
                         striped={stripe++ % 2 === 1}
                         onFixDrift={onFixDrift}
                         sortable={onReorder != null}
@@ -187,7 +185,6 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
                 <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-chalk">
                   {formatCents(rows.reduce((sum, row) => sum + row.valueCents, 0))}
                 </td>
-                <td />
               </tr>
             </tfoot>
           </table>

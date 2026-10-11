@@ -1,4 +1,12 @@
-import { ageLabeller, axisLabels, chartFrame, labelBudget, lineRuns, movingAverage } from "./chartAxis";
+import {
+  ageLabeller,
+  axisLabels,
+  chartFrame,
+  labelBudget,
+  lineRuns,
+  movingAverage,
+  smoothPath,
+} from "./chartAxis";
 
 /**
  * The two pieces of the chart arithmetic that have a rule rather than only a
@@ -81,6 +89,74 @@ describe("lineRuns", () => {
   test("nothing at all comes back as no runs rather than as an empty string", () => {
     expect(lineRuns([], { x, y })).toEqual([]);
     expect(lineRuns([null, null], { x, y })).toEqual([]);
+  });
+});
+
+/**
+ * The one thing that matters about the smooth curve is where it is **not**
+ * allowed to go. A spline that overshoots a turning point draws a figure the
+ * household never had, and on a net-worth chart the reader is entitled to
+ * believe every point on the line — so the no-overshoot property is asserted
+ * here, on the arithmetic, rather than left to be eyeballed on a rendered path.
+ */
+describe("smoothPath", () => {
+  const at = (values) => values.map((value, index) => ({ x: index * 10, y: value }));
+  /** Every coordinate on the path, handles included: a cubic is bounded by its
+   *  own control points, so these are the extremes the curve can reach. */
+  const ys = (d) =>
+    d
+      .match(/-?[\d.]+/g)
+      .map(Number)
+      .filter((_, index) => index % 2 === 1);
+
+  test("curves through its points, rather than cornering at each one", () => {
+    const d = smoothPath(at([0, 10, 30, 60]));
+
+    expect(d.startsWith("M0,0 C")).toBe(true);
+    // One cubic per gap, and each one ends on the point it was drawn to.
+    expect(d.match(/C/g)).toHaveLength(3);
+    expect(d.endsWith("30,60")).toBe(true);
+  });
+
+  test("never passes a peak or a trough, which is the whole reason it is monotone", () => {
+    // Up, over, and down. A cardinal spline would carry on past 20 before
+    // turning — a figure no month on the chart holds.
+    const peak = ys(smoothPath(at([0, 10, 20, 10, 0])));
+    expect(Math.max(...peak)).toBeCloseTo(20, 6);
+    expect(Math.min(...peak)).toBeCloseTo(0, 6);
+
+    const trough = ys(smoothPath(at([20, 10, 0, 10, 20])));
+    expect(Math.min(...trough)).toBeCloseTo(0, 6);
+    expect(Math.max(...trough)).toBeCloseTo(20, 6);
+  });
+
+  test("a flat run stays flat, instead of bulging between two equal figures", () => {
+    const flat = ys(smoothPath(at([50, 50, 50, 50])));
+
+    expect(Math.min(...flat)).toBe(50);
+    expect(Math.max(...flat)).toBe(50);
+  });
+
+  test("a steep step does not drag the months either side of it off their figures", () => {
+    // The pathological case for an unclamped tangent: two flat months, a jump,
+    // two flat months. The curve has to climb inside the one gap that climbed.
+    const stepped = ys(smoothPath(at([0, 0, 100, 100])));
+
+    expect(Math.min(...stepped)).toBe(0);
+    expect(Math.max(...stepped)).toBe(100);
+  });
+
+  test("two points are the straight line between them, and one point is not a line at all", () => {
+    expect(smoothPath(at([10, 40]))).toBe("M0,10 L10,40");
+    expect(smoothPath(at([10]))).toBeNull();
+    expect(smoothPath([])).toBeNull();
+  });
+
+  test("negative figures curve like any others — a household underwater is not a gap", () => {
+    const d = smoothPath(at([-100, -50, 25]));
+
+    expect(d).not.toMatch(/NaN|Infinity|undefined/);
+    expect(d.startsWith("M0,-100 C")).toBe(true);
   });
 });
 

@@ -153,23 +153,72 @@ test("clearing a cell is an abandoned edit, not a value", () => {
   expect(dateCell).toHaveValue("2026-08-11");
 });
 
+// A row with a payee keeps its note behind the mark at the end of the name, so
+// reaching the field is a click — which is the register's own gesture for it.
+// The mark and the field are named off the same row and only the mark carries
+// the note it is folding away ("Note on X: weekly shop" against "Note on X"),
+// so one row name reaches both: a prefix for the mark, an exact match for the
+// field it opens.
+function openNote(row) {
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Note on ${row}`) }));
+  return screen.getByLabelText(`Note on ${row}`);
+}
+
+describe("the note beside a payee", () => {
+  test("a named row folds it into the mark, and says it there", () => {
+    renderRegister();
+
+    // Nothing on the row's face but the payee: sixty rows each carrying an
+    // empty second line is what folding it away buys.
+    expect(screen.queryByLabelText("Note on Trader Joe's")).not.toBeInTheDocument();
+    // Read without opening the field that writes it, or folding it away would
+    // have hidden it from a screen reader rather than merely from the layout.
+    expect(
+      screen.getByRole("button", { name: "Note on Trader Joe's: weekly shop" })
+    ).toBeInTheDocument();
+
+    expect(openNote("Trader Joe's")).toHaveValue("weekly shop");
+  });
+
+  test("a named row with nothing written offers one rather than stating one", () => {
+    renderRegister();
+
+    expect(
+      screen.getByRole("button", { name: "Add a note to Acme Payroll" })
+    ).toBeInTheDocument();
+  });
+
+  test("Escape abandons the edit and hands the keyboard back to the mark", () => {
+    const onChange = renderRegister();
+
+    const description = openNote("Trader Joe's");
+    fireEvent.change(description, { target: { value: "Aldi" } });
+    fireEvent.keyDown(description, { key: "Escape" });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Note on Trader Joe's")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Note on Trader Joe's: weekly shop" })).toHaveFocus();
+  });
+});
+
 test("an edit the store refuses is put back, with the reason on the row", () => {
   const onChange = jest.fn(() => ({ ok: false, error: "Choose a category for this expense." }));
   renderRegister({ onChange });
 
-  const description = screen.getByLabelText("Note on Trader Joe's");
+  const description = openNote("Trader Joe's");
   fireEvent.change(description, { target: { value: "Aldi" } });
   fireEvent.blur(description);
 
   expect(screen.getByRole("alert")).toHaveTextContent(/choose a category/i);
-  // The rest of the app still knows this row by the stored note.
+  // The rest of the app still knows this row by the stored note, and a refused
+  // edit stays on screen to be corrected rather than folding away.
   expect(description).toHaveValue("weekly shop");
 });
 
 test("no repeat of a value the store already holds", () => {
   const onChange = renderRegister();
 
-  const description = screen.getByLabelText("Note on Trader Joe's");
+  const description = openNote("Trader Joe's");
   fireEvent.change(description, { target: { value: "  weekly shop  " } });
   fireEvent.blur(description);
 

@@ -262,7 +262,19 @@ export function stackPaths(values, { x, width, y, radius, gap = 2 }) {
 const MAX_BAR = 16;
 const CROWDED = 36;
 
+/**
+ * **A lone column is the one case the cap has nothing to protect.** The ceiling
+ * exists so a column reads as a mark among its neighbours rather than as a
+ * block; with a single month there are no neighbours, and sixteen units of ink
+ * in the middle of a plot nine hundred wide reads as a rendering fault rather
+ * than as a month. It takes a share of its own slot instead, bounded so it is
+ * still a column on a narrow screen — about three ordinary columns wide, which
+ * is where a single bar stops looking accidental.
+ */
+const SOLO_BAR = 48;
+
 export function barWidthFor(slot, count, { max = MAX_BAR, fill = 0.72 } = {}) {
+  if (count === 1) return Math.min(SOLO_BAR, slot * fill);
   return Math.min(max, slot * (count > CROWDED ? 0.94 : fill));
 }
 
@@ -302,6 +314,91 @@ export function movingAverage(values, window = 3) {
     if (index >= window) sum -= values[index - window];
     return index < window - 1 ? null : Math.round(sum / window);
   });
+}
+
+/** Coordinates are written at two decimals: a path is drawn in viewBox units
+ *  scaled up by at most a few, so the second decimal is already a fraction of a
+ *  pixel, and seventeen digits of float noise per point is a path nobody can
+ *  read in the inspector. */
+const round = (value) => Math.round(value * 100) / 100;
+
+/**
+ * A run of points as a **smooth curve**, for a line that traces a quantity
+ * rather than a set of readings.
+ *
+ * Net worth is the case this exists for. It is a continuous thing — a balance
+ * that moved every day of the month — sampled monthly, so the corner a polyline
+ * puts at every sample is an artefact of the sampling rather than anything that
+ * happened: the household did not change direction on the first of the month,
+ * twelve times a year. A curve says "this is where it went" at the same honesty
+ * as the points it passes through, and the columns underneath are what say which
+ * months were actually measured.
+ *
+ * **Monotone cubic (Fritsch–Carlson), not a plain spline, and that is the whole
+ * point.** An ordinary Catmull–Rom or cardinal spline overshoots a turning
+ * point: a year that climbed and then flattened would be drawn dipping below
+ * the figure it flattened at, which is a loss the household never had, and the
+ * reader would be right to believe it. The tangent at each point is the weighted
+ * harmonic mean of its two neighbouring slopes and is **zeroed wherever the
+ * slope changes sign**, which bounds the curve by the two points it runs
+ * between — so a peak is a peak, a trough is a trough, and no figure the data
+ * never reached appears anywhere on the line.
+ *
+ * Fewer than two points is not a line, and comes back `null` rather than as a
+ * path that draws nothing; two points are the straight segment between them,
+ * since there is no third to curve toward.
+ */
+export function smoothPath(points) {
+  if (points.length < 2) return null;
+
+  const move = `M${round(points[0].x)},${round(points[0].y)}`;
+  if (points.length === 2) return `${move} L${round(points[1].x)},${round(points[1].y)}`;
+
+  const last = points.length - 1;
+  // One per segment: how far it spans, and how steeply it rises over that span.
+  const widths = [];
+  const slopes = [];
+  for (let index = 0; index < last; index += 1) {
+    const width = points[index + 1].x - points[index].x;
+    widths.push(width);
+    slopes.push(width === 0 ? 0 : (points[index + 1].y - points[index].y) / width);
+  }
+
+  // One per point: the direction the curve leaves it in. The ends take their own
+  // segment's slope, which is the only slope they have.
+  const tangents = [slopes[0]];
+  for (let index = 1; index < last; index += 1) {
+    const before = slopes[index - 1];
+    const after = slopes[index];
+    if (before * after <= 0) {
+      // A turning point, or a flat run next to a sloped one. Flat is the only
+      // tangent that cannot overshoot either side of it.
+      tangents.push(0);
+      continue;
+    }
+    const weightBefore = 2 * widths[index] + widths[index - 1];
+    const weightAfter = widths[index] + 2 * widths[index - 1];
+    tangents.push(
+      (weightBefore + weightAfter) / (weightBefore / before + weightAfter / after)
+    );
+  }
+  tangents.push(slopes[last - 1]);
+
+  // Each segment as a cubic whose handles lie a third of the way along it, which
+  // is what turns a tangent into a Bézier.
+  const segments = [];
+  for (let index = 0; index < last; index += 1) {
+    const reach = widths[index] / 3;
+    const from = points[index];
+    const to = points[index + 1];
+    segments.push(
+      `C${round(from.x + reach)},${round(from.y + tangents[index] * reach)} ` +
+        `${round(to.x - reach)},${round(to.y - tangents[index + 1] * reach)} ` +
+        `${round(to.x)},${round(to.y)}`
+    );
+  }
+
+  return `${move} ${segments.join(" ")}`;
 }
 
 /**

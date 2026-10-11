@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Button from "./Button";
 import PayeeField from "./PayeeField";
 import { insideBudget, spendsThroughBudget } from "../contexts/AccountsContext";
@@ -39,14 +39,26 @@ import { amountAtRest, amountEditing, formatCents, formatPeriod, toCents } from 
  * **The Payee column holds two fields, not one.** Who the money went to is the
  * row's subject and is named through `PayeeField`, which searches the payee list
  * as the letters go in and offers to create one that is not there yet; the note
- * underneath it is what the single free-text column used to be, and is where every
+ * beside it is what the single free-text column used to be, and is where every
  * row written before payees existed still carries its text. They share one column
  * because the six fixed widths already come to 712px and the grid has to stay
  * inside its container at 768px — the same arithmetic that put both ends of a
- * transfer in the Account cell. A transfer has no payee at all and shows the note
- * alone. Naming a payee here **never** re-files the row's category, even where the
- * payee has a default one: that default seeds a new transaction, and money already
- * filed is not moved because a name was corrected.
+ * transfer in the Account cell. Naming a payee here **never** re-files the row's
+ * category, even where the payee has a default one: that default seeds a new
+ * transaction, and money already filed is not moved because a name was corrected.
+ *
+ * **Which of the two is drawn is `nameOf`'s own rule, applied to the layout.**
+ * The note is a remark *beside* a name, not a second name, so where a payee
+ * already names the row the note folds into one mark at the end of it: a comment
+ * icon, drawn only when there is something to read, the note itself on hover, and
+ * the field to edit it on a click. Sixty rows each carrying an empty second line
+ * inviting a note is sixty invitations to write something nobody wanted to write,
+ * and it costs the register the one-line row it is read in. **Where no payee names
+ * the row the note is on the face of it**, as it always was — which is every row
+ * written before payees existed, and every transfer, since a transfer moves money
+ * between the household's own accounts and has no other end to name. That is the
+ * same precedence `nameOf` reads, so what identifies a row and what is drawn on it
+ * cannot come apart.
  *
  * Cells commit on **blur**, the same contract as `CategoryPlanner` and for the
  * same reason: a half-typed "1" on the way to "14" is a real figure, and
@@ -81,7 +93,7 @@ const COLUMNS = [
   // Two fields in one column, which is the transfer's own precedent applied
   // again: the six fixed widths already come to 712px and the grid has to stay
   // inside its container at 768px, so a seventh column is not available. The
-  // payee leads because it identifies the row; the note sits under it.
+  // payee leads because it identifies the row; the note is the mark after it.
   { key: "payee", label: "Payee & note" },
   { key: "budgetId", label: "Category", width: "w-40" },
   { key: "accountId", label: "Account", width: "w-36" },
@@ -119,6 +131,39 @@ const figureInput = `${cellBase} bg-transparent text-right font-mono tabular-num
 // rendering fault rather than as a name that did not fit. An input must not
 // have it, since it scrolls its own content while the caret is in it.
 const cellSelect = (index) => `${cellBase} ${rowBg(index)} truncate`;
+
+/**
+ * The mark that says this row carries a note.
+ *
+ * Filled where there is a note to read and an outline where there is not, so the
+ * two states are told apart by weight rather than by presence alone — the empty
+ * one is only on screen while the row is under the pointer, and a reader who
+ * finds it there has to be able to see at a glance that it is an invitation
+ * rather than something they have missed.
+ */
+function NoteIcon({ filled }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="h-3.5 w-3.5 shrink-0">
+      <path
+        d="M3.25 2.5H12.75A1.75 1.75 0 0 1 14.5 4.25V9.75A1.75 1.75 0 0 1 12.75 11.5H7.5L4.5 14V11.5H3.25A1.75 1.75 0 0 1 1.5 9.75V4.25A1.75 1.75 0 0 1 3.25 2.5Z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// The icon sits at the end of the payee's own line, so it takes the line's
+// baseline and none of its width. A note to read keeps it on screen; an empty
+// one appears with the pointer — and on a touch screen, where there is no
+// pointer to appear with, it is simply always there. `invisible` would be the
+// shorter way to hide it and the wrong one: a hidden element cannot be reached
+// by the keyboard, and this is the only route to the note on a named row.
+const noteMark =
+  "shrink-0 self-center rounded-sm p-0.5 text-ink-soft transition-colors hover:text-ink focus-visible:text-ink";
+const noteMarkQuiet = "sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100";
 
 /**
  * What a row is called when something has to be said about it out loud.
@@ -321,6 +366,15 @@ function RegisterRow({
   const transfer = isTransfer(transaction);
   const split = isSplit(transaction);
   const isInflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
+  // A payee names the row, so the note beside it is a remark and folds into the
+  // mark at the end of the name. With no payee the note is the row's name and
+  // stays on the face of it — `nameOf`'s own precedence, read as a layout.
+  const named = transaction.payeeId != null;
+  const hasNote = transaction.description !== "" && transaction.description != null;
+  // Open only while the note is being written, which is why it is state here and
+  // not a field: a row's note is read far more often than it is edited.
+  const [noteOpen, setNoteOpen] = useState(false);
+  const noteMarkRef = useRef(null);
 
   // The current value always has an option, even when it is not one the form
   // would offer: an off-budget account, an account since deleted, or the
@@ -353,15 +407,56 @@ function RegisterRow({
   function handleDescriptionBlur(e) {
     if (e.target.value.trim() === transaction.description) {
       e.target.value = transaction.description;
+      setNoteOpen(false);
       return;
     }
     const result = onCommit(transaction, { description: e.target.value });
-    if (!result.ok) e.target.value = transaction.description;
+    if (!result.ok) {
+      // Refused, so the field stays where it is with the reason under the row —
+      // the contract every panel outside a modal keeps. Closing it would take
+      // away the thing the message is asking to have corrected.
+      e.target.value = transaction.description;
+      return;
+    }
+    setNoteOpen(false);
   }
+
+  // Escape abandons the edit rather than committing it, and hands the keyboard
+  // back to the mark it was opened from — the field is gone by then, so there is
+  // nowhere else for focus to be.
+  function handleNoteKeyDown(e) {
+    if (e.key !== "Escape") return;
+    e.target.value = transaction.description;
+    setNoteOpen(false);
+    noteMarkRef.current?.focus();
+  }
+
+  // One field, drawn either on the row or under the mark. The two differ by
+  // where they sit and nothing else, so the editing contract cannot come apart
+  // between them.
+  const noteField = (opened) => (
+    <input
+      type="text"
+      key={transaction.description}
+      defaultValue={transaction.description}
+      // A quiet invitation rather than a dash on a row that has no payee to name
+      // it either: an empty field marked "—" reads as a value that is missing
+      // instead of one that was never wanted. A transfer names nobody by
+      // definition, so there is nothing to invite.
+      placeholder={transfer ? "—" : "+ note"}
+      aria-label={`Note on ${label}`}
+      autoFocus={opened}
+      onBlur={handleDescriptionBlur}
+      onKeyDown={opened ? handleNoteKeyDown : undefined}
+      className={`${cellInput} ${transfer ? "" : "text-ink-soft"}`}
+    />
+  );
 
   return (
     <>
-      <tr className={rowBg(index)}>
+      {/* `group` is what lets the note's mark appear with the pointer: it is the
+          only thing on the row that is not drawn at rest. */}
+      <tr className={`group ${rowBg(index)}`}>
         <td data-label="Date" className="px-3 py-1">
           <input
             type="date"
@@ -372,36 +467,77 @@ function RegisterRow({
             className={`${cellInput} font-mono`}
           />
         </td>
-        {/* Payee over note, one under the other. A transfer names nobody — it
-            moves money between the household's own accounts — so it gets the note
-            alone, which is also what every row written before payees existed
-            shows. Keyed on the stored payee so a commit re-seeds the field with
-            what actually landed. */}
+        {/* The payee, with the note as the mark after it — or the note alone,
+            where no payee names the row. A transfer is always the second case: it
+            moves money between the household's own accounts and has no other end
+            to name, which is also what every row written before payees existed
+            shows. The payee field is keyed on the stored payee so a commit
+            re-seeds it with what actually landed. */}
         <td data-label="Payee & note" className="px-3 py-1">
-          {!transfer && (
-            <PayeeField
-              surface="cell"
-              key={transaction.payeeId ?? "nobody"}
-              label={`Payee of ${label}`}
-              payees={payees}
-              value={transaction.payeeId}
-              placeholder="—"
-              inputClassName={cellInput}
-              onCommit={(committed) => onPayeeCommit(transaction, committed)}
-            />
+          {transfer ? (
+            noteField(false)
+          ) : named ? (
+            <>
+              <div className="flex items-baseline gap-1">
+                {/* `min-w-0` or the field's own content sets a floor the flex
+                    row will not go below, and the mark is pushed out of a
+                    144px-ish column. */}
+                <div className="min-w-0 flex-1">
+                  <PayeeField
+                    surface="cell"
+                    key={transaction.payeeId}
+                    label={`Payee of ${label}`}
+                    payees={payees}
+                    value={transaction.payeeId}
+                    placeholder="—"
+                    inputClassName={cellInput}
+                    onCommit={(committed) => onPayeeCommit(transaction, committed)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  ref={noteMarkRef}
+                  // The note on hover, which is the whole point of folding it
+                  // away: a native tooltip rather than one of our own, because
+                  // the register scrolls on one axis and a box drawn inside a
+                  // cell would be clipped on the other — the same trap
+                  // `PayeeField` steps around with a fixed-positioned list.
+                  title={hasNote ? transaction.description : "Add a note"}
+                  // Said out loud as well as shown, or the note would be
+                  // readable only by opening the field that writes it.
+                  aria-label={
+                    hasNote
+                      ? `Note on ${label}: ${transaction.description}`
+                      : `Add a note to ${label}`
+                  }
+                  aria-expanded={noteOpen}
+                  // Open, deliberately not toggle: the field commits and closes
+                  // on blur, so by the time a second click lands the field has
+                  // already gone and a toggle would read as having done nothing.
+                  // Escape is what closes it without leaving the keyboard.
+                  onClick={() => setNoteOpen(true)}
+                  className={`${noteMark} ${hasNote || noteOpen ? "" : noteMarkQuiet}`}
+                >
+                  <NoteIcon filled={hasNote} />
+                </button>
+              </div>
+              {noteOpen && noteField(true)}
+            </>
+          ) : (
+            <>
+              <PayeeField
+                surface="cell"
+                key="nobody"
+                label={`Payee of ${label}`}
+                payees={payees}
+                value={null}
+                placeholder="—"
+                inputClassName={cellInput}
+                onCommit={(committed) => onPayeeCommit(transaction, committed)}
+              />
+              {noteField(false)}
+            </>
           )}
-          <input
-            type="text"
-            key={transaction.description}
-            defaultValue={transaction.description}
-            // A quiet invitation rather than a dash: the note is optional on every
-            // row, and an empty field marked "—" reads as a value that is missing
-            // instead of one that was never wanted.
-            placeholder={transfer ? "—" : "+ note"}
-            aria-label={`Note on ${label}`}
-            onBlur={handleDescriptionBlur}
-            className={`${cellInput} ${transfer ? "" : "text-ink-soft"}`}
-          />
         </td>
         <td data-label="Category" className="px-3 py-1">
           {wantsCategory && split ? (

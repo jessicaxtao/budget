@@ -30,14 +30,21 @@ export const PROGRAM_KINDS = {
   BANK: "bank",
   AIRLINE: "airline",
   HOTEL: "hotel",
+  RAIL: "rail",
 };
 
-export const PROGRAM_KIND_ORDER = [PROGRAM_KINDS.BANK, PROGRAM_KINDS.AIRLINE, PROGRAM_KINDS.HOTEL];
+export const PROGRAM_KIND_ORDER = [
+  PROGRAM_KINDS.BANK,
+  PROGRAM_KINDS.AIRLINE,
+  PROGRAM_KINDS.HOTEL,
+  PROGRAM_KINDS.RAIL,
+];
 
 export const PROGRAM_KIND_LABELS = {
   [PROGRAM_KINDS.BANK]: "Card points",
   [PROGRAM_KINDS.AIRLINE]: "Airline miles",
   [PROGRAM_KINDS.HOTEL]: "Hotel points",
+  [PROGRAM_KINDS.RAIL]: "Rail points",
 };
 
 const one = (to) => ({ to, ratio: [1, 1] });
@@ -55,6 +62,15 @@ const hotel = (id, name, valuePer100Cents) => ({
   id,
   name,
   kind: PROGRAM_KINDS.HOTEL,
+  unit: "points",
+  valuePer100Cents,
+  transfers: [],
+});
+
+const rail = (id, name, valuePer100Cents) => ({
+  id,
+  name,
+  kind: PROGRAM_KINDS.RAIL,
   unit: "points",
   valuePer100Cents,
   transfers: [],
@@ -131,6 +147,7 @@ export const CATALOG = [
     one("ihg"),
     one("marriott"),
     one("hilton"),
+    one("amtrak"),
   ]),
   airline("united", "United MileagePlus", 130),
   airline("delta", "Delta SkyMiles", 120),
@@ -151,6 +168,10 @@ export const CATALOG = [
   hotel("ihg", "IHG One Rewards", 60),
   hotel("wyndham", "Wyndham Rewards", 90),
   hotel("choice", "Choice Privileges", 60),
+  // Rail is its own kind rather than a mile: Amtrak Guest Rewards pays out in
+  // points on a fare, and calling it an airline would put it under a heading
+  // that is not true of it. One program today, and room for the next one.
+  rail("amtrak", "Amtrak Guest Rewards", 220),
 ];
 
 const BY_ID = new Map(CATALOG.map((program) => [program.id, program]));
@@ -343,6 +364,14 @@ export function summariseRewards({ balances = [], valuations = {}, trips = [] })
  *   - **A spending target** (`TARGET`) — spend at least this much by a date to
  *     earn a bonus: a sign-up bonus, a retention offer. Progress is distance
  *     *covered*, and the useful moment is the deadline.
+ *   - **A credit to use up** (`CREDIT`) — the card pays some spending back, up
+ *     to an amount, by a date: $300 of travel a year, $15 of ride-hailing a
+ *     month. The arithmetic is a cap's exactly — spending on the card, in the
+ *     mapped categories, counted up to a limit — but what the figure *means* is
+ *     the reverse: room left under a bonus is an opportunity, while a credit
+ *     left unused at its deadline is money already paid for and thrown away.
+ *     That is the figure an annual fee is weighed against, which is why a
+ *     credit is a kind here rather than a cap the household words carefully.
  *
  * Both read the same thing off the ledger — the household's own spending, on
  * one card, inside a window, in the categories (or at the payees) the offer is
@@ -361,12 +390,17 @@ export function summariseRewards({ balances = [], valuations = {}, trips = [] })
 export const OFFER_KINDS = {
   CAP: "cap",
   TARGET: "target",
+  CREDIT: "credit",
 };
 
 export const OFFER_KIND_LABELS = {
   [OFFER_KINDS.CAP]: "Bonus up to a limit",
   [OFFER_KINDS.TARGET]: "Spend to earn a bonus",
+  [OFFER_KINDS.CREDIT]: "Credit to use up",
 };
+
+/** A credit is only worth tracking against the day it expires, like a target. */
+export const OFFER_KINDS_NEEDING_END = [OFFER_KINDS.TARGET, OFFER_KINDS.CREDIT];
 
 export const OFFER_STATUS = {
   UPCOMING: "upcoming",
@@ -376,16 +410,20 @@ export const OFFER_STATUS = {
   ENDED: "ended",
 };
 
-/** Whether one leg of a record falls under the offer's mapping. */
-function legMatches(offer, payeeId, budgetId) {
-  if (offer.allSpending) return true;
-  if (budgetId != null && offer.budgetIds.includes(budgetId)) return true;
-  return payeeId != null && offer.payeeIds.includes(payeeId);
+/**
+ * Whether one leg of a record falls under a mapping — an offer's or an earn
+ * rate's, which name what they apply to in the same three fields, because the
+ * question ("is this purchase one of these?") is the same question.
+ */
+export function legMatches(mapping, payeeId, budgetId) {
+  if (mapping.allSpending) return true;
+  if (budgetId != null && mapping.budgetIds.includes(budgetId)) return true;
+  return payeeId != null && mapping.payeeIds.includes(payeeId);
 }
 
 /**
- * The legs of a record that bear on an offer, signed: spending positive, a
- * refund negative.
+ * The legs of a record a card can earn on, signed: spending positive, a refund
+ * negative.
  *
  * Only outflows and inflows. A transfer is never a purchase — paying the card
  * off is a transfer *into* it, and a cash advance is not what any bonus pays
@@ -393,19 +431,34 @@ function legMatches(offer, payeeId, budgetId) {
  * An inflow counts only where it names a category: that is a refund, which an
  * issuer takes back off qualifying spend, while an inflow naming none is
  * income — a statement credit, cash back redeemed — which an issuer does not.
+ *
+ * One reading for both an offer's progress and a rate's earnings, so a division
+ * or a refund cannot count towards a bonus and be missed by the rate that pays
+ * on it.
  */
-function qualifyingCents(offer, transaction) {
+function spendingLegs(transaction) {
   const { kind } = transaction;
-  if (kind !== "outflow" && kind !== "inflow") return 0;
+  if (kind !== "outflow" && kind !== "inflow") return [];
   const parts =
     Array.isArray(transaction.splits) && transaction.splits.length > 0
       ? transaction.splits
       : [{ budgetId: transaction.budgetId, amountCents: transaction.amountCents }];
-  let cents = 0;
+  const legs = [];
   for (const part of parts) {
     if (kind === "inflow" && part.budgetId == null) continue;
-    if (!legMatches(offer, transaction.payeeId ?? null, part.budgetId ?? null)) continue;
-    cents += kind === "outflow" ? part.amountCents : -part.amountCents;
+    legs.push({
+      budgetId: part.budgetId ?? null,
+      cents: kind === "outflow" ? part.amountCents : -part.amountCents,
+    });
+  }
+  return legs;
+}
+
+function qualifyingCents(offer, transaction) {
+  let cents = 0;
+  for (const leg of spendingLegs(transaction)) {
+    if (!legMatches(offer, transaction.payeeId ?? null, leg.budgetId)) continue;
+    cents += leg.cents;
   }
   return cents;
 }
@@ -472,14 +525,21 @@ export function offerProgress(offer, transactions, today) {
 
   // What still has to go on the card each week to make a deadline: the days
   // left include today, so the last day of the offer is one day, not zero.
+  // A credit is paced like a target — both are spending that has to happen by
+  // a date, and a cap is spending that may simply stop.
+  const paced = offer.kind === OFFER_KINDS.TARGET || offer.kind === OFFER_KINDS.CREDIT;
   const perWeekCents =
-    offer.kind === OFFER_KINDS.TARGET && !reached && daysLeft != null && status === OFFER_STATUS.ACTIVE
+    paced && !reached && daysLeft != null && status === OFFER_STATUS.ACTIVE
       ? Math.ceil((remainingCents * 7) / (daysLeft + 1))
       : null;
 
+  // **A credit pays back what it covers, which is a rate of 100%**, so one
+  // formula answers both: a cap earns at a rate it may not even state, and a
+  // credit earns the covered spending itself. A target earns points, not money.
+  const rateBps = offer.kind === OFFER_KINDS.CREDIT ? 10000 : offer.rateBps;
   const earnedCents =
-    offer.kind === OFFER_KINDS.CAP && offer.rateBps != null
-      ? Math.round((Math.min(qualifying, limit) * offer.rateBps) / 10000)
+    offer.kind !== OFFER_KINDS.TARGET && rateBps != null
+      ? Math.round((Math.min(qualifying, limit) * rateBps) / 10000)
       : null;
 
   return {
@@ -561,4 +621,243 @@ export function offerNudges(rows, { accountId, payeeId, budgetIds, date, amountC
     // The card being used first: what this purchase does matters more than
     // what it might have done elsewhere.
     .sort((a, b) => (a.onCard === b.onCard ? 0 : a.onCard ? -1 : 1));
+}
+
+/* ------------------------------------------------- what a card earns, and costs */
+
+/**
+ * **A household does not hold points cards or cashback cards; it holds both,
+ * and the only question that matters is which card to reach for.** That
+ * question can only be answered in one unit, so every earn rate — 2% back, 3×
+ * United, 5× on dining — is reduced to **the share of the purchase it returns
+ * in value, in basis points** (`earnBps`), the rate discipline already used for
+ * interest and for a bonus rate. Cash back is that figure outright: 2% back is
+ * 200. Points go through the household's own valuation: 3× at 1.70¢ a point
+ * returns 5.1¢ on the dollar, which is 510. Put that way a cashback card and a
+ * points card are comparable, and they are comparable **on this household's
+ * valuation of a point**, not on a magazine's.
+ *
+ * A rate is therefore stored in whichever unit it is advertised in and
+ * converted on the way out, never on the way in:
+ *
+ *   - `mode: CASHBACK` reads `rateBps` — basis points, `toBps`' unit.
+ *   - `mode: POINTS` reads `pointsPer100Dollars` and `programId` — points per
+ *     hundred dollars, so a 1.25× card is 125 and an integer, the same
+ *     per-hundred trick `valuePer100Cents` plays on a fraction of a cent.
+ *
+ * **Both answers are kept** when the mode is switched, the store's rule: a card
+ * whose rewards the household flips between cash and points keeps the figure it
+ * is not currently reading.
+ *
+ * **A rate is uncapped by design.** "5% on groceries, up to $6,000 a year" is
+ * two facts — a rate and a cap — and the cap is a `CAP` offer, which already
+ * walks the ledger in date order and says when the room runs out. Teaching a
+ * rate about limits would be the same arithmetic in a second place, and the two
+ * would disagree the first time one of them changed.
+ */
+export const EARN_MODES = {
+  CASHBACK: "cashback",
+  POINTS: "points",
+};
+
+export const EARN_MODE_LABELS = {
+  [EARN_MODES.CASHBACK]: "Cash back",
+  [EARN_MODES.POINTS]: "Points or miles",
+};
+
+/**
+ * A multiplier written the way cards advertise it — "3", "3x", "3×", "1.5x" —
+ * as points per hundred dollars. Null for junk, the `toCents` contract, and for
+ * anything over 100× (a typo for a percentage).
+ */
+export function toPointsPer100Dollars(text) {
+  if (typeof text === "number") {
+    return Number.isInteger(text) && text > 0 && text <= 10000 ? text : null;
+  }
+  if (text == null) return null;
+  const cleaned = String(text)
+    .trim()
+    .replace(/[x×]$/i, "")
+    .replace(/points?\s*per\s*(dollar|\$)/i, "")
+    .trim();
+  if (!/^\d*\.?\d+$/.test(cleaned)) return null;
+  const value = Math.round(Number(cleaned) * 100);
+  return value > 0 && value <= 10000 ? value : null;
+}
+
+/** "3×", "1.25×" — the way a card advertises it, trailing zeroes dropped. */
+export function formatMultiplier(pointsPer100Dollars) {
+  if (pointsPer100Dollars == null) return "—";
+  const value = pointsPer100Dollars / 100;
+  return `${Number.isInteger(value) ? value : value.toFixed(2).replace(/0$/, "")}×`;
+}
+
+/**
+ * What a rate returns on a dollar, in basis points of the purchase — the one
+ * figure a cashback card and a points card can be compared on.
+ */
+export function earnBps(rate, valuations = {}) {
+  if (rate == null) return 0;
+  if (rate.mode === EARN_MODES.CASHBACK) return rate.rateBps ?? 0;
+  if (rate.programId == null || rate.pointsPer100Dollars == null) return 0;
+  const per100 = resolvedValuePer100Cents(rate.programId, valuations);
+  return Math.round((rate.pointsPer100Dollars * per100) / 100);
+}
+
+/**
+ * The rate a card would pay on one leg of a purchase: the best of the rates
+ * whose mapping it matches, or null where the card claims nothing for it.
+ *
+ * **The best one and only the best one**, because an issuer pays one rate per
+ * purchase — a card with 3× on travel and 1× on everything pays 3× at the
+ * airline, not 4×. "Best" is by `earnBps`, so a 5% cashback category beats a 3×
+ * points one or not depending on what the household says a point is worth,
+ * which is the whole point of the valuation.
+ */
+export function bestRateFor(rates, { payeeId = null, budgetId = null } = {}, valuations = {}) {
+  let best = null;
+  let bestBps = -1;
+  for (const rate of rates) {
+    if (!legMatches(rate, payeeId, budgetId)) continue;
+    const bps = earnBps(rate, valuations);
+    if (bps > bestBps) {
+      best = rate;
+      bestBps = bps;
+    }
+  }
+  return best;
+}
+
+/**
+ * Every card ranked by what it would pay on one kind of spending, best first —
+ * the "which card to reach for" answer. A card with no matching rate is left
+ * out rather than ranked at zero: a card that claims nothing for groceries has
+ * no answer to give, and showing it at 0% would read as a card that earns
+ * nothing at all.
+ */
+export function rankCardsFor(cards, target, valuations = {}) {
+  return cards
+    .map((card) => {
+      const rate = bestRateFor(card.rates ?? [], target, valuations);
+      return rate == null ? null : { accountId: card.accountId, rate, bps: earnBps(rate, valuations) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.bps - a.bps);
+}
+
+/**
+ * What one card earned over a window, off the household's own ledger.
+ *
+ * Read the way an offer is read — `spendingLegs`, so a transfer earns nothing,
+ * a division earns per part and a refund takes its earnings back — and then
+ * each leg is paid at `bestRateFor`. Dated records only, inside the window at
+ * both ends, which the caller sets (`feeYearWindow`).
+ *
+ * **It is an estimate and it is one the books can actually make.** The issuer
+ * pays by merchant code, which is not in the books; what is in the books is the
+ * category the household filed the purchase under, so this says what the rates
+ * the household typed come to on the spending the household recorded. It is
+ * **not** a statement balance, and nothing here is written back to a ledger.
+ *
+ * Each rate's earnings are floored at zero before they are summed, so the
+ * totals are the sum of the rows beside them, and a category whose refunds
+ * outran its spending cannot pull another one's earnings down.
+ */
+export function cardEarnings({ accountId, rates = [], transactions = [], from, through, valuations = {} }) {
+  const tally = new Map(
+    rates.map((rate) => [
+      rate.id,
+      { rate, bps: earnBps(rate, valuations), spendCents: 0, cashCents: 0, points: 0 },
+    ])
+  );
+  let spendCents = 0;
+  let unratedCents = 0;
+
+  for (const transaction of transactions) {
+    if (transaction.accountId !== accountId) continue;
+    if (transaction.date == null || transaction.date < from || transaction.date > through) continue;
+    for (const leg of spendingLegs(transaction)) {
+      spendCents += leg.cents;
+      const rate = bestRateFor(rates, { payeeId: transaction.payeeId ?? null, budgetId: leg.budgetId }, valuations);
+      if (rate == null) {
+        unratedCents += leg.cents;
+        continue;
+      }
+      const row = tally.get(rate.id);
+      row.spendCents += leg.cents;
+      if (rate.mode === EARN_MODES.CASHBACK) {
+        row.cashCents += Math.round((leg.cents * (rate.rateBps ?? 0)) / 10000);
+      } else {
+        row.points += Math.round((leg.cents * (rate.pointsPer100Dollars ?? 0)) / 10000);
+      }
+    }
+  }
+
+  const byRate = [...tally.values()]
+    .map((row) => ({ ...row, cashCents: Math.max(0, row.cashCents), points: Math.max(0, row.points) }))
+    .sort((a, b) => b.bps - a.bps);
+
+  const pointsByProgram = new Map();
+  let cashCents = 0;
+  for (const row of byRate) {
+    if (row.rate.mode === EARN_MODES.CASHBACK) {
+      cashCents += row.cashCents;
+    } else if (row.points > 0) {
+      const { programId } = row.rate;
+      pointsByProgram.set(programId, (pointsByProgram.get(programId) ?? 0) + row.points);
+    }
+  }
+
+  const points = [...pointsByProgram.entries()].map(([programId, amount]) => ({
+    programId,
+    program: programById(programId),
+    points: amount,
+    valueCents: valueOfPointsCents(amount, resolvedValuePer100Cents(programId, valuations)),
+  }));
+  const pointsValueCents = points.reduce((sum, row) => sum + row.valueCents, 0);
+
+  return {
+    spendCents,
+    unratedCents,
+    byRate,
+    cashCents,
+    points,
+    pointsValueCents,
+    valueCents: cashCents + pointsValueCents,
+  };
+}
+
+const anniversary = (year, month, day) =>
+  todayISO(new Date(year, month - 1, Math.min(day, new Date(year, month, 0).getDate())));
+
+/**
+ * The year a card's annual fee buys, as of `today`: the window its credits and
+ * its earnings are weighed against the fee over.
+ *
+ * **The fee year, not the calendar year**, where the household has said when
+ * the fee falls — a card that renews in March is paid for from March, and the
+ * $300 credit it came with resets then too, so January to today would weigh
+ * nine months of credits against a whole fee. With no renewal date stated
+ * there is nothing to anchor it to, and the calendar year is both the usual
+ * reset for a credit and the one a household can check.
+ *
+ * `through` is **today**, never the end of the year: the fee is paid in full on
+ * day one and the credits are not, which is the asymmetry the page is for. A
+ * renewal date of 29 February lands on the 28th in a year that has no 29th.
+ */
+export function feeYearWindow(renewsOn, today) {
+  if (!renewsOn) {
+    return { from: `${today.slice(0, 4)}-01-01`, through: today, renewsOn: null, calendar: true };
+  }
+  const [, month, day] = renewsOn.split("-").map(Number);
+  const thisYear = Number(today.slice(0, 4));
+  let from = anniversary(thisYear, month, day);
+  if (from > today) from = anniversary(thisYear - 1, month, day);
+  const nextYear = Number(from.slice(0, 4)) + 1;
+  return { from, through: today, renewsOn: anniversary(nextYear, month, day), calendar: false };
+}
+
+/** Whether an offer's window overlaps a fee year at all. */
+export function offerOverlaps({ startDate, endDate }, { from, through }) {
+  return startDate <= through && (endDate == null || endDate >= from);
 }

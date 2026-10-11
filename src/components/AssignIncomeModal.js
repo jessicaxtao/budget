@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Dialog from "./Dialog";
 import Button from "./Button";
+import PeriodStepper from "./PeriodStepper";
 import useEnvelopes from "../hooks/useEnvelopes";
 import useSavingsGoalEnvelopes from "../hooks/useSavingsGoalEnvelopes";
 import { useAssignments } from "../contexts/AssignmentsContext";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
-import { amountAtRest, amountField, formatCents, formatPeriod, toCents } from "../utils";
+import {
+  amountAtRest,
+  amountField,
+  currentPeriod,
+  formatCents,
+  periodLTE,
+  toCents,
+} from "../utils";
 
 const FIELD_PREFIX = "assign:";
 const GOAL_FIELD_PREFIX = "goal:";
 
 /**
- * Give this month's money a job, one category — or one savings goal — at a
+ * Give a month's money a job, one category — or one savings goal — at a
  * time. This is the app's single door into the shared "to be assigned" pool
  * (see ToBeAssignedBar's comment), so a goal is funded here rather than
  * through a second entry point: it draws from the same dollar a category
@@ -26,6 +34,16 @@ const GOAL_FIELD_PREFIX = "goal:";
  * a row of useState instead would only move the re-seeding hazard somewhere
  * harder to see: seeding from the derived rows would let the store echo of the
  * modal's own write clobber whatever the user was typing.
+ *
+ * **The month is a control on the form, which is what makes funding a month
+ * ahead possible** — rent out of this paycheque, a quarterly premium funded
+ * three early. It is here rather than on a page for two reasons. The dashboard
+ * deliberately has no month on it (everything there is as of today), and this
+ * is already the app's one door into the pool, so a second door for a month not
+ * yet reached would be two forms competing for one dollar. The pool is the same
+ * figure whichever month is on screen — `useEnvelopes` takes every assignment
+ * out of it, before *and* after the month being funded — so stepping forward
+ * never conjures money, it only moves where this form will file it.
  */
 export default function AssignIncomeModal({
   show,
@@ -37,14 +55,35 @@ export default function AssignIncomeModal({
   const formRef = useRef();
   const [error, setError] = useState(null);
   const [remainingCents, setRemainingCents] = useState(0);
+  // The month being funded. Seeded from the page's own period on every open, so
+  // stepping ahead is a decision taken inside one sitting rather than a state
+  // the next sitting inherits — and so the page's stepper still moves the form
+  // underneath an open dialog.
+  const [month, setMonth] = useState(period);
 
   const { setPeriodAssignments } = useAssignments();
   const { setPeriodAssignments: setGoalPeriodAssignments } = useSavingsGoalAssignments();
-  const { rows, toBeAssignedCents } = useEnvelopes(period);
-  const goalRows = useSavingsGoalEnvelopes(period);
+  const { rows, toBeAssignedCents, assignedAheadCents } = useEnvelopes(month);
+  const goalRows = useSavingsGoalEnvelopes(month);
   // Onboarding's starting-balance flow reuses this same form but is not
-  // funded from this month's ordinary pool — see `useStartingBalances`.
+  // funded from this month's ordinary pool — see `useStartingBalances`. The
+  // month is part of what that override *means* (a period before the books
+  // open), so that is the one use with no stepper on it.
   const poolCents = poolCentsOverride ?? toBeAssignedCents;
+  const steppable = poolCentsOverride == null;
+
+  // What the pool figure needs said about it, in the order it needs saying. A
+  // month ahead is funded out of today's money, and the pool does not move when
+  // the month does — so the reader has to be told that is the point rather than
+  // a stuck figure. The second is the same money seen from an earlier month:
+  // already promised, still in the accounts, and worded as it is on the
+  // dashboard's pool tile and `ToBeAssignedBar`.
+  const notes = steppable
+    ? [
+        periodLTE(month, currentPeriod()) ? null : "Funding ahead, out of today's money",
+        assignedAheadCents > 0 ? `${formatCents(assignedAheadCents)} assigned ahead` : null,
+      ].filter(Boolean)
+    : [];
 
   // Configured categories, plus Uncategorized whenever it holds a balance or
   // saw activity. Keyed on the balance and not only on this month's activity:
@@ -76,8 +115,16 @@ export default function AssignIncomeModal({
     setRemainingCents(poolCents + storedCents - entered);
   }, [poolCents, storedCents]);
 
+  // The page's month is the month the form opens on. A separate effect from the
+  // re-seed below, so stepping the form's own month does not have to pretend the
+  // page moved.
+  useEffect(() => {
+    if (show) setMonth(period);
+  }, [show, period]);
+
   // The modal stays mounted, so re-seed every time it opens — and again if the
-  // period steps underneath it, since every figure on it is period-scoped.
+  // month moves underneath it, from the page's stepper or from its own, since
+  // every figure on it is period-scoped.
   useEffect(() => {
     if (!show) return;
     const form = formRef.current;
@@ -98,7 +145,7 @@ export default function AssignIncomeModal({
     // would re-seed the form out from under the user on every keystroke
     // elsewhere in the app.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, period]);
+  }, [show, month]);
 
   function setRowValue(budgetId, cents) {
     const input = formRef.current.elements[FIELD_PREFIX + budgetId];
@@ -169,12 +216,12 @@ export default function AssignIncomeModal({
     // Two stores, so this cannot be one atomic write — but every figure is
     // validated above before either call runs, which is what keeps a bad
     // figure from landing in one store after the other already committed.
-    const result = setPeriodAssignments({ period, entries });
+    const result = setPeriodAssignments({ period: month, entries });
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    const goalResult = setGoalPeriodAssignments({ period, entries: goalEntries });
+    const goalResult = setGoalPeriodAssignments({ period: month, entries: goalEntries });
     if (!goalResult.ok) {
       setError(goalResult.error);
       return;
@@ -190,7 +237,12 @@ export default function AssignIncomeModal({
       show={show}
       handleClose={handleClose}
       wide
-      title={title ?? `Assign income · ${formatPeriod(period)}`}
+      /* The month is stated once, by the control that sets it — the page
+         idiom, where a `PeriodStepper` in the header is the whole statement of
+         which month is on screen. Onboarding's flow has no stepper and passes
+         its own title. */
+      title={title ?? "Assign income"}
+      actions={steppable ? <PeriodStepper period={month} onChange={setMonth} /> : null}
     >
       <form ref={formRef} onSubmit={handleSubmit} onChange={recompute}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border border-edge bg-panel-raised px-4 py-3">
@@ -201,6 +253,14 @@ export default function AssignIncomeModal({
             <div role="status" className={`font-mono text-figure font-medium ${remainingTone}`}>
               {formatCents(remainingCents)}
             </div>
+            {/* Said under the figure they are about, in the label's own voice —
+                the same place and weight the tiles elsewhere put a note that
+                qualifies a figure above it. */}
+            {notes.length > 0 && (
+              <div className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+                {notes.join(" · ")}
+              </div>
+            )}
           </div>
           <Button variant="outline" size="sm" type="button" onClick={handleFillAll}>
             Fill all to estimate

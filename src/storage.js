@@ -82,6 +82,8 @@ export const STORE_KEYS = [
   "rewardsValuations",
   "rewardsTrips",
   "rewardsOffers",
+  "rewardsCards",
+  "rewardsEarnRates",
 ];
 
 /**

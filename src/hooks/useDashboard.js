@@ -141,6 +141,10 @@ export default function useDashboard(period) {
       // categories.
       plannedCents: budgets.reduce((sum, budget) => sum + (budget.plannedCents ?? 0), 0),
       availableToBudgetCents: envelopes.toBeAssignedCents,
+      // Out of the figure above and still in the accounts: a month funded ahead
+      // was funded out of today's money. Named on the tile so a pool smaller
+      // than the balances suggest is explained rather than mysterious.
+      assignedAheadCents: envelopes.assignedAheadCents,
       periodIncomeCents: envelopes.periodIncomeCents,
       periodBudgetedCents: envelopes.periodAssignedCents,
       // A magnitude, unlike the rows' signed `activityCents`: this one is

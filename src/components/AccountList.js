@@ -34,9 +34,9 @@ import { formatCents } from "../utils";
 function AccountRow({ account, balanceCents, striped, onEdit, onDelete, sortable }) {
   const item = useSortableItem(account.id, { disabled: !sortable });
   // One definition of trouble, as in the category table: an account that is
-  // *owned* and has gone under. A debt is negative by definition — red on each
-  // would say nothing about any of them — while a current account below zero is
-  // the thing worth seeing from across the room.
+  // *owned* and has gone under. Neither way a debt can read is trouble — owed is
+  // what a debt is for, and a card in credit is money waiting on it — while a
+  // current account below zero is the thing worth seeing from across the room.
   const overdrawn = account.type !== ACCOUNT_TYPES.LIABILITY && balanceCents < 0;
 
   return (

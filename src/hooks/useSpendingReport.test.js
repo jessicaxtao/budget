@@ -107,6 +107,32 @@ describe("the window", () => {
     expect(read("ytd").months).toHaveLength(8);
   });
 
+  test("one month is the end month alone, and nothing in it is amortised", () => {
+    seed({
+      budgets: [budget("b1", "Rent", null, 100000)],
+      transactions: [
+        out("2026-07-04", 100000, "b1"), // the month before the window
+        out("2026-08-09", 30000, "b1"),
+        inn("2026-08-01", 500000),
+      ],
+    });
+
+    const report = read("1m");
+
+    expect(report.months).toEqual([END]);
+    // Named for what it is rather than for how far back it reaches: a preset's
+    // end month is always the current one, which is what makes this honest.
+    expect(report.range.name).toBe("this month");
+    expect(report.netSpentCents).toBe(30000);
+    expect(report.totalIncomeCents).toBe(500000);
+    // A month over one month is that month. The figures are identical by
+    // definition, which is why the page prints each of them once.
+    expect(report.averagedOverMonths).toBe(1);
+    expect(report.averageSpendCents).toBe(30000);
+    expect(report.rows[0].averageCents).toBe(30000);
+    expect(report.plannedWindowCents).toBe(100000);
+  });
+
   test("all time starts at the first record on the books, not at the first category", () => {
     seed({
       budgets: [budget("b1", "Rent")],

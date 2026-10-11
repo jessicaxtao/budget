@@ -35,8 +35,11 @@ import { amountEditing, formatBps, todayISO } from "../utils";
  * again: hand-entered snapshots for off-budget holdings whose worth no ledger
  * can know.
  *
- * A debt is asked for the amount **owed**, as a positive number, because that
- * is how a statement reads. The store signs it — see `signedOpeningCents`.
+ * A debt is asked for the amount **owed**, because that is how a statement
+ * reads. The store signs it — see `signedOpeningCents`. **A negative is a real
+ * answer here**, and the one the card section needs: a prepaid card loaded with
+ * money, or a credit card paid past zero, owes nothing and holds something, so
+ * it starts at a negative amount owed exactly as its statement prints it.
  *
  * **The asset class is not asked.** Cash, stocks, bonds and the rest were a
  * question most households could not usefully answer for an account that holds
@@ -252,7 +255,7 @@ export default function AddAccountModal({
             watch. */}
         <p className="-mt-3 mb-5 font-sans text-row text-chalk-soft">
           {owed
-            ? "What you owe on this account. Debt you spend through reduces what there is to assign."
+            ? "What you owe on this account. Debt you spend through reduces what there is to assign. A credit — a prepaid balance, or a card paid past zero — is a negative figure, the way a statement prints it."
             : "What this account holds. On budget, it lands in “to be assigned” and can be pushed into categories."}
         </p>
         <Field

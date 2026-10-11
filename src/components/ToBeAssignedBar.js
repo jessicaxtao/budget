@@ -7,9 +7,13 @@ import Elder, { ELDER_MOODS } from "./Elder";
  *
  *   toBeAssigned = opening balances + all income received − everything assigned
  *                  − what is held back for the emergency fund
+ *                  − what is already assigned to a later month
  *
  * Both sides run cumulatively, so last month's leftover is still here to assign
- * and does not quietly expire at the month boundary.
+ * and does not quietly expire at the month boundary. "Everything assigned"
+ * really is everything: a month funded ahead was funded out of this money, so
+ * it leaves the pool the day it is assigned rather than the day it arrives —
+ * otherwise the same dollar would be offered twice.
  *
  * A strip rather than a card, because it no longer sits in a grid of them: the
  * register below is the page, and this is the one figure that has to be true
@@ -27,6 +31,7 @@ export default function ToBeAssignedBar({
   periodIncomeCents,
   periodAssignedCents,
   reservedCents = 0,
+  assignedAheadCents = 0,
   onAssignClick,
 }) {
   // Sulfur is the caution slot, and money sitting unassigned is exactly that —
@@ -75,8 +80,12 @@ export default function ToBeAssignedBar({
             ["Received this month", periodIncomeCents],
             ["Assigned this month", periodAssignedCents],
             // Said where the pool is, so a figure smaller than the accounts
-            // suggest is explained rather than mysterious.
+            // suggest is explained rather than mysterious. Both of these are
+            // money that is still there and no longer free.
             ...(reservedCents > 0 ? [["Held for emergency fund", reservedCents]] : []),
+            // "Assigned ahead" is the one wording for this figure, shared with
+            // the dashboard's pool tile and `AssignIncomeModal`.
+            ...(assignedAheadCents > 0 ? [["Assigned ahead", assignedAheadCents]] : []),
           ].map(([label, cents]) => (
             <div key={label} className="flex items-baseline gap-2">
               <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>

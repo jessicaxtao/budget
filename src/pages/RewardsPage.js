@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
+import AddEarnRateModal from "../components/AddEarnRateModal";
 import AddRewardBalanceModal from "../components/AddRewardBalanceModal";
 import AddOfferModal from "../components/AddOfferModal";
 import AddTripModal from "../components/AddTripModal";
 import Button from "../components/Button";
 import CardOfferList from "../components/CardOfferList";
+import CardValueList, { rateText } from "../components/CardValueList";
 import PageHeader from "../components/PageHeader";
 import { useRewards } from "../contexts/RewardsContext";
 import useCardOffers from "../hooks/useCardOffers";
+import useCardValue from "../hooks/useCardValue";
 import {
   CATALOG,
   PROGRAM_KIND_LABELS,
@@ -19,7 +22,7 @@ import {
   toPoints,
   valueOfPointsCents,
 } from "../rewards";
-import { formatCents, formatDateMedium, todayISO } from "../utils";
+import { formatBps, formatCents, formatDateMedium, todayISO } from "../utils";
 
 /**
  * Credit card rewards and the trips they are for.
@@ -36,12 +39,20 @@ import { formatCents, formatDateMedium, todayISO } from "../utils";
  * no envelope reads it, and net worth does not count it. The `RetirementContext`
  * split: a store of guesses, read by one page.
  *
- * **Card offers lead the page, ahead of the points**, because they are the one
- * part of it that changes what the household does this week — which card to
- * reach for at dinner. An offer is the only thing here that reads the books
- * (through `useCardOffers`), and it only reads them: the dining out it counts
- * is the dining out already on the register, so nothing has to be typed twice
- * into an issuer's tracker that does not exist.
+ * **What the cards do leads the page, ahead of what the points are worth**,
+ * because that is the part of it that changes what the household does this
+ * week — which card to reach for at dinner, which credit is about to expire,
+ * which fee is not earning itself back. Those three panels are the only things
+ * here that read the books (through `useCardOffers` and `useCardValue`), and
+ * they only read them: the dining out they count is the dining out already on
+ * the register, so nothing has to be typed twice into an issuer's tracker that
+ * does not exist.
+ *
+ * **A household holds cashback cards and points cards at once**, so the two are
+ * put in one unit — what a card gives back per dollar — and that unit depends
+ * on the valuations at the foot of the page. Which is the other reason
+ * valuation leads the arithmetic: it decides which card to pay with, not just
+ * what a balance is worth.
  *
  * Editing follows the panels elsewhere: the points on a balance and the value
  * of a program commit on **blur**, are keyed on the stored figure so a refused
@@ -72,9 +83,9 @@ function Panel({ id, title, note, actions, children }) {
   );
 }
 
-function Tile({ label, cents, note }) {
+function Tile({ label, cents, note, span = "" }) {
   return (
-    <div className="bg-panel px-4 py-3">
+    <div className={`bg-panel px-4 py-3 ${span}`}>
       <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
       <dd className="mt-1 font-mono text-figure font-medium text-chalk">{formatCents(cents)}</dd>
       {note && <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>}
@@ -283,6 +294,74 @@ function ValuationsTable({ valuations, heldPoints, onValue }) {
   );
 }
 
+/**
+ * Which card to reach for, one row per kind of spending any card claims.
+ *
+ * **The comparison is the reason the page values a point at all.** A card
+ * paying 2% and a card paying 3× are the same kind of promise only once the
+ * points have a price on them, and the figure in the "Earns" column is that
+ * arithmetic done: the share of the purchase the card gives back. The
+ * runner-up is there because the best card is not always to hand, and because
+ * seeing 5.1% against 1.5% is what makes the first one worth the trouble.
+ */
+function ChoicesTable({ choices }) {
+  return (
+    <div className="relative scroll-x">
+      <table className="stack w-full border-collapse">
+        <thead>
+          <tr className="bg-panel-raised">
+            <th scope="col" className={`${headCell} text-left`}>
+              Spending
+            </th>
+            <th scope="col" className={`${headCell} text-left`}>
+              Reach for
+            </th>
+            <th scope="col" className={`${headCell} text-right`}>
+              Earns
+            </th>
+            <th scope="col" className={`${headCell} text-left`}>
+              Next best
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {choices.map((choice, index) => {
+            const [best, runnerUp] = choice.ranked;
+            return (
+              <tr key={choice.key} className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
+                <th scope="row" className="px-3 py-2 text-left font-sans text-row font-normal text-ink">
+                  <div>{choice.label}</div>
+                  {choice.kind === "payee" && (
+                    <div className="font-mono text-label uppercase text-ink-soft">Payee</div>
+                  )}
+                </th>
+                <td data-label="Reach for" className="px-3 py-2 font-sans text-row text-ink">
+                  <div className="font-medium">{best.cardName}</div>
+                  <div className="font-mono text-label uppercase text-ink-soft">
+                    {rateText({ rate: best.rate, program: best.program })}
+                  </div>
+                </td>
+                <td
+                  data-label="Earns"
+                  className={`${numberCell} font-medium text-ink`}
+                  title="What the card gives back, as a share of what you spend"
+                >
+                  {formatBps(best.bps)}
+                </td>
+                <td data-label="Next best" className="px-3 py-2 font-sans text-row text-ink-soft">
+                  {runnerUp
+                    ? `${runnerUp.cardName} — ${formatBps(runnerUp.bps)}`
+                    : "No other card claims this"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** How a planned trip would be paid for, in a sentence. */
 function fundingSentence(plan) {
   const parts = [];
@@ -412,15 +491,20 @@ export default function RewardsPage() {
     setValuation,
     deleteTrip,
     deleteOffer,
+    saveCard,
+    deleteEarnRate,
   } = useRewards();
   const today = todayISO();
   const offerRows = useCardOffers(today);
+  const cardValue = useCardValue(today);
 
   const [balanceModal, setBalanceModal] = useState({ show: false, balance: null });
   const [tripModal, setTripModal] = useState({ show: false, trip: null });
   const [offerModal, setOfferModal] = useState({ show: false, offer: null, seed: null });
+  const [rateModal, setRateModal] = useState({ show: false, rate: null, accountId: null });
   const [balanceError, setBalanceError] = useState(null);
   const [valueError, setValueError] = useState(null);
+  const [cardError, setCardError] = useState(null);
 
   const summary = useMemo(
     () => summariseRewards({ balances, valuations, trips }),
@@ -442,6 +526,25 @@ export default function RewardsPage() {
     setValueError(result.ok ? null : `${program.name}: ${result.error}`);
   }
 
+  /**
+   * The fee and the renewal date are one record, so each field states the
+   * other's stored value as it commits — a figure typed in one box must not
+   * blank the box beside it.
+   */
+  function handleFee(row, typed) {
+    const result = saveCard({ accountId: row.accountId, fee: typed, renewsOn: row.renewsOn });
+    setCardError(result.ok ? null : `${row.cardName}: ${result.error}`);
+  }
+
+  function handleRenews(row, typed) {
+    const result = saveCard({
+      accountId: row.accountId,
+      fee: row.annualFeeCents,
+      renewsOn: typed || null,
+    });
+    setCardError(result.ok ? null : `${row.cardName}: ${result.error}`);
+  }
+
   const coveredCount = summary.trips.filter((plan) => plan.covered).length;
   const liveOffers = offerRows.filter((row) => row.status === OFFER_STATUS.ACTIVE).length;
 
@@ -455,7 +558,7 @@ export default function RewardsPage() {
       <PageHeader
         eyebrow="Rewards & travel"
         title="Points and miles"
-        description="Card offers you are working through, what your card points, airline miles and hotel points are worth, and the trips you are saving them for. Every program starts on a catalog value — type your own wherever you value a point differently, and every figure on the page follows it. None of this counts towards your budget or net worth."
+        description="Which card to reach for, what each one earns against what it costs a year, the offers and credits you are working through, and what your points and miles are worth on the trips you are saving them for. Cash back and points are compared on one figure, at your own valuation — every program starts on a catalog value, and every total follows yours wherever you type one. None of this counts towards your budget or net worth."
         actions={
           <>
             <Button variant="primary" onClick={() => setBalanceModal({ show: true, balance: null })}>
@@ -476,9 +579,12 @@ export default function RewardsPage() {
 
       <div className="space-y-6">
         <section aria-label="What your points are worth" className="overflow-hidden border border-edge">
-          <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-4">
+          {/* The total takes two columns so the four kinds divide the rest
+              evenly — a fifth kind arriving must not leave a ragged row. */}
+          <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-6">
             <Tile
               label="All points and miles"
+              span="sm:col-span-2"
               cents={summary.totalValueCents}
               note={`${formatPoints(summary.totalPoints)} across ${summary.programs.length} ${
                 summary.programs.length === 1 ? "program" : "programs"
@@ -516,6 +622,79 @@ export default function RewardsPage() {
               </p>
             </>
           )}
+        </Panel>
+
+        {cardValue.choices.length > 0 && (
+          <Panel
+            id="rewards-choices"
+            title="Which card to reach for"
+            note="What it gives back per dollar"
+          >
+            <ChoicesTable choices={cardValue.choices} />
+            <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
+              Cash back counts at face value and points at your own figure for the program, so the
+              two are comparable — change a valuation below and this column follows it. A bonus
+              with a limit or a deadline is an offer above; this is what each card pays as a matter
+              of course.
+            </p>
+          </Panel>
+        )}
+
+        <Panel
+          id="rewards-cards"
+          title="Cards, fees and credits"
+          note={cardValue.rows.length > 0 ? `${cardValue.rows.length} cards` : null}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRateModal({ show: true, rate: null, accountId: null })}
+            >
+              Add rates
+            </Button>
+          }
+        >
+          {cardValue.rows.length === 0 ? (
+            <p className="px-4 py-5 font-sans text-row text-chalk-soft">
+              No cards yet. Add your credit cards on the Plan page and they appear here — then say
+              what each one earns and what it costs a year, and the spending already on your
+              register says whether the fee is earning itself back.
+            </p>
+          ) : (
+            <>
+              <CardValueList
+                rows={cardValue.rows}
+                onFee={handleFee}
+                onRenews={handleRenews}
+                onAddRate={(row) => setRateModal({ show: true, rate: null, accountId: row.accountId })}
+                onEditRate={(rate) => setRateModal({ show: true, rate, accountId: null })}
+                onDeleteRate={(rate) => deleteEarnRate({ id: rate.id })}
+              />
+              <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk">
+                {`Across ${cardValue.rows.length} ${cardValue.rows.length === 1 ? "card" : "cards"}: `}
+                {`${formatCents(cardValue.totals.annualFeeCents)} of fees, `}
+                {`${formatCents(cardValue.totals.creditsUsedCents)} of credits used and `}
+                {`${formatCents(cardValue.totals.earnedValueCents)} of rewards earned — `}
+                <span
+                  className={
+                    cardValue.totals.netCents >= 0 ? "font-medium text-verdant" : "font-medium text-vermilion-ink"
+                  }
+                >
+                  {`${formatCents(Math.abs(cardValue.totals.netCents))} ${
+                    cardValue.totals.netCents >= 0 ? "ahead" : "behind"
+                  }`}
+                </span>
+                .
+              </p>
+              <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
+                Counted over each card's own fee year from your register, at the rates you entered,
+                with points valued at your own figure. Your card decides what qualifies by the kind
+                of shop, so treat these as close, not exact — and a credit you have not spent is
+                money the fee already paid for.
+              </p>
+            </>
+          )}
+          <ErrorLine message={cardError} />
         </Panel>
 
         <Panel id="rewards-balances" title="Balances">
@@ -590,6 +769,12 @@ export default function RewardsPage() {
         offer={offerModal.offer}
         seed={offerModal.seed}
         handleClose={() => setOfferModal({ show: false, offer: null, seed: null })}
+      />
+      <AddEarnRateModal
+        show={rateModal.show}
+        rate={rateModal.rate}
+        accountId={rateModal.accountId}
+        handleClose={() => setRateModal({ show: false, rate: null, accountId: null })}
       />
       <AddTripModal
         show={tripModal.show}

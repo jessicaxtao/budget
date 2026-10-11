@@ -37,9 +37,11 @@ function windowText(offer) {
  * The one sentence an offer is read for, and the bar's colour beside it.
  *
  * A capped bonus is good news while there is room and says when to stop; a
- * target is good news once it is met and says what it takes to get there. The
- * two are worded apart because the same figure — $400 left — means "keep
- * using this card" in one and "keep going" in the other.
+ * target is good news once it is met and says what it takes to get there; a
+ * credit is a target the household has **already paid for**, so what is left of
+ * it is a warning. The three are worded apart because the same figure — $400
+ * left — means "keep using this card" under a cap, "keep going" under a target
+ * and "you are about to lose this" under a credit.
  */
 export function describeOffer(row) {
   const { offer, status, remainingCents, qualifyingCents } = row;
@@ -48,6 +50,20 @@ export function describeOffer(row) {
 
   if (status === OFFER_STATUS.UPCOMING) {
     return { headline: `Opens ${formatDateMedium(offer.startDate)}`, tone: "bg-edge" };
+  }
+  // A credit reads the opposite way round from the cap it is arithmetically:
+  // what is left is not an opportunity but money already paid for, and running
+  // out of it is the good outcome.
+  if (offer.kind === OFFER_KINDS.CREDIT) {
+    if (row.reached) return { headline: "Credit used in full", tone: "bg-verdant" };
+    if (status === OFFER_STATUS.ENDED) {
+      return { headline: `${formatCents(remainingCents)} expired unused`, tone: "bg-vermilion" };
+    }
+    const pace = row.perWeekCents != null ? `, about ${formatCents(row.perWeekCents)} a week` : "";
+    return {
+      headline: `${formatCents(remainingCents)} still to use${deadline}${pace}`,
+      tone: qualifyingCents > 0 ? "bg-azure" : "bg-sulfur",
+    };
   }
   if (cap) {
     if (row.reached) {
@@ -82,6 +98,9 @@ export function describeOffer(row) {
 
 function rewardText(row) {
   const { offer } = row;
+  if (offer.kind === OFFER_KINDS.CREDIT) {
+    return `${formatCents(row.earnedCents ?? 0)} back so far — counts against the card's annual fee`;
+  }
   if (offer.kind === OFFER_KINDS.CAP) {
     if (row.earnedCents == null) return null;
     return `${formatCents(row.earnedCents)} earned at ${formatBps(offer.rateBps)}`;
@@ -115,6 +134,15 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete }) {
         const ended = row.status === OFFER_STATUS.ENDED;
         const showElsewhere =
           row.elsewhereCents > 0 && row.status !== OFFER_STATUS.UPCOMING;
+        // **A credit's figure stops at the credit.** Spending past a cap is
+        // worth saying — it earned the card's ordinary rate instead of the
+        // bonus — but spending past a credit is just shopping, and "$1,340 of
+        // $300" reads as a meter that has gone wrong rather than as a credit
+        // long since used up.
+        const counted =
+          offer.kind === OFFER_KINDS.CREDIT
+            ? Math.min(row.qualifyingCents, offer.limitCents)
+            : row.qualifyingCents;
         return (
           <li key={offer.id} className={`bg-sheet px-4 py-3 ${ended ? "opacity-80" : ""}`}>
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -157,15 +185,15 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete }) {
             <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4">
               <p className="font-sans text-row font-medium text-ink">{headline}</p>
               <p className="font-mono text-row tabular-nums text-ink">
-                {formatCents(row.qualifyingCents)}
+                {formatCents(counted)}
                 <span className="text-ink-soft"> of {formatCents(offer.limitCents)}</span>
               </p>
             </div>
             <div className="mt-1.5">
               <OfferMeter
-                ratio={row.qualifyingCents / offer.limitCents}
+                ratio={counted / offer.limitCents}
                 tone={tone}
-                label={`${offer.name}: ${formatCents(row.qualifyingCents)} of ${formatCents(offer.limitCents)}`}
+                label={`${offer.name}: ${formatCents(counted)} of ${formatCents(offer.limitCents)}`}
               />
             </div>
 
@@ -193,7 +221,14 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete }) {
                   <dt className="font-mono text-label uppercase">Elsewhere</dt>
                   <dd className="text-vermilion-ink">
                     {formatCents(row.elsewhereCents)} of matching spending went on another account
-                    while this offer {offer.kind === OFFER_KINDS.CAP ? "had room" : "was still to meet"}
+                    while this offer{" "}
+                    {
+                      {
+                        [OFFER_KINDS.CAP]: "had room",
+                        [OFFER_KINDS.TARGET]: "was still to meet",
+                        [OFFER_KINDS.CREDIT]: "was still to use",
+                      }[offer.kind]
+                    }
                   </dd>
                 </>
               )}

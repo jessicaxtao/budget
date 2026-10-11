@@ -78,6 +78,7 @@ function Tile({ label, figure, tone = "text-chalk", note, mood }) {
 export default function DashboardSummary({
   period,
   availableToBudgetCents,
+  assignedAheadCents = 0,
   periodIncomeCents,
   budgetedCents,
   plannedCents = 0,
@@ -106,7 +107,25 @@ export default function DashboardSummary({
           label="Available to budget"
           figure={formatCents(availableToBudgetCents)}
           tone={tone.text}
-          note={tone.label}
+          /* The tone word first, then what is missing from the figure. Money
+             given to a month ahead is still in the accounts and no longer
+             free, and a pool that shrank without a transaction to explain it
+             has to say why where it is stated. "Assigned ahead" is the one
+             wording, shared with `ToBeAssignedBar` and `AssignIncomeModal`;
+             `whitespace-nowrap` so the break falls between the two clauses
+             rather than between the figure and what it is. */
+          note={
+            assignedAheadCents > 0 ? (
+              <>
+                {tone.label} ·{" "}
+                <span className="whitespace-nowrap">
+                  {formatCents(assignedAheadCents)} assigned ahead
+                </span>
+              </>
+            ) : (
+              tone.label
+            )
+          }
           mood={tone.mood}
         />
         <Tile

@@ -1626,6 +1626,52 @@ describe("accounts hold the money the ledger moves", () => {
     expect(result.current.env.rows.find((row) => row.budgetId === "b1").activityCents).toBe(-5000);
   });
 
+  test("a card can start in credit — a prepaid balance, or one paid past zero", () => {
+    const { result } = renderHook(useBooks, { wrapper });
+
+    act(() => {
+      result.current.accounts.addAccount({
+        name: "Travel card",
+        type: "liability",
+        scope: "credit-card",
+        // What a statement prints for a card that owes nothing and holds $500:
+        // a negative balance owed. Entered that way, held as what it is.
+        opening: "-500",
+      });
+    });
+
+    expect(result.current.accounts.accounts[0].openingBalanceCents).toBe(50000);
+    // Money on a card the budget spends through is money to assign, exactly as
+    // it would be in a current account — and the household is owed, not owing.
+    expect(result.current.env.toBeAssignedCents).toBe(50000);
+    expect(result.current.balances.onBudgetCents).toBe(50000);
+    expect(result.current.balances.owedCents).toBe(-50000);
+  });
+
+  test("a card in credit survives a reload rather than flipping to a debt", () => {
+    // The sign of a liability's balance is a negation of what was typed, which
+    // is not idempotent: a migration that re-signed the stored figure would
+    // read this card as owing $500 on the next load, and as holding it again on
+    // the one after.
+    seedAccounts([
+      {
+        id: "card1",
+        name: "Travel card",
+        type: "liability",
+        scope: "credit-card",
+        assetClass: "Other",
+        openingBalanceCents: 50000,
+        openingDate: null,
+        reconciledOn: null,
+      },
+    ]);
+
+    const { result } = renderHook(useBooks, { wrapper });
+
+    expect(result.current.accounts.accounts[0].openingBalanceCents).toBe(50000);
+    expect(stored("accounts")[0].openingBalanceCents).toBe(50000);
+  });
+
   test("a credit card filed as an asset is refused rather than stored", () => {
     const { result } = renderHook(useBooks, { wrapper });
 
@@ -1902,6 +1948,157 @@ describe("assignments", () => {
   });
 });
 
+/**
+ * Funding a month that has not arrived, which is the whole of what YNAB and
+ * Actual call budgeting ahead.
+ *
+ * The store has always taken any valid period, so what is under test here is
+ * the half the store cannot see: that a month funded ahead leaves the pool the
+ * day it is funded rather than the day it arrives, and that the identity holds
+ * either side of it. Without that, one dollar funds two months and nothing on
+ * screen says so until the second one comes round.
+ */
+describe("funding a month ahead", () => {
+  const NOW = currentPeriod();
+  const NEXT = addMonths(NOW, 1);
+  const AFTER = addMonths(NOW, 2);
+
+  function setUp() {
+    seedAccounts();
+    localStorage.setItem("budgets", JSON.stringify([{ id: "b1", name: "Rent" }]));
+    localStorage.setItem("assignments", JSON.stringify([]));
+    return renderHook(
+      () => ({
+        ledger: useTransactions(),
+        assignments: useAssignments(),
+        goals: useSavingsGoals(),
+        goalAssignments: useSavingsGoalAssignments(),
+        now: useEnvelopes(NOW),
+        next: useEnvelopes(NEXT),
+        after: useEnvelopes(AFTER),
+      }),
+      { wrapper }
+    );
+  }
+
+  /** $1,000 of pay, dated today, with nothing assigned out of it yet. */
+  function paid(result) {
+    act(() => {
+      result.current.ledger.addTransaction(
+        earn({ description: "Pay", amount: "1000", date: todayISO() })
+      );
+    });
+  }
+
+  function fund(result, period, amountCents) {
+    act(() => {
+      result.current.assignments.setAssignedAmount({ budgetId: "b1", period, amountCents });
+    });
+  }
+
+  test("next month's envelope is funded and today's pool pays for it", () => {
+    const { result } = setUp();
+    paid(result);
+    expect(result.current.now.toBeAssignedCents).toBe(100000);
+
+    fund(result, NEXT, 40000);
+
+    // The money is in next month's envelope, waiting for the month.
+    expect(envelopeFor(result.current.next, "b1").availableCents).toBe(40000);
+    expect(envelopeFor(result.current.next, "b1").assignedCents).toBe(40000);
+    // And it is gone from today's pool, because it is today's money that paid
+    // for it. Offering it again is the one failure this feature could have.
+    expect(result.current.now.toBeAssignedCents).toBe(60000);
+    expect(result.current.now.assignedAheadCents).toBe(40000);
+    expectAllBalancedAhead(result.current);
+  });
+
+  test("it is in none of the month-on-screen figures, only out of the pool", () => {
+    const { result } = setUp();
+    paid(result);
+    fund(result, NEXT, 40000);
+
+    // A future assignment is not this month's budgeting, and it has not given
+    // this month's envelope anything either — so no row is seeded for it.
+    expect(result.current.now.periodAssignedCents).toBe(0);
+    expect(envelopeFor(result.current.now, "b1").availableCents).toBe(0);
+    expect(envelopeFor(result.current.now, "b1").carriedInCents).toBe(0);
+  });
+
+  test("the month it was funded for sees it as its own, and the one after carries it in", () => {
+    const { result } = setUp();
+    paid(result);
+    fund(result, NEXT, 40000);
+
+    // Nothing is "ahead" of the month it was filed under…
+    expect(result.current.next.assignedAheadCents).toBe(0);
+    expect(result.current.next.toBeAssignedCents).toBe(60000);
+    // …and by the month after, it is an ordinary carried-in balance.
+    expect(envelopeFor(result.current.after, "b1").carriedInCents).toBe(40000);
+    expect(envelopeFor(result.current.after, "b1").assignedCents).toBe(0);
+    expectAllBalancedAhead(result.current);
+  });
+
+  test("a savings goal funded ahead draws on the same pool", () => {
+    const { result } = setUp();
+    paid(result);
+
+    let goalId;
+    act(() => {
+      goalId = result.current.goals.addSavingsGoal({ name: "Wedding", target: "5000" }).id;
+    });
+    act(() => {
+      result.current.goalAssignments.setAssignedAmount({
+        goalId,
+        period: NEXT,
+        amountCents: 25000,
+      });
+    });
+
+    // One pool for both, here as everywhere: a dollar promised to next month's
+    // wedding fund cannot also be assigned to this month's groceries.
+    expect(result.current.now.assignedAheadCents).toBe(25000);
+    expect(result.current.now.toBeAssignedCents).toBe(75000);
+    // And no goal row is invented for a month the assignment has not reached.
+    expect(result.current.now.goalRows).toEqual([]);
+    expectAllBalancedAhead(result.current);
+  });
+
+  test("funding past what there is shows as over-assigned rather than being refused", () => {
+    const { result } = setUp();
+    paid(result);
+    fund(result, NEXT, 150000);
+
+    // The app's one way of saying so, and the same one it uses for this month:
+    // the figure goes negative. Refusing the write would leave a household
+    // unable to plan a month it knows a bonus is landing in.
+    expect(result.current.now.toBeAssignedCents).toBe(-50000);
+    expectAllBalancedAhead(result.current);
+  });
+
+  test("a later month pulling money back does not read as money free today", () => {
+    const { result } = setUp();
+    paid(result);
+    fund(result, NOW, 100000);
+    // Over-funded this month, taken back next: a real thing to do, and the
+    // $500 it frees is in the envelope today, not in the pool.
+    fund(result, NEXT, -50000);
+
+    expect(envelopeFor(result.current.now, "b1").availableCents).toBe(100000);
+    expect(result.current.now.assignedAheadCents).toBe(0);
+    expect(result.current.now.toBeAssignedCents).toBe(0);
+    // Next month it really is free, where the withdrawal lands.
+    expect(result.current.next.toBeAssignedCents).toBe(50000);
+    expectAllBalancedAhead(result.current);
+  });
+
+  function expectAllBalancedAhead(current) {
+    expectBalanced(current.now);
+    expectBalanced(current.next);
+    expectBalanced(current.after);
+  }
+});
+
 describe("moving money between two categories", () => {
   function funded() {
     const { result } = renderHook(() => useAssignments(), { wrapper });
@@ -2167,10 +2364,16 @@ function expectBalanced(env) {
   // so it has to land back on this side of the identity the same way — see
   // the comment on goalRows in useEnvelopes.
   const goalAvailable = env.goalRows.reduce((sum, row) => sum + row.availableCents, 0);
-  // Money held back for the emergency fund is still there, just not free.
-  expect(env.toBeAssignedCents + env.emergencyReservedCents + available + goalAvailable).toBe(
-    env.openingCents + env.cumIncomeCents - env.cumSpentCents
-  );
+  // Money held back for the emergency fund is still there, just not free — and
+  // so is money already given a job in a month this period has not reached.
+  // Drop the second term and funding next month reads as money vanishing.
+  expect(
+    env.toBeAssignedCents +
+      env.emergencyReservedCents +
+      env.assignedAheadCents +
+      available +
+      goalAvailable
+  ).toBe(env.openingCents + env.cumIncomeCents - env.cumSpentCents);
 }
 
 function envelopeFor(env, budgetId) {

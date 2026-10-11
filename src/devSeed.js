@@ -1073,6 +1073,52 @@ const rewardsTrips = [
   },
 ];
 
+// A card that costs money, so the page has a fee to weigh its credits against.
+// The renewal is two months off, which is what makes the fee year run from ten
+// months ago rather than from January — the figures below are read over it.
+const rewardsCards = [{ accountId: ACC.card, annualFeeCents: 39500, renewsOn: dateIn(-2, 14) }];
+
+// **A points card and a cashback card at once**, which is how a household
+// actually pays for things: the rewards card earns transferable points, the
+// debit card on checking earns plain cash back, and at this household's 1.90¢
+// valuation the two land a tenth of a percent apart on groceries — which is
+// exactly the comparison the page exists to make.
+const rewardsEarnRates = [
+  {
+    id: "demo-rate-1",
+    accountId: ACC.card,
+    mode: "points",
+    programId: "chase-ur",
+    rateBps: null,
+    pointsPer100Dollars: 300,
+    allSpending: false,
+    budgetIds: [B.dining, B.travel],
+    payeeIds: [],
+  },
+  {
+    id: "demo-rate-2",
+    accountId: ACC.card,
+    mode: "points",
+    programId: "chase-ur",
+    rateBps: null,
+    pointsPer100Dollars: 100,
+    allSpending: true,
+    budgetIds: [],
+    payeeIds: [],
+  },
+  {
+    id: "demo-rate-3",
+    accountId: ACC.checking,
+    mode: "cashback",
+    programId: null,
+    rateBps: 200,
+    pointsPer100Dollars: null,
+    allSpending: false,
+    budgetIds: [B.groceries],
+    payeeIds: [],
+  },
+];
+
 // Two shapes of card offer against the same card: a limited-time dining bonus
 // the card's own spending is filling, and a rotating 5% quarter on groceries —
 // which the household shops for on checking, so the page has a missed bonus to
@@ -1108,6 +1154,39 @@ const rewardsOffers = [
     bonusPoints: null,
     programId: null,
   },
+  // The fee's other side, in the two states a credit is read for: a travel
+  // credit nobody has got round to since it reset — this year's flights were
+  // before it — and a monthly one the commute used up without trying.
+  {
+    id: "demo-offer-3",
+    name: "$300 travel credit",
+    kind: "credit",
+    accountId: ACC.card,
+    startDate: dateIn(3, 1),
+    endDate: `${THIS_YEAR}-12-31`,
+    limitCents: 30000,
+    allSpending: false,
+    budgetIds: [B.travel],
+    payeeIds: [],
+    rateBps: null,
+    bonusPoints: null,
+    programId: null,
+  },
+  {
+    id: "demo-offer-4",
+    name: "$15 a month on rides",
+    kind: "credit",
+    accountId: ACC.card,
+    startDate: dateIn(0, 1),
+    endDate: dateIn(0, 31),
+    limitCents: 1500,
+    allSpending: false,
+    budgetIds: [B.transport],
+    payeeIds: [],
+    rateBps: null,
+    bonusPoints: null,
+    programId: null,
+  },
 ];
 
 /** The whole household, as the `{ key: value }` snapshot storage speaks in. */
@@ -1140,6 +1219,8 @@ export function demoBooks() {
     rewardsValuations,
     rewardsTrips,
     rewardsOffers,
+    rewardsCards,
+    rewardsEarnRates,
   };
 }
 

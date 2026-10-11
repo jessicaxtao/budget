@@ -1,7 +1,16 @@
 import {
   CATALOG,
+  EARN_MODES,
   OFFER_KINDS,
   OFFER_STATUS,
+  bestRateFor,
+  cardEarnings,
+  earnBps,
+  feeYearWindow,
+  formatMultiplier,
+  offerOverlaps,
+  rankCardsFor,
+  toPointsPer100Dollars,
   nextOfferWindow,
   offerProgress,
   achievedValuePer100Cents,
@@ -145,7 +154,7 @@ describe("redemptions", () => {
       ["hilton", 100000, 50000],
     ]);
     expect(summary.totalValueCents).toBe(155000);
-    expect(summary.valueByKind).toEqual({ bank: 0, airline: 105000, hotel: 50000 });
+    expect(summary.valueByKind).toEqual({ bank: 0, airline: 105000, hotel: 50000, rail: 0 });
   });
 });
 
@@ -299,5 +308,286 @@ describe("card offers", () => {
       endDate: "2026-11-13",
     });
     expect(nextOfferWindow({ startDate: "2026-09-15", endDate: null })).toBeNull();
+  });
+});
+
+describe("credits to use up", () => {
+  const CARD = "card";
+  const travel = {
+    id: "c1",
+    name: "$300 travel credit",
+    kind: OFFER_KINDS.CREDIT,
+    accountId: CARD,
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    limitCents: 30000,
+    allSpending: false,
+    budgetIds: ["travel"],
+    payeeIds: [],
+    rateBps: null,
+    bonusPoints: null,
+    programId: null,
+  };
+  const spend = (id, date, amountCents, budgetId, accountId = CARD) => ({
+    id,
+    kind: "outflow",
+    date,
+    amountCents,
+    budgetId,
+    accountId,
+    payeeId: null,
+    splits: null,
+  });
+
+  test("a credit pays back what it covers, and says what is left to use", () => {
+    const progress = offerProgress(travel, [spend("a", "2026-03-04", 11000, "travel")], "2026-10-08");
+    expect(progress.status).toBe(OFFER_STATUS.ACTIVE);
+    expect(progress.qualifyingCents).toBe(11000);
+    // 100% back, which nothing on the record had to state.
+    expect(progress.earnedCents).toBe(11000);
+    expect(progress.remainingCents).toBe(19000);
+    // Paced like a target, since both are spending that has to happen by a date.
+    expect(progress.perWeekCents).toBe(Math.ceil((19000 * 7) / (progress.daysLeft + 1)));
+  });
+
+  test("spending past a credit is ordinary spending, and a used credit is done", () => {
+    const progress = offerProgress(travel, [spend("a", "2026-03-04", 50000, "travel")], "2026-10-08");
+    expect(progress.status).toBe(OFFER_STATUS.DONE);
+    expect(progress.earnedCents).toBe(30000);
+    expect(progress.remainingCents).toBe(0);
+    // Past a cap is spending at a worse rate; past a credit it is just a purchase.
+    expect(progress.overCents).toBe(0);
+    expect(progress.perWeekCents).toBeNull();
+  });
+
+  test("a credit that ended unused keeps the figure that was thrown away", () => {
+    const progress = offerProgress(travel, [spend("a", "2026-02-04", 5000, "travel")], "2027-02-01");
+    expect(progress.status).toBe(OFFER_STATUS.ENDED);
+    expect(progress.remainingCents).toBe(25000);
+    expect(progress.earnedCents).toBe(5000);
+  });
+
+  test("a credit's window either overlaps a fee year or it does not", () => {
+    expect(offerOverlaps(travel, { from: "2026-06-01", through: "2026-10-08" })).toBe(true);
+    expect(offerOverlaps(travel, { from: "2027-01-01", through: "2027-03-01" })).toBe(false);
+    const open = { startDate: "2026-01-01", endDate: null };
+    expect(offerOverlaps(open, { from: "2030-01-01", through: "2030-02-01" })).toBe(true);
+  });
+});
+
+describe("what a card earns", () => {
+  const cash = (id, rateBps, extra = {}) => ({
+    id,
+    accountId: "freedom",
+    mode: EARN_MODES.CASHBACK,
+    rateBps,
+    programId: null,
+    pointsPer100Dollars: null,
+    allSpending: false,
+    budgetIds: [],
+    payeeIds: [],
+    ...extra,
+  });
+  const earns = (id, pointsPer100Dollars, extra = {}) => ({
+    id,
+    accountId: "sapphire",
+    mode: EARN_MODES.POINTS,
+    rateBps: null,
+    programId: "chase-ur",
+    pointsPer100Dollars,
+    allSpending: false,
+    budgetIds: [],
+    payeeIds: [],
+    ...extra,
+  });
+  const spend = (id, date, amountCents, budgetId, accountId = "sapphire", extra = {}) => ({
+    id,
+    kind: "outflow",
+    date,
+    amountCents,
+    budgetId,
+    accountId,
+    payeeId: null,
+    splits: null,
+    ...extra,
+  });
+  const refund = (id, date, amountCents, budgetId, accountId) => ({
+    id,
+    kind: "inflow",
+    date,
+    amountCents,
+    budgetId,
+    accountId,
+    payeeId: null,
+    splits: null,
+  });
+
+  test("a multiplier is read the way a card advertises it", () => {
+    expect(toPointsPer100Dollars("3")).toBe(300);
+    expect(toPointsPer100Dollars("3x")).toBe(300);
+    expect(toPointsPer100Dollars("1.25X")).toBe(125);
+    expect(toPointsPer100Dollars("1.5×")).toBe(150);
+    expect(toPointsPer100Dollars("three")).toBeNull();
+    expect(toPointsPer100Dollars("0")).toBeNull();
+    // 500× is a percentage somebody typed into the wrong box.
+    expect(toPointsPer100Dollars("500")).toBeNull();
+    expect(formatMultiplier(300)).toBe("3×");
+    expect(formatMultiplier(125)).toBe("1.25×");
+    expect(formatMultiplier(150)).toBe("1.5×");
+  });
+
+  test("cash back and points meet on the share of the purchase they give back", () => {
+    expect(earnBps(cash("r1", 200))).toBe(200);
+    // Three points a dollar at the catalog's 1.70¢ is 5.1% back.
+    expect(earnBps(earns("r2", 300))).toBe(510);
+    // And the household's own valuation moves it, which is the whole point.
+    expect(earnBps(earns("r2", 300), { "chase-ur": 100 })).toBe(300);
+    expect(earnBps(earns("r2", 300), { "chase-ur": 0 })).toBe(0);
+    expect(earnBps(null)).toBe(0);
+  });
+
+  test("one card pays its best matching rate, and nothing where it claims none", () => {
+    const rates = [
+      earns("base", 100, { allSpending: true }),
+      earns("dining", 300, { budgetIds: ["dining"] }),
+      earns("amazon", 500, { payeeIds: ["amz"] }),
+    ];
+    expect(bestRateFor(rates, { budgetId: "dining" }).id).toBe("dining");
+    expect(bestRateFor(rates, { budgetId: "groceries" }).id).toBe("base");
+    expect(bestRateFor(rates, { payeeId: "amz", budgetId: "dining" }).id).toBe("amazon");
+    const only = [earns("dining", 300, { budgetIds: ["dining"] })];
+    expect(bestRateFor(only, { budgetId: "fuel" })).toBeNull();
+  });
+
+  test("the cards are ranked for one kind of spending, best first", () => {
+    const cards = [
+      { accountId: "freedom", rates: [cash("f", 500, { budgetIds: ["groceries"] })] },
+      { accountId: "sapphire", rates: [earns("s", 300, { budgetIds: ["groceries", "dining"] })] },
+      { accountId: "plain", rates: [cash("p", 150, { allSpending: true })] },
+    ];
+    // 3× points beats 5% cash, because this household says a point is 1.70¢.
+    expect(rankCardsFor(cards, { budgetId: "groceries" }).map((row) => [row.accountId, row.bps])).toEqual([
+      ["sapphire", 510],
+      ["freedom", 500],
+      ["plain", 150],
+    ]);
+    // Value the points at a cent and the cashback card wins the same purchase.
+    expect(
+      rankCardsFor(cards, { budgetId: "groceries" }, { "chase-ur": 100 }).map((row) => row.accountId)
+    ).toEqual(["freedom", "sapphire", "plain"]);
+    // Dining: only the two cards that claim anything at all.
+    expect(rankCardsFor(cards, { budgetId: "dining" }).map((row) => row.accountId)).toEqual([
+      "sapphire",
+      "plain",
+    ]);
+  });
+
+  test("earnings are the ledger read at those rates, over the window and nothing else", () => {
+    const earned = cardEarnings({
+      accountId: "sapphire",
+      rates: [earns("base", 100, { allSpending: true }), earns("dining", 300, { budgetIds: ["dining"] })],
+      transactions: [
+        spend("a", "2026-03-01", 10000, "dining"),
+        spend("b", "2026-03-02", 10000, "groceries"),
+        spend("c", "2025-12-31", 90000, "dining"), // before the window
+        spend("d", "2026-12-01", 90000, "dining"), // after it
+        spend("e", null, 90000, "dining"), // undated
+        spend("f", "2026-03-03", 90000, "dining", "freedom"), // another card
+        // A transfer is never a purchase, whatever it looks like.
+        {
+          id: "g",
+          kind: "transfer",
+          date: "2026-03-04",
+          amountCents: 50000,
+          accountId: "sapphire",
+          toAccountId: "chk",
+        },
+        // A refund takes its earnings back, off the rate that paid them.
+        refund("h", "2026-03-05", 2000, "dining", "sapphire"),
+      ],
+      from: "2026-01-01",
+      through: "2026-10-08",
+    });
+
+    // $100 of dining at 3× less a $20 refund, and $100 of groceries at 1×.
+    expect(earned.byRate.map((row) => [row.rate.id, row.points])).toEqual([
+      ["dining", 240],
+      ["base", 100],
+    ]);
+    expect(earned.points).toEqual([
+      {
+        programId: "chase-ur",
+        program: expect.objectContaining({ id: "chase-ur" }),
+        points: 340,
+        valueCents: 578,
+      },
+    ]);
+    expect(earned.valueCents).toBe(578);
+    expect(earned.cashCents).toBe(0);
+    expect(earned.unratedCents).toBe(0);
+  });
+
+  test("a divided receipt earns part by part, and uncovered spending is claimed for nothing", () => {
+    const earned = cardEarnings({
+      accountId: "freedom",
+      rates: [cash("groceries", 500, { budgetIds: ["groceries"] })],
+      transactions: [
+        spend("a", "2026-03-01", 12000, null, "freedom", {
+          splits: [
+            { budgetId: "groceries", amountCents: 10000 },
+            { budgetId: "fuel", amountCents: 2000 },
+          ],
+        }),
+      ],
+      from: "2026-01-01",
+      through: "2026-10-08",
+    });
+    expect(earned.cashCents).toBe(500);
+    expect(earned.unratedCents).toBe(2000);
+    expect(earned.spendCents).toBe(12000);
+  });
+
+  test("a rate refunded past what it earned is floored, never taken off another", () => {
+    const earned = cardEarnings({
+      accountId: "freedom",
+      rates: [
+        cash("groceries", 500, { budgetIds: ["groceries"] }),
+        cash("base", 100, { allSpending: true }),
+      ],
+      transactions: [
+        refund("r", "2026-03-05", 20000, "groceries", "freedom"),
+        spend("b", "2026-03-06", 10000, "fuel", "freedom"),
+      ],
+      from: "2026-01-01",
+      through: "2026-10-08",
+    });
+    expect(earned.cashCents).toBe(100);
+  });
+
+  test("the fee year is the year the fee bought, or the calendar year with none stated", () => {
+    expect(feeYearWindow(null, "2026-10-08")).toEqual({
+      from: "2026-01-01",
+      through: "2026-10-08",
+      renewsOn: null,
+      calendar: true,
+    });
+    // A renewal already past this year: the year running now started on it.
+    expect(feeYearWindow("2026-03-01", "2026-10-08")).toEqual({
+      from: "2026-03-01",
+      through: "2026-10-08",
+      renewsOn: "2027-03-01",
+      calendar: false,
+    });
+    // One still to come this year: today is inside the year before it.
+    expect(feeYearWindow("2026-12-01", "2026-10-08")).toEqual({
+      from: "2025-12-01",
+      through: "2026-10-08",
+      renewsOn: "2026-12-01",
+      calendar: false,
+    });
+    // The day the card was taken out, years ago, still anchors the anniversary.
+    expect(feeYearWindow("2019-06-15", "2026-10-08").from).toBe("2026-06-15");
+    // 29 February lands on the 28th in a year that has no 29th.
+    expect(feeYearWindow("2024-02-29", "2026-10-08").from).toBe("2026-02-28");
   });
 });

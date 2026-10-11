@@ -36,8 +36,15 @@ const monthsTo = (last, count, build = () => ({})) =>
 
 const draw = (series, slices = SLICES) => render(<NetWorthChart series={series} slices={slices} />);
 
+/** The column segments. The net line is a path too — a filled column and a
+ *  stroked curve are told apart by the one thing that actually distinguishes
+ *  them, which is that a line has no fill. */
 const paths = (container) =>
-  [...container.querySelectorAll("path")].map((node) => node.getAttribute("d"));
+  [...container.querySelectorAll("path")]
+    .filter((node) => node.getAttribute("fill") !== "none")
+    .map((node) => node.getAttribute("d"));
+
+const netCurve = (container) => container.querySelector('path[fill="none"]')?.getAttribute("d");
 
 /** Every coordinate in a path, so a segment's reach either side of the baseline
  *  can be read off it. SVG y grows downward, so smaller is higher. */
@@ -61,7 +68,7 @@ test("draws only finite coordinates, so no month renders as a broken path", () =
   const drawn = paths(container);
   expect(drawn.length).toBeGreaterThan(0);
   for (const d of drawn) expect(d).not.toMatch(/NaN|Infinity|undefined/);
-  for (const node of container.querySelectorAll("line, circle, polyline, text")) {
+  for (const node of container.querySelectorAll("line, circle, path, text")) {
     expect(node.outerHTML).not.toMatch(/NaN|Infinity/);
   }
 });
@@ -72,9 +79,41 @@ test("an all-zero file draws no columns rather than dividing by an empty domain"
   const { container } = draw(monthsTo("2026-08", 12));
 
   expect(paths(container)).toHaveLength(0);
-  for (const node of container.querySelectorAll("line, polyline, circle")) {
+  for (const node of container.querySelectorAll("line, path, circle")) {
     expect(node.outerHTML).not.toMatch(/NaN/);
   }
+});
+
+test("the net is a curve, and it never passes through a figure the months never reached", () => {
+  // Up for six months, then down for six. A plain cardinal spline would round
+  // the peak by carrying on upward past it — drawing a net worth higher than
+  // any month on file — and would undercut the trough the same way. Monotone
+  // interpolation is what keeps the extremes the data's own.
+  const series = monthsTo("2026-08", 13, (index) => ({
+    [SPENDING_SLICE]: 1000000 + (index <= 6 ? index : 12 - index) * 100000,
+  }));
+  const { container } = draw(series);
+
+  const d = netCurve(container);
+  expect(d).toMatch(/^M[\d.]+,[\d.]+ C/);
+  expect(d).not.toMatch(/NaN|Infinity|undefined/);
+
+  // A Bézier is bounded by its own control points, so if no handle reaches past
+  // the months it runs between, the drawn line cannot either. The months are the
+  // segment end points; the handles are everything else.
+  const months = [
+    Number(d.match(/^M[\d.-]+,([\d.-]+)/)[1]),
+    ...d
+      .split("C")
+      .slice(1)
+      .map((segment) => Number(segment.trim().split(" ")[2].split(",")[1])),
+  ];
+  expect(months).toHaveLength(13);
+
+  const everything = pointsIn(d);
+  // SVG y grows downward, so the peak is the smallest number on the path.
+  expect(Math.min(...everything)).toBeCloseTo(Math.min(...months), 2);
+  expect(Math.max(...everything)).toBeCloseTo(Math.max(...months), 2);
 });
 
 test("a slice is drawn on the side its own figure puts it, not the side its kind suggests", () => {

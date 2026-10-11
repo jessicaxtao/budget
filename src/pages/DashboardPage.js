@@ -185,16 +185,21 @@ export default function DashboardPage() {
   }
 
   /**
-   * Open the move on a category, with the direction read off what it holds.
+   * Open the move on a category, which is always the **destination**.
    *
-   * An overspent row is one somebody wants to *cover*, so it seeds as the
-   * destination with the overspend already typed in. The source is "to be assigned" whenever the
-   * pool can cover that figure, since unassigned money is the first place a
-   * household looks; otherwise it is left for them to pick, because which
-   * neighbour gives something up is not the app's call. Any other row has
-   * money to spare and seeds as the source. Stated on each button's label, so
-   * the rule is read before the click rather than discovered after it. `null`
-   * is the header button: no direction assumed, both selects empty.
+   * Clicking an envelope's own figure is the gesture of giving it something:
+   * the figure is read because the category needs money, whether it is short
+   * by four hundred or just short of what the month still has to pay for. So
+   * the row clicked seeds as `toBudgetId` either way, and which neighbour
+   * gives it up stays the user's call — this store cannot know, and guessing
+   * would re-plan a category nobody asked about.
+   *
+   * An overspent row is the one case with a figure worth typing in: the
+   * overspend, and "to be assigned" as the source whenever the pool can cover
+   * exactly that, since unassigned money is the first place a household looks.
+   * Stated on each button's label, so the rule is read before the click rather
+   * than discovered after it. `null` is the header button: no direction
+   * assumed, both selects empty.
    */
   function handleMove(row) {
     if (row == null) {
@@ -211,7 +216,7 @@ export default function DashboardPage() {
       });
       return;
     }
-    setMoving({ fromBudgetId: row.budgetId });
+    setMoving({ toBudgetId: row.budgetId });
   }
 
   /**
@@ -246,6 +251,7 @@ export default function DashboardPage() {
       <DashboardSummary
         period={period}
         availableToBudgetCents={dashboard.availableToBudgetCents}
+        assignedAheadCents={dashboard.assignedAheadCents}
         periodIncomeCents={dashboard.periodIncomeCents}
         budgetedCents={dashboard.periodBudgetedCents}
         plannedCents={dashboard.plannedCents}
@@ -315,16 +321,13 @@ export default function DashboardPage() {
             rows={accountRows}
             onReconcile={(account) => setReconcilingId(account.id)}
             onPayOff={(account) => setPayingOffId(account.id)}
-            /* Ticking the box is the whole act: the books already say what the
+            /* The press is the whole act: the books already say what the
                account holds, so confirming it costs no figure and writes no
-               row. Clearing it passes `null`, which is the store's own way of
-               undoing a reconciliation entered by mistake — and it clears
-               rather than restores whatever date was there before, since only
-               one is kept. The row says so immediately, in the tone it uses
-               for an account nobody has checked. */
-            onConfirm={(account, accurate) =>
-              reconcileAccount({ id: account.id, date: accurate ? today : null })
-            }
+               row — it stamps the day they were found to agree, which is the
+               same thing reconciling with the statement left blank writes.
+               `today` is the page's own, read once above, so the stamp, the
+               ages beside it and the countdown cannot disagree. */
+            onConfirm={(account) => reconcileAccount({ id: account.id, date: today })}
             onReorder={reorderAccounts}
           />
         </div>
@@ -333,7 +336,7 @@ export default function DashboardPage() {
       {accountRows.length > 0 && (
         <p className="mt-3 font-sans text-row text-chalk-soft">
           Balances are the opening figure plus every transaction through the account, so they
-          follow the ledger. Tick one off where the statement agrees; reconcile it where the
+          follow the ledger. Mark one accurate where the statement agrees; reconcile it where the
           statement says otherwise, and the difference is written into the books.
         </p>
       )}

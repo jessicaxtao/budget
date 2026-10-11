@@ -2,7 +2,15 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
 import { isValidISODate, toBps, toCents } from "../utils";
-import { OFFER_KINDS, programById, toPoints, toValuePer100Cents } from "../rewards";
+import {
+  EARN_MODES,
+  OFFER_KINDS,
+  OFFER_KINDS_NEEDING_END,
+  programById,
+  toPoints,
+  toPointsPer100Dollars,
+  toValuePer100Cents,
+} from "../rewards";
 
 /**
  * Credit card rewards: the points and miles the household holds, what they say
@@ -34,6 +42,24 @@ import { OFFER_KINDS, programById, toPoints, toValuePer100Cents } from "../rewar
  *     category simply stops matching anything. The fields one kind does not
  *     read (a rate on a target, a bonus on a cap) are kept, not cleared, and so
  *     are the lists while `allSpending` is on — switching back is the point.
+ *   - `rewardsCards` — `{ accountId, annualFeeCents, renewsOn }`, what a card
+ *     *costs*: the fee and the day it falls, so the credits it gives back can
+ *     be weighed against it over the right year. **Its identity is the
+ *     account**, like a valuation's is the program — a card has one fee, and a
+ *     second record for the same card could only contradict the first. A blank
+ *     fee and a blank renewal date together **remove the record**, the blank-
+ *     versus-zero rule: a fee of zero is the answer "this card is free", while
+ *     a blank is the question still open.
+ *   - `rewardsEarnRates` — `{ id, accountId, mode, programId, rateBps,
+ *     pointsPer100Dollars, allSpending, budgetIds, payeeIds }`, what a card
+ *     *earns*: one record per advertised rate, in cash back or in points
+ *     (`EARN_MODES`), mapped onto the household's own categories and payees the
+ *     way an offer is. **Both answers kept** across a change of mode, so a card
+ *     flipped from points to cash keeps the multiplier it is not reading.
+ *     Uncapped by design — a rate with a limit is a `CAP` offer, which already
+ *     knows how to walk a window — and inert about everything it names. Added
+ *     **only in batches** (`addEarnRates`), because a card advertises a table
+ *     of them and not one.
  *
  * **Programs come from the built-in catalog (`src/rewards.js`) and a record
  * naming an id it does not know is dropped on the way in** — unlike the inert-
@@ -125,6 +151,54 @@ function migrateOffers(stored) {
     }));
 }
 
+/**
+ * One record per card, so the first record for an account wins and the rest are
+ * dropped: a second fee for the same card is not a second card.
+ */
+function migrateCards(stored) {
+  if (!Array.isArray(stored)) return [];
+  const seen = new Set();
+  const cards = [];
+  for (const card of stored) {
+    if (!card || typeof card.accountId !== "string" || !card.accountId) continue;
+    if (seen.has(card.accountId)) continue;
+    const annualFeeCents = isMoney(card.annualFeeCents) ? card.annualFeeCents : null;
+    const renewsOn = isValidISODate(card.renewsOn) ? card.renewsOn : null;
+    if (annualFeeCents === null && renewsOn === null) continue;
+    seen.add(card.accountId);
+    cards.push({ accountId: card.accountId, annualFeeCents, renewsOn });
+  }
+  return cards;
+}
+
+/** A rate that cannot be read earns nothing, so it is not kept. */
+function migrateEarnRates(stored) {
+  if (!Array.isArray(stored)) return [];
+  return stored
+    .filter((rate) => rate && typeof rate.accountId === "string" && rate.accountId)
+    .filter((rate) => Object.values(EARN_MODES).includes(rate.mode))
+    .map((rate) => ({
+      id: typeof rate.id === "string" ? rate.id : uuidV4(),
+      accountId: rate.accountId,
+      mode: rate.mode,
+      programId: known(rate.programId) ? rate.programId : null,
+      rateBps: Number.isInteger(rate.rateBps) && rate.rateBps > 0 ? rate.rateBps : null,
+      pointsPer100Dollars:
+        Number.isInteger(rate.pointsPer100Dollars) && rate.pointsPer100Dollars > 0
+          ? rate.pointsPer100Dollars
+          : null,
+      allSpending: rate.allSpending === true,
+      budgetIds: idList(rate.budgetIds),
+      payeeIds: idList(rate.payeeIds),
+    }))
+    .filter((rate) =>
+      rate.mode === EARN_MODES.CASHBACK
+        ? rate.rateBps != null
+        : rate.programId != null && rate.pointsPer100Dollars != null
+    )
+    .filter((rate) => rate.allSpending || rate.budgetIds.length > 0 || rate.payeeIds.length > 0);
+}
+
 /** A money field that may be blank, as cents or a refusal. */
 function readMoney(value, { blank, label }) {
   if (isBlank(value)) return { ok: true, cents: blank };
@@ -193,18 +267,25 @@ function parseOffer(fields) {
   if (endDate !== null && endDate < fields.startDate) {
     return { ok: false, error: "The offer has to end on or after the day it starts." };
   }
-  if (fields.kind === OFFER_KINDS.TARGET && endDate === null) {
-    return { ok: false, error: "A spending target needs the date it has to be met by." };
+  if (OFFER_KINDS_NEEDING_END.includes(fields.kind) && endDate === null) {
+    return {
+      ok: false,
+      error:
+        fields.kind === OFFER_KINDS.CREDIT
+          ? "A credit needs the date it has to be used by."
+          : "A spending target needs the date it has to be met by.",
+    };
   }
 
   const limitCents = typeof fields.limit === "number" ? fields.limit : toCents(fields.limit);
   if (!Number.isInteger(limitCents) || limitCents <= 0) {
     return {
       ok: false,
-      error:
-        fields.kind === OFFER_KINDS.CAP
-          ? "Enter the most spending the bonus applies to, as an amount above zero."
-          : "Enter how much has to be spent, as an amount above zero.",
+      error: {
+        [OFFER_KINDS.CAP]: "Enter the most spending the bonus applies to, as an amount above zero.",
+        [OFFER_KINDS.TARGET]: "Enter how much has to be spent, as an amount above zero.",
+        [OFFER_KINDS.CREDIT]: "Enter how much the credit is worth, as an amount above zero.",
+      }[fields.kind],
     };
   }
 
@@ -257,11 +338,100 @@ function parseOffer(fields) {
   };
 }
 
+/**
+ * What a card costs, as the page's two inline fields hand it over. A record of
+ * `null` is the answer "nothing stated about this card" and removes it.
+ */
+function parseCard({ accountId, fee, renewsOn }) {
+  if (typeof accountId !== "string" || !accountId) {
+    return { ok: false, error: "That card no longer exists." };
+  }
+  const feeRead = readMoney(fee, { blank: null, label: "the annual fee" });
+  if (!feeRead.ok) return feeRead;
+  const renews = isBlank(renewsOn) ? null : renewsOn;
+  if (renews !== null && !isValidISODate(renews)) {
+    return { ok: false, error: "Enter a valid renewal date, or leave it blank." };
+  }
+  if (feeRead.cents === null && renews === null) return { ok: true, record: null };
+  return { ok: true, record: { accountId, annualFeeCents: feeRead.cents, renewsOn: renews } };
+}
+
+/**
+ * One earn rate. **Both figures are read whenever they are given**, whichever
+ * mode is in force, so switching a rate from points to cash and back finds the
+ * multiplier where it was left; only the one the mode reads is required.
+ */
+function parseEarnRate(fields) {
+  if (typeof fields.accountId !== "string" || !fields.accountId) {
+    return { ok: false, error: "Choose the card this rate is on." };
+  }
+  if (!Object.values(EARN_MODES).includes(fields.mode)) {
+    return { ok: false, error: "Choose whether this rate pays cash back or points." };
+  }
+
+  let rateBps = null;
+  if (!isBlank(fields.rate)) {
+    rateBps = typeof fields.rate === "number" ? fields.rate : toBps(fields.rate);
+    if (!Number.isInteger(rateBps) || rateBps <= 0 || rateBps > 10000) {
+      return { ok: false, error: "Enter the cash back as a percentage, like 2%." };
+    }
+  }
+  let pointsPer100Dollars = null;
+  if (!isBlank(fields.multiplier)) {
+    pointsPer100Dollars = toPointsPer100Dollars(fields.multiplier);
+    if (pointsPer100Dollars == null) {
+      return { ok: false, error: "Enter how many points a dollar earns, like 3x." };
+    }
+  }
+  const programId = fields.programId || null;
+  if (programId !== null && !known(programId)) {
+    return { ok: false, error: "Choose a program from the list." };
+  }
+
+  if (fields.mode === EARN_MODES.CASHBACK && rateBps === null) {
+    return { ok: false, error: "Enter the cash back as a percentage, like 2%." };
+  }
+  if (fields.mode === EARN_MODES.POINTS) {
+    if (pointsPer100Dollars === null) {
+      return { ok: false, error: "Enter how many points a dollar earns, like 3x." };
+    }
+    if (programId === null) {
+      return { ok: false, error: "Choose which program the points land in." };
+    }
+  }
+
+  const allSpending = fields.allSpending === true;
+  const budgetIds = idList(fields.budgetIds);
+  const payeeIds = idList(fields.payeeIds);
+  if (!allSpending && budgetIds.length === 0 && payeeIds.length === 0) {
+    return {
+      ok: false,
+      error: "Choose at least one category or payee this rate applies to, or apply it to all spending.",
+    };
+  }
+
+  return {
+    ok: true,
+    record: {
+      accountId: fields.accountId,
+      mode: fields.mode,
+      programId,
+      rateBps,
+      pointsPer100Dollars,
+      allSpending,
+      budgetIds,
+      payeeIds,
+    },
+  };
+}
+
 export const RewardsProvider = ({ children }) => {
   const [balances, setBalances] = useSyncedState("rewardsBalances", [], migrateBalances);
   const [valuations, setValuations] = useSyncedState("rewardsValuations", {}, migrateValuations);
   const [trips, setTrips] = useSyncedState("rewardsTrips", [], migrateTrips);
   const [offers, setOffers] = useSyncedState("rewardsOffers", [], migrateOffers);
+  const [cards, setCards] = useSyncedState("rewardsCards", [], migrateCards);
+  const [earnRates, setEarnRates] = useSyncedState("rewardsEarnRates", [], migrateEarnRates);
 
   const addBalance = useCallback(
     (fields) => {
@@ -377,12 +547,100 @@ export const RewardsProvider = ({ children }) => {
     [setOffers]
   );
 
+  /**
+   * A card's fee and renewal, by account: one record each, so this upserts
+   * rather than appends, and a card with nothing left stated is removed.
+   */
+  const saveCard = useCallback(
+    (fields) => {
+      const parsed = parseCard(fields);
+      if (!parsed.ok) return parsed;
+      setCards((previous) => {
+        const rest = previous.filter((card) => card.accountId !== fields.accountId);
+        return parsed.record === null ? rest : [...rest, parsed.record];
+      });
+      return { ok: true };
+    },
+    [setCards]
+  );
+
+  const deleteCard = useCallback(
+    ({ accountId }) => setCards((previous) => previous.filter((card) => card.accountId !== accountId)),
+    [setCards]
+  );
+
+  /**
+   * A card's rates, however many of them, in one write — the only way in, since
+   * a card is advertised as a table ("4× dining, 4× groceries, 1× everything
+   * else") and typing it a modal at a time was the whole of the friction.
+   *
+   * **The whole batch is validated before anything is written**, the rule every
+   * batch mutator here keeps: a table of five rates that fails on the third
+   * cannot leave two committed, because the form would then have to work out
+   * which of its rows are already in the store to avoid writing them twice.
+   * The error names the row, since the figure refused is one of several on
+   * screen — but a batch of one says only what is wrong with it, as it is the
+   * only thing the user could have meant.
+   *
+   * Nothing is checked *across* the rows. Two rates reaching the same category
+   * is not incoherent, only redundant: `bestRateFor` pays the better one, which
+   * is what the issuer does.
+   */
+  const addEarnRates = useCallback(
+    (rows) => {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return { ok: false, error: "Add at least one rate." };
+      }
+      const records = [];
+      for (const [index, fields] of rows.entries()) {
+        const parsed = parseEarnRate(fields);
+        if (!parsed.ok) {
+          return rows.length === 1
+            ? parsed
+            : { ok: false, error: `Rate ${index + 1}: ${parsed.error}` };
+        }
+        records.push({ id: uuidV4(), ...parsed.record });
+      }
+      setEarnRates((previous) => [...previous, ...records]);
+      return { ok: true, ids: records.map((record) => record.id) };
+    },
+    [setEarnRates]
+  );
+
+  /** A whole rate, like `updateOffer`: the form states every field every time. */
+  const updateEarnRate = useCallback(
+    ({ id, ...fields }) => {
+      if (!earnRates.some((rate) => rate.id === id)) {
+        return { ok: false, error: "That rate no longer exists." };
+      }
+      const parsed = parseEarnRate(fields);
+      if (!parsed.ok) return parsed;
+      setEarnRates((previous) =>
+        previous.map((rate) => (rate.id === id ? { id, ...parsed.record } : rate))
+      );
+      return { ok: true };
+    },
+    [earnRates, setEarnRates]
+  );
+
+  const deleteEarnRate = useCallback(
+    ({ id }) => setEarnRates((previous) => previous.filter((rate) => rate.id !== id)),
+    [setEarnRates]
+  );
+
   const value = useMemo(
     () => ({
       balances,
       valuations,
       trips,
       offers,
+      cards,
+      earnRates,
+      saveCard,
+      deleteCard,
+      addEarnRates,
+      updateEarnRate,
+      deleteEarnRate,
       addBalance,
       updateBalance,
       deleteBalance,
@@ -399,6 +657,13 @@ export const RewardsProvider = ({ children }) => {
       valuations,
       trips,
       offers,
+      cards,
+      earnRates,
+      saveCard,
+      deleteCard,
+      addEarnRates,
+      updateEarnRate,
+      deleteEarnRate,
       addBalance,
       updateBalance,
       deleteBalance,

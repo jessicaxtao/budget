@@ -276,7 +276,7 @@ test("a figure typed over an everyday account is kept, and the gap from the book
   expect(
     within(screen.getByRole("region", { name: "Net worth summary" })).getByText("$14,120")
   ).toBeInTheDocument();
-  expect(holdings().getByText("Entered · $120 vs ledger")).toBeInTheDocument();
+  expect(holdings().getByText("$120 vs ledger · settle")).toBeInTheDocument();
 });
 
 test("updating writes the month on screen, which is what backfill is", () => {
@@ -351,9 +351,14 @@ test("a holding with no figure for the month says so instead of looking current"
   });
   renderPage();
 
+  // The page says it, and the update form names the month each figure came from
+  // under the field it is being asked for — the holdings table is two columns of
+  // money and carries neither.
   expect(screen.getByText(/1 holding has no figure for/i)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Update balances" }));
   expect(
-    holdings().getByText(`Carried from ${formatPeriod(addMonths(PERIOD, -3))}`)
+    screen.getByText(`Carried from ${formatPeriod(addMonths(PERIOD, -3))}`)
   ).toBeInTheDocument();
 });
 
@@ -389,9 +394,8 @@ function stateBalance(value) {
 
 const settle = (name) => holdings().getByRole("button", { name });
 
-/** One holding's row, because the Source column is per account and the monthly
- *  pass writes every account it asked about — so "Updated this month" is true of
- *  more than one of them. */
+/** One holding's row, because the offer to settle is per account and the
+ *  monthly pass writes every account it asked about. */
 const holding = (name) => within(holdings().getByText(name).closest("tr"));
 
 test("a statement above the books is settled as income, and the gap closes", () => {
@@ -420,9 +424,9 @@ test("a statement above the books is settled as income, and the gap closes", () 
     },
   ]);
 
-  // The books now say what the statement says, so the cell drops its gap — and
-  // with it the offer to settle one.
-  expect(holding("Everyday").getByText("Updated this month")).toBeInTheDocument();
+  // The books now say what the statement says, so the row has no gap left to
+  // state — and with it goes the offer to settle one.
+  expect(holding("Everyday").queryByText(/vs ledger/)).not.toBeInTheDocument();
   expect(
     holdings().queryByRole("button", { name: /settle the .* difference on Everyday/i })
   ).not.toBeInTheDocument();
@@ -446,7 +450,7 @@ test("a statement below the books is spending, and it has to name a category", (
   const stored = JSON.parse(localStorage.getItem("transactions"));
   expect(stored).toHaveLength(1);
   expect(stored[0]).toMatchObject({ kind: "outflow", amountCents: 10000, budgetId: "b1" });
-  expect(holding("Everyday").getByText("Updated this month")).toBeInTheDocument();
+  expect(holding("Everyday").queryByText(/vs ledger/)).not.toBeInTheDocument();
 });
 
 test("the correction is dated inside the month the statement is for", () => {
@@ -468,7 +472,7 @@ test("the correction is dated inside the month the statement is for", () => {
   fireEvent.click(screen.getByRole("button", { name: "Record it" }));
 
   expect(JSON.parse(localStorage.getItem("transactions"))[0].date).toBe(periodEnd(LAST_MONTH));
-  expect(holding("Everyday").getByText("Updated this month")).toBeInTheDocument();
+  expect(holding("Everyday").queryByText(/vs ledger/)).not.toBeInTheDocument();
 });
 
 test("a holding valued by hand has no gap to settle, because growth is not a disagreement", () => {
@@ -481,7 +485,7 @@ test("a holding valued by hand has no gap to settle, because growth is not a dis
   // $2,500 above what the books alone would make of the 401(k) — and that is the
   // market, not a missing row. `driftCents` is null for one, so nothing here is
   // offered as settleable.
-  expect(holding("401(k)").getByText("Updated this month")).toBeInTheDocument();
+  expect(holding("401(k)").queryByText(/vs ledger/)).not.toBeInTheDocument();
   expect(
     holdings().queryByRole("button", { name: /difference on 401\(k\)/i })
   ).not.toBeInTheDocument();

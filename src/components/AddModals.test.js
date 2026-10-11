@@ -10,7 +10,9 @@ import AssignIncomeModal from "./AssignIncomeModal";
 import AppProviders from "../contexts/AppProviders";
 import { useAccounts } from "../contexts/AccountsContext";
 import { routerFuture } from "../routerFuture";
-import { addMonths, currentPeriod, todayISO } from "../utils";
+import { addMonths, currentPeriod, formatPeriod, todayISO } from "../utils";
+
+const NEXT_PERIOD = addMonths(currentPeriod(), 1);
 
 // The transaction modal points at the Budget plan page when there is nothing to
 // book against, so the whole suite renders under a router as the app does.
@@ -53,14 +55,16 @@ function TransactionHarness({ budgetIds }) {
 }
 
 // The assign modal is period-scoped, so the harness can step the month the same
-// way the page's stepper does — including while the modal is open.
+// way the page's stepper does — including while the modal is open. Its button is
+// deliberately not worded like the modal's own stepper ("Next month"), since the
+// two are different gestures and the tests below drive both.
 function AssignHarness() {
   const [show, setShow] = useState(false);
   const [period, setPeriod] = useState(currentPeriod);
   return (
     <>
       <button onClick={() => setShow(true)}>open</button>
-      <button onClick={() => setPeriod(addMonths(period, 1))}>next month</button>
+      <button onClick={() => setPeriod(addMonths(period, 1))}>page steps forward</button>
       <AssignIncomeModal show={show} period={period} handleClose={() => setShow(false)} />
     </>
   );
@@ -197,10 +201,73 @@ describe("assigning income to categories", () => {
     fireEvent.click(screen.getByText("open"));
     expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$300");
 
-    fireEvent.click(screen.getByText("next month"));
+    fireEvent.click(screen.getByText("page steps forward"));
 
     // Next month has its own assignment, not this month's carried over.
     expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("");
+  });
+
+  /**
+   * Funding a month ahead, which is what the stepper on the form is for. The
+   * dashboard carries no month and this is the app's one door into the pool, so
+   * the month being funded is a control here rather than a second screen.
+   */
+  test("the form's own stepper moves the month it files against", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+    // The stepper is the only statement of which month is being funded — the
+    // page idiom, one layer down.
+    expect(screen.getByText(formatPeriod(currentPeriod()))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+
+    expect(screen.getByText(formatPeriod(NEXT_PERIOD))).toBeInTheDocument();
+    // The pool is the same pool whichever month is on screen — stepping forward
+    // moves where the money is filed, never how much there is.
+    expect(screen.getByRole("status")).toHaveTextContent("$1,000");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const [stored] = JSON.parse(localStorage.getItem("assignments"));
+    expect(stored.period).toBe(NEXT_PERIOD);
+    expect(stored.assignedCents).toBe(40000);
+  });
+
+  test("a month funded ahead comes out of the pool, and the form says so", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    // Reopened on this month: the $400 promised to next month was promised out
+    // of this money, so it is not offered twice.
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByRole("status")).toHaveTextContent("$600");
+    expect(screen.getByText(/\$400 assigned ahead/)).toBeInTheDocument();
+    // …and nothing of it reads as this month's funding.
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("");
+  });
+
+  test("stepping back past this month drops the funding-ahead note", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(screen.getByText(/Funding ahead, out of today's money/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(screen.queryByText(/Funding ahead/)).not.toBeInTheDocument();
+  });
+
+  test("the month opens back on the page's own, however it was left", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    // A month stepped to is a decision inside one sitting, not a state the next
+    // one inherits — opening the form again asks about the month on the page.
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByText(formatPeriod(currentPeriod()))).toBeInTheDocument();
   });
 
   test("Uncategorized is offered when it owes money, even with no activity now", () => {
@@ -942,6 +1009,26 @@ describe("adding an account", () => {
     });
   });
 
+  test("a card can be entered in credit, the way its statement prints one", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("open credit-card"));
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "Travel card" } });
+    // A prepaid card loaded with $500, or one paid past zero: it owes nothing
+    // and holds something, which a statement prints as a negative balance owed.
+    fireEvent.change(screen.getByLabelText(/balance owed/i), { target: { value: "-500" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // Negated rather than clamped to a debt, so the figure means what was typed.
+    expect(JSON.parse(localStorage.getItem("accounts"))[0]).toMatchObject({
+      name: "Travel card",
+      type: "liability",
+      scope: "credit-card",
+      openingBalanceCents: 50000,
+    });
+  });
+
   test("switching away from a card puts the kind question back on its default", () => {
     renderHarness();
 
@@ -1181,6 +1268,22 @@ describe("editing an account", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(stored("a4").openingBalanceCents).toBe(-25000000);
+  });
+
+  test("a card in credit is read back as the credit it was entered as", () => {
+    renderHarness();
+
+    fireEvent.click(screen.getByText("edit Visa"));
+    fireEvent.change(screen.getByLabelText(/balance owed/i), { target: { value: "-500" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(stored("a2").openingBalanceCents).toBe(50000);
+
+    // Signing a balance is a negation, and a negation is its own inverse — so
+    // reopening the form offers back the figure that was typed rather than the
+    // debt a clamp would have made of it.
+    fireEvent.click(screen.getByText("edit Visa"));
+    expect(screen.getByLabelText(/balance owed/i)).toHaveValue("-500.00");
   });
 
   test("a card moved on budget stays a debt", () => {
@@ -1634,7 +1737,7 @@ describe("reminding about card offers", () => {
     programId: null,
   };
 
-  function openWith(transactions = []) {
+  function openWith(transactions = [], offers = [OFFER]) {
     seedBudgets([
       { id: "groceries", name: "Groceries", plannedCents: 0 },
       { id: "dining", name: "Dining out", plannedCents: 0 },
@@ -1645,7 +1748,7 @@ describe("reminding about card offers", () => {
     ]);
     localStorage.setItem("transactions", JSON.stringify(transactions));
     localStorage.setItem("assignments", "[]");
-    localStorage.setItem("rewardsOffers", JSON.stringify([OFFER]));
+    localStorage.setItem("rewardsOffers", JSON.stringify(offers));
     render(
       <Providers>
         <TransactionHarness budgetIds={["groceries"]} />
@@ -1701,6 +1804,109 @@ describe("reminding about card offers", () => {
     expect(reminder()).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2020-01-01" } });
     expect(reminder()).toBeNull();
+  });
+
+  test("a credit says what using it leaves, and not what it earns", () => {
+    openWith([], [
+      {
+        ...OFFER,
+        id: "cr",
+        name: "$300 travel credit",
+        kind: "credit",
+        endDate: "2099-12-31",
+        limitCents: 30000,
+        rateBps: null,
+      },
+    ]);
+    fireEvent.change(screen.getByLabelText(/paid from/i), { target: { value: "card" } });
+    fireEvent.change(screen.getByLabelText(/^category$/i), { target: { value: "dining" } });
+    expect(reminder()).toHaveTextContent("Uses “$300 travel credit” — $300 of it still to use.");
+
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "120" } });
+    expect(reminder()).toHaveTextContent("$180 of it left after this.");
+
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "400" } });
+    expect(reminder()).toHaveTextContent("This uses up “$300 travel credit”.");
+  });
+});
+
+describe("naming the card that earns more", () => {
+  const RATE = {
+    id: "r1",
+    accountId: "card",
+    mode: "points",
+    programId: "chase-ur",
+    rateBps: null,
+    pointsPer100Dollars: 300,
+    allSpending: false,
+    budgetIds: ["dining"],
+    payeeIds: [],
+  };
+
+  function openWith(rates = [RATE]) {
+    seedBudgets([
+      { id: "groceries", name: "Groceries", plannedCents: 0 },
+      { id: "dining", name: "Dining out", plannedCents: 0 },
+    ]);
+    seedAccounts([
+      { id: "chk", name: "Checking" },
+      { id: "card", name: "Sapphire", type: "liability", scope: "credit-card", assetClass: "Other" },
+    ]);
+    localStorage.setItem("rewardsEarnRates", JSON.stringify(rates));
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["groceries"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open groceries"));
+  }
+
+  const advice = () => screen.queryByText(/earns .* on this, against/);
+
+  test("only where another card beats the one in hand", () => {
+    openWith();
+    fireEvent.change(screen.getByLabelText(/paid from/i), { target: { value: "chk" } });
+    // Groceries: no card claims a rate on it, so there is nothing to say.
+    expect(advice()).toBeNull();
+
+    fireEvent.change(screen.getByLabelText(/^category$/i), { target: { value: "dining" } });
+    expect(advice()).toHaveTextContent(
+      "Sapphire earns 5.1% on this, against nothing on the card you have picked."
+    );
+
+    // Pick that card and the sentence has nothing left to add.
+    fireEvent.change(screen.getByLabelText(/paid from/i), { target: { value: "card" } });
+    expect(advice()).toBeNull();
+  });
+
+  const CASH_RATE = {
+    ...RATE,
+    id: "r2",
+    accountId: "chk",
+    mode: "cashback",
+    programId: null,
+    rateBps: 400,
+    pointsPer100Dollars: null,
+  };
+
+  const pickDinnerOnChecking = () => {
+    fireEvent.change(screen.getByLabelText(/paid from/i), { target: { value: "chk" } });
+    fireEvent.change(screen.getByLabelText(/^category$/i), { target: { value: "dining" } });
+  };
+
+  test("a points card and a cashback card are compared on one figure", () => {
+    openWith([RATE, CASH_RATE]);
+    pickDinnerOnChecking();
+    // 3× at the catalog's 1.70¢ is 5.1%, against 4% in cash.
+    expect(advice()).toHaveTextContent("Sapphire earns 5.1% on this, against 4%");
+  });
+
+  test("and at the household's own valuation, which can settle it the other way", () => {
+    localStorage.setItem("rewardsValuations", JSON.stringify({ "chase-ur": 100 }));
+    openWith([RATE, CASH_RATE]);
+    pickDinnerOnChecking();
+    // At a cent a point the same 3× is 3%, so the card in hand is already best.
+    expect(advice()).toBeNull();
   });
 });
 

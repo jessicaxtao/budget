@@ -31,6 +31,14 @@ import { formatBps, formatCents } from "../utils";
  * save for, the other is a rate the plan has to cover — and that distinction is
  * invisible in the figure itself.
  *
+ * **Over one month of books there is no second figure, so the column is not
+ * drawn.** A total amortised over one month is that total, and a table that
+ * printed it again under "Per month" would be asking the reader to compare a
+ * column with itself; "1 of 1 month" beside every row is the same emptiness in
+ * words. What goes with the column is the judgement below, which is the part
+ * that matters. This follows the divisor rather than the range, so a year asked
+ * for over one month of records reads the same way and for the same reason.
+ *
  * ## Over the estimate
  *
  * The estimate is the standing monthly figure from the plan, and where the
@@ -45,6 +53,13 @@ import { formatBps, formatCents } from "../utils";
  * because there is nowhere left for it to have carried from. It says the
  * estimate is wrong, which is a statement about the plan rather than about the
  * envelope, and the plan is what this page is read against.
+ *
+ * **Which is exactly why one month of books makes no such claim.** Over a single
+ * month the carry-over defence is back in full — that month's spending may be a
+ * year of a sinking fund being spent on purpose — so an average equal to that
+ * month cannot convict the estimate of anything. The verdict leaves with the
+ * column that carried it, and the envelope view keeps the one reading of a
+ * single month that the app makes.
  *
  * ## The drill-in
  *
@@ -91,9 +106,14 @@ const figureCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-row ta
 const wideOnly = "hidden sm:table-cell";
 
 function CategoryRow({ row, maxCents, months, striped, selected, onSelect }) {
+  // Read off the divisor it is handed rather than taken as a second prop, which
+  // could arrive disagreeing with it.
+  const amortised = months > 1;
   // See the note above: over the whole window an estimate can no longer be
-  // exceeded by carry-over, so exceeding it says the estimate is wrong.
-  const over = row.targetCents != null && row.averageCents > row.targetCents;
+  // exceeded by carry-over, so exceeding it says the estimate is wrong. Over one
+  // month it says nothing, because carry-over explains it — and the figure the
+  // mark would sit on is not drawn there either.
+  const over = amortised && row.targetCents != null && row.averageCents > row.targetCents;
 
   return (
     <tr className={selected ? "bg-band" : striped ? "bg-sheet-alt" : "bg-sheet"}>
@@ -112,9 +132,13 @@ function CategoryRow({ row, maxCents, months, striped, selected, onSelect }) {
         >
           {row.name}
         </button>
+        {/* How many of the covered months this category moved in — the figure
+            that tells a lump from a rate, and the one reading of the average
+            that is not in the average. Left off over a single month, where
+            every row would read "1 of 1 month". */}
         <span className="mt-0.5 block font-mono text-label uppercase text-ink-soft">
-          {row.groupName ?? "No group"} · {row.monthsWithSpend} of {months}{" "}
-          {months === 1 ? "month" : "months"}
+          {row.groupName ?? "No group"}
+          {amortised && ` · ${row.monthsWithSpend} of ${months} months`}
           {row.refundCents > 0 && ` · ${formatCents(row.refundCents)} back`}
         </span>
       </th>
@@ -130,9 +154,11 @@ function CategoryRow({ row, maxCents, months, striped, selected, onSelect }) {
           <ShareBar cents={row.netSpentCents} maxCents={maxCents} />
         </div>
       </td>
-      <td className={`${figureCell} ${over ? "font-medium text-vermilion-ink" : "text-ink"}`}>
-        {formatCents(row.averageCents)}
-      </td>
+      {amortised && (
+        <td className={`${figureCell} ${over ? "font-medium text-vermilion-ink" : "text-ink"}`}>
+          {formatCents(row.averageCents)}
+        </td>
+      )}
       {/* The plan's intent, in grey and dashed when unset: a category nobody has
           estimated is not a category estimated at zero. */}
       <td className={`${figureCell} text-ink-soft ${wideOnly}`}>
@@ -145,6 +171,11 @@ function CategoryRow({ row, maxCents, months, striped, selected, onSelect }) {
 export default function SpendingByCategoryTable({ report, selectedBudgetId, onSelectCategory }) {
   const { rows, netSpentCents, averagedOverMonths, averageSpendCents } = report;
   const maxCents = rows.reduce((max, row) => Math.max(max, row.netSpentCents), 0);
+  // Whether "per month" is a different figure from "spent". Over one month of
+  // books it is the same one, and the column, the month count beside each
+  // category and the judgement against the estimate all go with it — see the
+  // note above.
+  const amortised = averagedOverMonths > 1;
 
   return (
     <section className="border border-edge bg-panel">
@@ -153,8 +184,9 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
           Where the money went
         </h2>
         <span className="font-mono text-label uppercase text-chalk-soft">
-          Per month is over {averagedOverMonths}{" "}
-          {averagedOverMonths === 1 ? "month" : "months"} of records
+          {amortised
+            ? `Per month is over ${averagedOverMonths} months of records`
+            : "One month of records"}
         </span>
       </div>
 
@@ -186,9 +218,11 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
                 >
                   Share
                 </th>
-                <th scope="col" className={headCell}>
-                  Per month
-                </th>
+                {amortised && (
+                  <th scope="col" className={headCell}>
+                    Per month
+                  </th>
+                )}
                 <th scope="col" className={`${headCell} ${wideOnly}`}>
                   Estimate
                 </th>
@@ -224,9 +258,11 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
                     {netSpentCents > 0 ? formatBps(10000) : "—"}
                   </span>
                 </td>
-                <td className={`${figureCell} font-medium text-chalk`}>
-                  {formatCents(averageSpendCents)}
-                </td>
+                {amortised && (
+                  <td className={`${figureCell} font-medium text-chalk`}>
+                    {formatCents(averageSpendCents)}
+                  </td>
+                )}
                 <td className={wideOnly} />
               </tr>
             </tfoot>

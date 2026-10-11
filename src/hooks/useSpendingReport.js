@@ -107,13 +107,25 @@ import { addMonths, currentPeriod, formatPeriod, periodLTE, toPeriod } from "../
  * by month and a range that cut a month in half would report a rent payment in
  * whichever half it landed. Each one is inclusive of both ends.
  *
- * **Five are derived from the end month and one is typed.** The presets answer
+ * **Six are derived from the end month and one is typed.** The presets answer
  * "how far back", which is the question a reader usually has, and they always
  * run to the current month — so the last column is a month still in progress.
  * "Custom" is the one window that names both of its ends, which is what lets a
  * report cover a calendar year, or a year that has already finished. It is a
- * sixth preset rather than a mode: everything below it reads the window the same
- * way whichever produced it.
+ * seventh preset rather than a mode: everything below it reads the window the
+ * same way whichever produced it.
+ *
+ * **The shortest is one month, which is the window a household reads most
+ * often**: where this month's money has gone so far. It is the limit of the
+ * same question the others ask rather than a different kind of report — every
+ * figure below reads it exactly as it reads a year — but two things are only
+ * true of it and are answered where they are shown rather than here. A
+ * per-month average over one month *is* the month, so the page draws the figure
+ * once rather than under two headings; and an average over one month cannot
+ * convict an estimate of being wrong, because a single month above its estimate
+ * is the carry-over the envelope view exists to explain. Both turn on
+ * `averagedOverMonths` being 1, which is also true of a long window over one
+ * month of records, and that is the same fact about the same divisor.
  *
  * "All" is the only one that needs to know anything about the ledger, and
  * "custom" the only one that needs to know what the reader typed, which is why
@@ -121,6 +133,17 @@ import { addMonths, currentPeriod, formatPeriod, periodLTE, toPeriod } from "../
  * as the end month — a signature the other four ignore.
  */
 export const REPORT_RANGES = [
+  {
+    key: "1m",
+    label: "1M",
+    // The end month alone. Named "this month" rather than "the last month"
+    // because every preset runs to the current month — the page hands this one
+    // `currentPeriod()` and nothing else can — so the window it resolves to is
+    // the month the reader is in. "ytd" leans on the same guarantee for its own
+    // year.
+    name: "this month",
+    start: (end) => end,
+  },
   { key: "3m", label: "3M", name: "the last 3 months", start: (end) => addMonths(end, -2) },
   { key: "6m", label: "6M", name: "the last 6 months", start: (end) => addMonths(end, -5) },
   { key: "12m", label: "1Y", name: "the last 12 months", start: (end) => addMonths(end, -11) },

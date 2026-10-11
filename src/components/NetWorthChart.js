@@ -7,6 +7,7 @@ import {
   chartFrame,
   labelBudget,
   radiusFor,
+  smoothPath,
   stackPaths as stackedColumn,
 } from "../chartAxis";
 import { HOLDING_CLASSES } from "../hooks/useNetWorth";
@@ -18,7 +19,10 @@ import { formatCents, formatCompactCents, formatPeriod, formatPeriodShort } from
  * One stacked column per month, **one segment per series**: every account valued
  * by hand gets its own, and the accounts the budget spends through share one
  * between them. What is owned grows up from the baseline and what is owed is
- * drawn down from it, with the net traced across as a line. Debt below the axis
+ * drawn down from it, with the net traced across as a **smooth monotone curve**
+ * — the columns are the months that were measured, the curve is the balance
+ * those months are readings of, and being monotone it cannot pass through a
+ * figure the household never had (`smoothPath`). Debt below the axis
  * rather than stacked with the assets is the whole reason the chart reads:
  * stacking it would make the column height the sum of what is owned and what is
  * owed, which is a figure that means nothing. Split across the baseline, the
@@ -239,7 +243,13 @@ export default function NetWorthChart({ series, slices }) {
   const centreOf = (index) => plot.left + slot * (index + 0.5);
 
   const baseline = y(0);
-  const netPoints = series.map((entry, index) => `${centreOf(index)},${y(entry.netCents)}`);
+  // A curve rather than a dogleg per month: the net is a balance that moved
+  // every day and was read once a month, so the corners a polyline puts at the
+  // readings are the sampling showing through. `smoothPath` is monotone, so the
+  // curve never reaches a figure the household did not have — see its note.
+  const netCurve = smoothPath(
+    series.map((entry, index) => ({ x: centreOf(index), y: y(entry.netCents) }))
+  );
   const lastIndex = series.length - 1;
   const labels = axisLabels(series.map((entry) => entry.period), labelBudget(plotWidth));
 
@@ -391,14 +401,16 @@ export default function NetWorthChart({ series, slices }) {
               />
             )}
 
-            <polyline
-              points={netPoints.join(" ")}
-              fill="none"
-              className="stroke-chalk"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {netCurve && (
+              <path
+                d={netCurve}
+                fill="none"
+                className="stroke-chalk"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
 
             {/* The end dot wears a ring in the surface colour so it stays legible
                 where it crosses a column. */}

@@ -23,15 +23,18 @@ import useEmergencyFund from "./useEmergencyFund";
  *   activity(b, p)  = refunded(b,p) − spent(b,p)
  *   available(b, P) = Σ over p ≤ P of [ assigned(b,p) + activity(b,p) ]
  *   carriedIn(b, P) = the same sum over p < P
- *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ] − reserved(P)
+ *   ahead(P)        = max(0, Σ over p > P of [ Σ over b of assigned(b,p) + Σ over g of assigned(g,p) ])
+ *   toBeAssigned(P) = opening(P) + Σ over p ≤ P of [ income(p) − Σ over b of assigned(b,p) − Σ over g of assigned(g,p) ] − reserved(P) − ahead(P)
  *
  * so that, at every period:
  *
- *   toBeAssigned + reserved + Σ available + Σ goal available
+ *   toBeAssigned + reserved + assignedAhead + Σ available + Σ goal available
  *     === opening + cumulative inflow − cumulative spend
  *
  * where `reserved` is the emergency fund held back from the pool (from the
- * current month on — see `emergencyReservedCents`).
+ * current month on — see `emergencyReservedCents`) and `assignedAhead` is
+ * money already given a job in a month this one has not reached yet (see
+ * `assignedAheadCents`).
  *
  * which is cash on hand. That identity is the tripwire the tests assert after
  * every mutation. It holds only if the row set below covers *every* budgetId
@@ -87,6 +90,15 @@ import useEmergencyFund from "./useEmergencyFund";
  * and never into this month's activity, so the figures displayed on a row always
  * add up to the balance displayed beside them. Future-dated records are excluded
  * until their month arrives.
+ *
+ * **An assignment, unlike a transaction, may be dated ahead on purpose** — that
+ * is what funding next month *is*. It stays out of every figure belonging to the
+ * month on screen, the way a future-dated paycheque does, but it cannot stay out
+ * of the pool: the money it was given is today's money, and a figure that
+ * offered it again would let one dollar fund two months. So it leaves the pool
+ * now and is reported back as `assignedAheadCents`, a term of the identity in
+ * its own right exactly as the emergency fund's hold is — the money is still
+ * there, it is simply no longer free.
  */
 export default function useEnvelopes(period) {
   // The emergency fund's money is in on-budget accounts and so in the pool;
@@ -181,11 +193,24 @@ export default function useEnvelopes(period) {
       }
     }
 
+    // Given a job in a month this one has not reached — next month's rent, a
+    // quarterly premium funded three paycheques early. Summed across categories
+    // and goals alike, since both draw on the one pool.
+    let assignedAheadRawCents = 0;
+
     for (const assignment of assignments) {
-      const entry = bucket(assignment.budgetId);
-      if (assignment.period === period) entry.assignedNow += assignment.assignedCents;
-      else if (periodLTE(assignment.period, period)) {
-        entry.assignedBefore += assignment.assignedCents;
+      const at = toPeriod(assignment.period);
+      if (at === period) {
+        bucket(assignment.budgetId).assignedNow += assignment.assignedCents;
+      } else if (periodLTE(at, period)) {
+        bucket(assignment.budgetId).assignedBefore += assignment.assignedCents;
+      } else if (at != null) {
+        // Ahead of the month on screen. Deliberately not bucketed: the row set
+        // is what the sums cover, and a category whose only assignment is for a
+        // month that has not arrived has nothing yet in the month that has.
+        // `null` — a row filed under no month at all, which nothing writes —
+        // is ignored, as it always was.
+        assignedAheadRawCents += assignment.assignedCents;
       }
     }
 
@@ -203,13 +228,17 @@ export default function useEnvelopes(period) {
       return entry;
     };
     for (const assignment of goalAssignments) {
-      const inPeriod = assignment.period === period;
-      const before = !inPeriod && periodLTE(assignment.period, period);
-      // Unlike a budget row, a goal has no union with a real-record list to
-      // fall back on — its row set *is* the tally — so a future-dated
-      // assignment must not seed a zero-valued entry for a period it has not
-      // reached yet.
-      if (!inPeriod && !before) continue;
+      const at = toPeriod(assignment.period);
+      const inPeriod = at === period;
+      const before = !inPeriod && periodLTE(at, period);
+      // A goal's row set *is* its tally — there is no union with a real-record
+      // list to fall back on — so an assignment for a month not yet reached
+      // must not seed a zero-valued entry for it. It still leaves the pool,
+      // on the same rule a category's does.
+      if (!inPeriod && !before) {
+        if (at != null) assignedAheadRawCents += assignment.assignedCents;
+        continue;
+      }
       const entry = goalBucket(assignment.goalId);
       if (inPeriod) entry.assignedNow += assignment.assignedCents;
       else entry.assignedBefore += assignment.assignedCents;
@@ -316,6 +345,15 @@ export default function useEnvelopes(period) {
       0
     );
 
+    // Floored at zero, the rule `reservedCents` already keeps. A negative total
+    // ahead means a later month will *release* money — a category over-funded
+    // once being pulled back in December — and that money is sitting in its
+    // envelope today, where `available` already counts it. Adding it to the
+    // pool as well would report it twice and say a household has money free
+    // months before it does. The same floored figure is subtracted below and
+    // reported back, so the identity still holds either side of the floor.
+    const assignedAheadCents = Math.max(0, assignedAheadRawCents);
+
     return {
       period,
       rows,
@@ -325,11 +363,15 @@ export default function useEnvelopes(period) {
         cumPoolIncomeCents -
         assignedThroughCents -
         goalAssignedThroughCents -
-        emergencyReservedCents,
+        emergencyReservedCents -
+        assignedAheadCents,
       // Held back for the emergency fund, out of `toBeAssignedCents`. A term of
       // the identity in its own right: the money is still there, just not
       // free to assign.
       emergencyReservedCents,
+      // Given a job in a month after this one, out of `toBeAssignedCents` for
+      // the same reason and on the same footing in the identity.
+      assignedAheadCents,
       totalAvailableCents: totals.available,
       totalCarriedInCents: totals.carriedIn,
       periodIncomeCents,

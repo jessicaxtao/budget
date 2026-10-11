@@ -516,8 +516,12 @@ describe("naming a payee on a row", () => {
     // the entry form, which holds a typed name as a draft until it is submitted.
     expect(payeeList()).toEqual([{ id: expect.any(String), name: "Aldi", defaultBudgetId: null }]);
     expect(entry("t1").payeeId).toBe(payeeList()[0].id);
-    // And the row now reads by its payee rather than by its note.
-    expect(screen.getByLabelText("Note on Aldi")).toBeInTheDocument();
+    // And the row now reads by its payee rather than by its note — so the note
+    // it was identified by until a moment ago folds into the mark at the end of
+    // the name, which still says what it is holding.
+    expect(
+      screen.getByRole("button", { name: "Note on Aldi: Trader Joe's" })
+    ).toBeInTheDocument();
   });
 
   test("a payee already on the list is taken, not created again", () => {

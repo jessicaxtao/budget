@@ -13,11 +13,12 @@ import SplitParts, {
 import { insideBudget, spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
+import { useRewards } from "../contexts/RewardsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
 import { orderPayeesByUse } from "../payeeSearch";
 import useCardOffers from "../hooks/useCardOffers";
-import { OFFER_KINDS, offerNudges } from "../rewards";
+import { OFFER_KINDS, offerNudges, rankCardsFor } from "../rewards";
 import { cashbackCents } from "../cashback";
 import useRecordCashback from "../hooks/useRecordCashback";
 import { amountAtRest, currentPeriod, formatBps, formatCents, toCents, todayISO } from "../utils";
@@ -109,6 +110,21 @@ function describeNudge({ row, onCard, afterCents, pastCents }, haveAmount) {
   const { offer } = row;
   const name = `“${offer.name}”`;
   const cap = offer.kind === OFFER_KINDS.CAP;
+  // A credit is spending the household has already paid for, so its sentence is
+  // about using it up rather than about a rate or a bonus.
+  if (offer.kind === OFFER_KINDS.CREDIT) {
+    if (!onCard) {
+      return `${name} on ${row.cardName ?? "another card"} has ${formatCents(
+        row.remainingCents
+      )} still to use — this would have come back there.`;
+    }
+    if (!haveAmount) {
+      return `Uses ${name} — ${formatCents(row.remainingCents)} of it still to use.`;
+    }
+    return afterCents === 0
+      ? `This uses up ${name}.`
+      : `Uses ${name} — ${formatCents(afterCents)} of it left after this.`;
+  }
   if (!onCard) {
     const left = cap
       ? `has ${formatCents(row.remainingCents)} of room left`
@@ -210,6 +226,7 @@ export default function AddTransactionModal({
   // receipt while looking at March does not want March's figure.
   const { rows: balanceRows } = useAccountBalances(currentPeriod());
   const offerRows = useCardOffers(todayISO());
+  const { earnRates, valuations } = useRewards();
 
   /** Read the category and date back out of their fields, where they differ. */
   function syncPicked() {
@@ -595,6 +612,43 @@ export default function AddTransactionModal({
         })
       : [];
 
+  /**
+   * The card that pays best on what is being filed, where it is not the card
+   * in hand — the standing-rate half of the reminder above, which otherwise
+   * only knows about offers that run out.
+   *
+   * Said **only when another card beats this one**, because that is the only
+   * version of it worth reading: being told the card already in hand is the
+   * right one is noise on every entry. A division has no single category to
+   * compare, so it gets no sentence, and nothing is ever refused or refiled —
+   * the rate is a fact about the card, not a rule about the books.
+   */
+  const cardRates = useMemo(() => {
+    const byAccount = new Map();
+    for (const rate of earnRates) {
+      if (!accounts.some((account) => account.id === rate.accountId)) continue;
+      const list = byAccount.get(rate.accountId) ?? [];
+      list.push(rate);
+      byAccount.set(rate.accountId, list);
+    }
+    return [...byAccount.entries()].map(([accountId, rates]) => ({ accountId, rates }));
+  }, [earnRates, accounts]);
+
+  function betterCardNote() {
+    const ranked = rankCardsFor(cardRates, { budgetId: picked.budgetId, payeeId }, valuations);
+    const best = ranked[0];
+    if (!best || best.accountId === fromAccountId) return null;
+    const mine = ranked.find((entry) => entry.accountId === fromAccountId);
+    if (mine && mine.bps >= best.bps) return null;
+    const name = accounts.find((account) => account.id === best.accountId)?.name ?? "another card";
+    return `${name} earns ${formatBps(best.bps)} on this, against ${
+      mine ? formatBps(mine.bps) : "nothing"
+    } on the card you have picked.`;
+  }
+
+  const cardAdvice =
+    isOutflow && !blocked && !splitting && fromAccountId ? betterCardNote() : null;
+
   // The card's cash back, said before saving so the second row it writes is
   // never a surprise on the register.
   const cashbackBps = isOutflow
@@ -831,6 +885,11 @@ export default function AddTransactionModal({
                 <li key={nudge.row.offer.id}>{describeNudge(nudge, totalCents != null && !splitting)}</li>
               ))}
             </ul>
+          )}
+          {cardAdvice && (
+            <p aria-live="polite" className="-mt-1 mb-5 font-sans text-row text-chalk-soft">
+              {cardAdvice}
+            </p>
           )}
           {cashbackBps > 0 && !blocked && (
             <p aria-live="polite" className="-mt-1 mb-5 font-sans text-row text-chalk-soft">

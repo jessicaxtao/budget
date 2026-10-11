@@ -1,8 +1,15 @@
 import { useEffect, useRef } from "react";
 
-// `wide` is for the one dialog that holds a grid rather than a short form —
-// a column of inputs one per category needs room the single-field modals don't.
-export default function Dialog({ show, handleClose, title, wide, children }) {
+// `wide` is for the dialogs that hold a table rather than a short form — a
+// column of inputs one per category, or a card's earn rates one per row, need
+// room the single-field modals don't.
+//
+// `actions` is `PageHeader`'s slot, one layer down: a control that says what the
+// whole dialog is *about* rather than being part of the form in it — today only
+// `AssignIncomeModal`'s month. It sits beside the close button because that is
+// where a page puts its own, and because the title row is the one part of a long
+// sheet that stays on screen.
+export default function Dialog({ show, handleClose, title, actions, wide, children }) {
   const dialogRef = useRef();
 
   useEffect(() => {
@@ -45,8 +52,12 @@ export default function Dialog({ show, handleClose, title, wide, children }) {
      * Escape key as the only ways out — neither of which a sheet pinned to the
      * bottom edge advertises.
      */
+    /* `aria-label` is the title verbatim — a dialog with no accessible name is
+       announced as just "dialog", and a page may hold several at once (the
+       rewards page holds four), where only the title tells them apart. */
     <dialog
       ref={dialogRef}
+      aria-label={title}
       onClick={handleBackdropClick}
       className={`mb-0 mt-auto max-h-[92vh] w-full max-w-none rounded-t-2xl border border-edge bg-panel p-0 font-sans text-chalk shadow-2xl shadow-black/50 backdrop:bg-black/60 sm:my-auto sm:max-h-[85vh] sm:rounded-none ${
         wide ? "sm:max-w-2xl" : "sm:max-w-lg"
@@ -55,14 +66,17 @@ export default function Dialog({ show, handleClose, title, wide, children }) {
       <div className="p-4 sm:p-6">
         <div className="sticky -top-4 z-10 mb-5 flex items-start justify-between gap-4 border-b border-edge bg-panel pb-4 pt-4 sm:static sm:pt-0">
           <div className="font-sans text-lg font-semibold tracking-tight text-chalk">{title}</div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => dialogRef.current.close()}
-            className="flex h-8 w-8 shrink-0 items-center justify-center border border-edge text-base leading-none text-chalk-soft transition-colors hover:border-azure hover:text-azure sm:h-7 sm:w-7"
-          >
-            &times;
-          </button>
+          <div className="flex shrink-0 items-center gap-3">
+            {actions}
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => dialogRef.current.close()}
+              className="flex h-8 w-8 shrink-0 items-center justify-center border border-edge text-base leading-none text-chalk-soft transition-colors hover:border-azure hover:text-azure sm:h-7 sm:w-7"
+            >
+              &times;
+            </button>
+          </div>
         </div>
         {children}
       </div>

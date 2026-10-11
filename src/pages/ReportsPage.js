@@ -31,11 +31,22 @@ import { addMonths, currentPeriod, formatCents, formatPeriod, periodLTE } from "
  * **One control, and it sets the window.** The range picker in the header is the
  * only thing on the page that changes what is shown, and everything below moves
  * with it together — the headline figures, the columns, the ranking, and the
- * divisor under every per-month figure. Five of its six options answer "how far
+ * divisor under every per-month figure. Six of its seven options answer "how far
  * back" and run to the current month, which is why the last column is usually a
  * month still in progress.
  *
- * **"Custom" is the sixth, and it is the only one that names both ends.** It
+ * **The shortest of them is this month**, which is the window a household asks
+ * for most and the limit of the same question the rest ask: where the money has
+ * gone so far. Nothing on the page is special-cased for it — one column is a
+ * column, and the ranking and the bucket split are the parts a single month was
+ * always going to be read for. What does change is what can be *said* over one
+ * month, and that follows the divisor rather than this option: a per-month
+ * figure equal to the total beside it is printed once rather than twice, and an
+ * average equal to a single month convicts no estimate of being wrong, because
+ * carry-over is exactly what it cannot rule out. `ReportSummary` and
+ * `SpendingByCategoryTable` own those two readings.
+ *
+ * **"Custom" is the seventh, and it is the only one that names both ends.** It
  * reveals two month fields rather than opening a second mode: everything below
  * reads the window the same way whichever option produced it. What it buys is
  * the report a preset structurally cannot give — a calendar year, a tax year, a

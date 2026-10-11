@@ -20,12 +20,21 @@ import { formatCents, formatDateMedium, formatDayDelta } from "../utils";
  *
  * **Two controls, because there are two sizes of answer.** Most months the
  * statement simply agrees, and `ReconcileModal` makes that cost a press to open
- * and a press to confirm a figure nobody needed to change — so the tick box is
+ * and a press to confirm a figure nobody needed to change — so "Accurate" is
  * the whole of that act in one click, and the dialog is kept for the day the two
- * disagree and the difference has to be settled. The box is the *state* as well
- * as the action: it reads ticked for exactly the accounts the header is not
- * counting, so the box, the tone of the date beside it and "N need checking"
- * cannot tell three different stories.
+ * disagree and the difference has to be settled.
+ *
+ * **It is a check for today, not a box that stays ticked.** What is stored is
+ * the day the books and the bank were last found to agree, and the act is
+ * saying so about today — so the control is a button that records it, and goes
+ * quiet once today is what is on file. A checkbox said something different and
+ * neither half of it was true: it stood ticked for a month after a check, as
+ * though the state were still being asserted, and unticking it *erased* the
+ * date rather than taking the day back, so the one row the user least wanted to
+ * disturb was one stray click from reading "Never". Whether an account is
+ * overdue is a reading of that date, which the row and the header already give
+ * — in the date's tone and in "N need checking" — and a control has no business
+ * being a third voice on it.
  */
 
 // A month. Long enough that an account checked at the last statement is not
@@ -75,8 +84,14 @@ function ReconciliationRow({
   const item = useSortableItem(account.id, { disabled: !sortable });
   const status = reconciliation(account, daysSince);
   // The same single definition of trouble as everywhere else: something owned
-  // that has gone under. A debt is negative by definition.
+  // that has gone under. Neither way a debt can read is trouble — owed is what a
+  // debt is for, and a card in credit is money waiting on it.
   const overdrawn = account.type !== ACCOUNT_TYPES.LIABILITY && balanceCents < 0;
+  // Today is already on file, so there is nothing left for the button to say.
+  // Tested on the date rather than the age, as `isUpToDate` is: `daysSince` is
+  // null exactly when nothing has been reconciled, and `null === 0` is false
+  // only by luck of which comparison was written.
+  const checkedToday = account.reconciledOn != null && daysSince === 0;
 
   return (
     /* Two lines, not three columns. This panel sits in the dashboard's narrow
@@ -148,21 +163,25 @@ function ReconciliationRow({
           /* The pair is one shrink-0 group so the status line keeps every pixel
              the two of them do not need, and `flex-wrap` on the line above lets
              the group drop below the date rather than squeezing it at 355px. */
-          <div className="ml-auto flex shrink-0 items-center gap-3">
-            <label className="flex cursor-pointer items-center gap-1.5 font-mono text-label uppercase text-ink-soft">
-              <input
-                type="checkbox"
-                checked={isUpToDate(account, daysSince)}
-                onChange={(event) => onConfirm(account, event.target.checked)}
-                /* Every row would otherwise be a control called "Accurate",
-                   so the account's name is in the accessible name — and the
-                   visible word leads it, which is what keeps the two in step
-                   for anyone driving this by voice. */
-                aria-label={`Accurate — ${account.name}`}
-                className="h-3.5 w-3.5 shrink-0 accent-ink-soft"
-              />
-              Accurate
-            </label>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {/* The quick answer leads, since it is the one most months want,
+                and both wear the same weight: which is the right press is the
+                statement's business, not something a louder button can know.
+                Every row would otherwise hold a control called "Accurate", so
+                the account's name is in the accessible name. */}
+            <Button
+              variant="row-action"
+              size="sm"
+              disabled={checkedToday}
+              aria-label={
+                checkedToday
+                  ? `${account.name} was checked today`
+                  : `Mark ${account.name} accurate today`
+              }
+              onClick={() => onConfirm(account)}
+            >
+              {checkedToday ? "Checked" : "Accurate"}
+            </Button>
             <Button
               variant="row-action"
               size="sm"
