@@ -42,7 +42,7 @@ test("a window where no money moved says so rather than drawing an empty diagram
 test("focus opens the read-out, naming the bands that touch the node", () => {
   render(<CashflowSankey report={report} payeeName={payeeName} />);
 
-  fireEvent.focusIn(screen.getByRole("img", { name: /^Money in:/ }));
+  fireEvent.focusIn(screen.getByRole("img", { name: /^Income:/ }));
 
   expect(screen.getByText("to Essentials")).toBeInTheDocument();
   expect(screen.getByText("to Kept")).toBeInTheDocument();

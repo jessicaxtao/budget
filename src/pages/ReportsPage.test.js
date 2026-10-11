@@ -226,7 +226,7 @@ describe("where it came from, where it went", () => {
       .slice(1)
       .map((row) => within(row).getAllByRole(/cell|rowheader/).map((cell) => cell.textContent));
 
-  test("the payer is named, the pool reaches the buckets, and what was not spent is kept", () => {
+  test("income starts it, its payer is named, and what was not spent is kept", () => {
     seed({
       payees: [{ id: "p1", name: "Acme Payroll", defaultBudgetId: null }],
       budgetGroups: [{ id: "g1", name: "Bills", bucket: "essentials" }],
@@ -242,14 +242,14 @@ describe("where it came from, where it went", () => {
 
     expect(within(flowsSection()).getByText("$3,000 kept")).toBeInTheDocument();
     expect(flowRows()).toEqual([
-      ["Acme Payroll", "Money in", "$5,000", "100%"],
-      ["Money in", "Kept", "$3,000", "60%"],
-      ["Money in", "Essentials", "$2,000", "40%"],
+      ["Acme Payroll", "Income", "$5,000", "100%"],
+      ["Income", "Kept", "$3,000", "60%"],
+      ["Income", "Essentials", "$2,000", "40%"],
       ["Essentials", "Rent", "$2,000", "40%"],
     ]);
     // The diagram draws the same nodes, each named for a screen reader.
     expect(
-      within(flowsSection()).getByRole("img", { name: /^Acme Payroll: \$5,000/ })
+      within(flowsSection()).getByRole("img", { name: /^Income: \$5,000/ })
     ).toBeInTheDocument();
   });
 
@@ -263,7 +263,12 @@ describe("where it came from, where it went", () => {
     renderPage();
 
     expect(within(flowsSection()).getByText("$500 spent beyond income")).toBeInTheDocument();
-    expect(flowRows()[1]).toEqual(["Spent beyond income", "Money in", "$500", "33%"]);
+    // Income pays for what it can, and the gap is drawn as its own source.
+    expect(flowRows().slice(0, 3)).toEqual([
+      ["No payer named", "Income", "$1,000", "67%"],
+      ["Income", "Essentials", "$1,000", "67%"],
+      ["Spent beyond income", "Essentials", "$500", "33%"],
+    ]);
   });
 });
 

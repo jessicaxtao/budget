@@ -8,8 +8,9 @@ import { formatCents, formatCompactCents } from "../utils";
  * Where the window's money came from and where it went, as one picture.
  *
  * The other two charts on the page are the time axis; this is the window
- * collapsed to a single flow: who paid the household, into one pool, out to the
- * plan's buckets, and on to the categories inside them. It answers the question
+ * collapsed to a single flow: income on the left, out to what was kept and the
+ * plan's buckets, and on to the categories inside them. Who paid the income is
+ * in its read-out. It answers the question
  * the ranking table answers — where did it go — with the one thing a table
  * cannot show, which is the *proportion* of the whole each answer is. A band's
  * width is its money, on one scale, end to end.
@@ -29,9 +30,9 @@ import { formatCents, formatCompactCents } from "../utils";
 
 const BASE_HEIGHT = 300;
 const PAD = { top: 22, bottom: 10 };
-// Width below which four columns of labels no longer fit, and the categories
+// Width below which three columns of labels no longer fit, and the categories
 // are left to the table under the chart.
-const COMPACT_WIDTH = 560;
+const COMPACT_WIDTH = 480;
 // The mono face at `text-label` is close to this wide per character.
 const CHAR_WIDTH = 6.7;
 
@@ -45,7 +46,6 @@ function toneOf(node) {
       return { fill: "fill-vermilion", swatch: "bg-vermilion" };
     case "refund":
       return { fill: "fill-chalk-soft", swatch: "bg-chalk-soft" };
-    case "hub":
     case "kept":
       return { fill: "fill-chalk", swatch: "bg-chalk" };
     default:
@@ -54,9 +54,13 @@ function toneOf(node) {
 }
 
 /** The band takes the colour of the end that says what kind of money it is:
- *  where it came from on the way in, where it went on the way out. */
-const bandTone = (band, byId) =>
-  toneOf(band.source === "hub" ? byId.get(band.target) : byId.get(band.source));
+ *  income wears where it went, since that is the question it is drawn to
+ *  answer; a refund or the overspend wears its own, so the gap stays visible
+ *  as the gap; and a bucket's bands to its categories wear the bucket's. */
+const bandTone = (band, byId) => {
+  const source = byId.get(band.source);
+  return toneOf(source.kind === "income" ? byId.get(band.target) : source);
+};
 
 function clip(text, chars) {
   return text.length <= chars ? text : `${text.slice(0, Math.max(1, chars - 1))}…`;
@@ -75,9 +79,20 @@ function describe(node, graph) {
 function Readout({ node, graph, byId }) {
   const into = graph.links.filter((band) => band.target === node.id);
   const outOf = graph.links.filter((band) => band.source === node.id);
+  const row = (key, text, other, valueCents) => ({ key, text, swatch: toneOf(other).swatch, valueCents });
   const rows = [
-    ...into.map((band) => ({ key: `in-${band.source}`, word: "from", other: byId.get(band.source), band })),
-    ...outOf.map((band) => ({ key: `out-${band.target}`, word: "to", other: byId.get(band.target), band })),
+    // Who paid it, for the one node that stands for every payer at once.
+    ...(node.payers ?? []).map((payer) =>
+      row(`payer-${payer.label}`, `from ${payer.label}`, node, payer.valueCents)
+    ),
+    ...into.map((band) => {
+      const other = byId.get(band.source);
+      return row(`in-${band.source}`, `from ${other.label}`, other, band.valueCents);
+    }),
+    ...outOf.map((band) => {
+      const other = byId.get(band.target);
+      return row(`out-${band.target}`, `to ${other.label}`, other, band.valueCents);
+    }),
   ];
   // A node with a single band in and out says nothing a second time.
   const listed = rows.length > 1 ? rows : [];
@@ -93,14 +108,12 @@ function Readout({ node, graph, byId }) {
       </div>
       {listed.length > 0 && (
         <dl className="mt-1.5 space-y-0.5 border-t border-edge pt-1.5">
-          {listed.map((row) => (
-            <div key={row.key} className="flex items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 ${toneOf(row.other).swatch}`} aria-hidden="true" />
-              <dt className="font-sans text-row text-chalk-soft">
-                {row.word} {row.other.label}
-              </dt>
+          {listed.map((entry) => (
+            <div key={entry.key} className="flex items-center gap-2">
+              <span className={`h-2 w-2 shrink-0 ${entry.swatch}`} aria-hidden="true" />
+              <dt className="font-sans text-row text-chalk-soft">{entry.text}</dt>
               <dd className="ml-auto pl-4 font-mono text-row tabular-nums text-chalk">
-                {formatCents(row.band.valueCents)}
+                {formatCents(entry.valueCents)}
               </dd>
             </div>
           ))}
@@ -173,9 +186,7 @@ export default function CashflowSankey({ report, payeeName }) {
     targets.current.get(next.id)?.focus();
   }
 
-  const headings = compact
-    ? ["Came from", "", "Went to"]
-    : ["Came from", "", "Went to", "Category"];
+  const headings = compact ? ["Came in", "Went to"] : ["Came in", "Went to", "Category"];
 
   return (
     <div className="px-2 pb-2 pt-1">
@@ -199,7 +210,7 @@ export default function CashflowSankey({ report, payeeName }) {
           viewBox={`0 0 ${width} ${height}`}
           className="w-full"
           role="group"
-          aria-label="Where the money came from and where it went"
+          aria-label="Income, and where it went"
         >
           {headings.map((heading, column) =>
             heading ? (

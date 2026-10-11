@@ -6,6 +6,11 @@ import { BUCKET_SERIES } from "./hooks/useSpendingReport";
  * no colour, no wording beyond a node's own name, no ARIA — so the rule that
  * matters can be tested without React in the way.
  *
+ * **It starts with income on the left**, as one node: what the household
+ * earned is the figure everything else is read against, so it is the first
+ * thing the eye meets. Who paid it is carried on that node (`payers`) for the
+ * read-out rather than drawn as a column of its own ahead of it.
+ *
  * **The rule that matters is conservation.** Every node in the middle passes on
  * exactly what reaches it, and both ends of the diagram add up to the same
  * figure. A diagram that leaked would draw money that does not exist, so the
@@ -17,26 +22,24 @@ import { BUCKET_SERIES } from "./hooks/useSpendingReport";
  *
  * A category whose refunds outweighed its spending has a **negative** net, and a
  * band cannot be drawn with negative width. So it is moved to the side its sign
- * puts it — `stackPaths`' rule, one dimension over — and enters on the left as
- * money that came back, rather than being clamped to zero (which would leave the
- * two ends disagreeing by exactly that refund). Likewise what was left: a window
- * that earned more than it cost ends in **Kept**, and one that cost more than it
- * earned starts with **Spent beyond income**, the gap paid out of what the
- * household already had. Only one of the two can be non-zero.
+ * puts it — `stackPaths`' rule, one dimension over — and enters on the left,
+ * under income, as money that came back, rather than being clamped to zero
+ * (which would leave the two ends disagreeing by exactly that refund). Likewise
+ * what was left: a window that earned more than it cost ends in **Kept**, and
+ * one that cost more than it earned has **Spent beyond income** under income on
+ * the left, the gap paid out of what the household already had. Only one of the
+ * two can be non-zero.
  *
  * Every figure in and out is cents.
  */
 
-/** The four columns, left to right. */
+/** The three columns, left to right. */
 export const SANKEY_COLUMNS = {
   SOURCE: 0,
-  HUB: 1,
-  BUCKET: 2,
-  CATEGORY: 3,
+  BUCKET: 1,
+  CATEGORY: 2,
 };
 
-/** Past this many payers the smallest fold into one "Other income" node. */
-export const MAX_SOURCES = 5;
 /** Past this many categories the smallest fold into one node per bucket. */
 export const MAX_CATEGORIES = 12;
 
@@ -50,16 +53,11 @@ const bucketNodeId = (key) => `bucket:${key}`;
  * @param payeeName    resolves a payee id to a name, or null; the hook keeps to
  *                     money and the page owns names
  * @param categories   false draws buckets as the last column, for a box too
- *                     narrow for four
+ *                     narrow for three
  */
 export function sankeyFlows(
   report,
-  {
-    payeeName = () => null,
-    categories = true,
-    maxSources = MAX_SOURCES,
-    maxCategories = MAX_CATEGORIES,
-  } = {}
+  { payeeName = () => null, categories = true, maxCategories = MAX_CATEGORIES } = {}
 ) {
   const nodes = [];
   const links = [];
@@ -86,74 +84,63 @@ export function sankeyFlows(
   if (totalCents <= 0) return null;
 
   // ---- Where it came from -------------------------------------------------
-  const sources = report.incomeSources.filter((source) => source.incomeCents > 0);
-  const shown = sources.length > maxSources ? sources.slice(0, maxSources - 1) : sources;
-  const folded = sources.slice(shown.length);
-  const hub = {
-    id: "hub",
-    column: SANKEY_COLUMNS.HUB,
-    kind: "hub",
-    label: "Money in",
-    valueCents: totalCents,
-  };
-
-  for (const source of shown) {
-    const entry = node({
-      id: `source:${source.payeeId ?? "none"}`,
+  // Income first and always — even a window with none draws it, at nothing,
+  // rather than leaving the reader to wonder where it went — then the two
+  // sources only some windows have.
+  const sources = [
+    node({
+      id: "income",
       column: SANKEY_COLUMNS.SOURCE,
       kind: "income",
-      label: payeeName(source.payeeId) ?? "No payer named",
-      valueCents: source.incomeCents,
-    });
-    link(entry, hub, entry.valueCents);
-  }
-  if (folded.length > 0) {
-    const entry = node({
-      id: "source:other",
-      column: SANKEY_COLUMNS.SOURCE,
-      kind: "income",
-      label: `${folded.length} other payers`,
-      valueCents: folded.reduce((sum, source) => sum + source.incomeCents, 0),
-    });
-    link(entry, hub, entry.valueCents);
-  }
+      label: "Income",
+      valueCents: incomeCents,
+      payers: report.incomeSources
+        .filter((source) => source.incomeCents > 0)
+        .map((source) => ({
+          label: payeeName(source.payeeId) ?? "No payer named",
+          valueCents: source.incomeCents,
+        })),
+    }),
+  ];
   if (refundedBeyondCents > 0) {
-    const entry = node({
-      id: "source:refunds",
-      column: SANKEY_COLUMNS.SOURCE,
-      kind: "refund",
-      label: "Refunds beyond spending",
-      valueCents: refundedBeyondCents,
-    });
-    link(entry, hub, entry.valueCents);
+    sources.push(
+      node({
+        id: "refunds",
+        column: SANKEY_COLUMNS.SOURCE,
+        kind: "refund",
+        label: "Refunds beyond spending",
+        valueCents: refundedBeyondCents,
+      })
+    );
   }
   if (shortfallCents > 0) {
-    const entry = node({
-      id: "source:shortfall",
-      column: SANKEY_COLUMNS.SOURCE,
-      kind: "shortfall",
-      label: "Spent beyond income",
-      valueCents: shortfallCents,
-    });
-    link(entry, hub, entry.valueCents);
+    sources.push(
+      node({
+        id: "shortfall",
+        column: SANKEY_COLUMNS.SOURCE,
+        kind: "shortfall",
+        label: "Spent beyond income",
+        valueCents: shortfallCents,
+      })
+    );
   }
 
-  node(hub);
-
   // ---- Where it went --------------------------------------------------------
+  const targets = [];
   if (keptCents > 0) {
-    // Ends in the bucket column, beside what was spent, because that is the
+    // In the bucket column, beside what was spent, because that is the
     // question it answers: what the money did that was not spending. First in
     // it, because it leads nowhere further, and a node below the buckets
     // would have their bands to the categories cut straight across it.
-    const entry = node({
-      id: "kept",
-      column: SANKEY_COLUMNS.BUCKET,
-      kind: "kept",
-      label: "Kept",
-      valueCents: keptCents,
-    });
-    link(hub, entry, keptCents);
+    targets.push(
+      node({
+        id: "kept",
+        column: SANKEY_COLUMNS.BUCKET,
+        kind: "kept",
+        label: "Kept",
+        valueCents: keptCents,
+      })
+    );
   }
 
   // The buckets in the plan's own order, unfiled last — `BUCKET_SERIES`, so the
@@ -181,7 +168,7 @@ export function sankeyFlows(
       label: series.label,
       valueCents: rows.reduce((sum, row) => sum + row.netSpentCents, 0),
     });
-    link(hub, bucket, bucket.valueCents);
+    targets.push(bucket);
     if (!categories) continue;
 
     // The smallest categories fold into one node per bucket rather than one
@@ -216,6 +203,29 @@ export function sankeyFlows(
     }
   }
 
+  // **Sources meet destinations in order, each filled before the next.**
+  // Income pays for Kept and the buckets top to bottom, and whatever it cannot
+  // cover is met by the sources under it — so in a window that overspent,
+  // the gap is drawn against the buckets at the end of the plan's order rather
+  // than smeared across all of them. Whole cents throughout, nothing rounded,
+  // and the bands never cross, since both columns are walked in the order they
+  // are drawn.
+  let sourceIndex = 0;
+  let sourceLeft = sources[0].valueCents;
+  for (const target of targets) {
+    let need = target.valueCents;
+    while (need > 0 && sourceIndex < sources.length) {
+      const take = Math.min(need, sourceLeft);
+      link(sources[sourceIndex], target, take);
+      need -= take;
+      sourceLeft -= take;
+      if (sourceLeft === 0) {
+        sourceIndex += 1;
+        sourceLeft = sources[sourceIndex]?.valueCents ?? 0;
+      }
+    }
+  }
+
   // Left to right, so a table read down the bands reads the diagram across.
   const columnOf = new Map(nodes.map((entry) => [entry.id, entry.column]));
   links.sort((a, b) => columnOf.get(a.source) - columnOf.get(b.source));
@@ -223,7 +233,7 @@ export function sankeyFlows(
   return {
     nodes,
     links,
-    columns: categories ? 4 : 3,
+    columns: categories ? 3 : 2,
     totalCents,
     incomeCents,
     spentCents,

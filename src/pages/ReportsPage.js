@@ -166,6 +166,25 @@ export default function ReportsPage() {
   // chart was drawn at, so a phone that folded the categories away still has
   // every band as a row.
   const flows = useMemo(() => sankeyFlows(report, { payeeName }), [report, payeeName]);
+  // Every band as a row, led by who paid the income — the one figure the
+  // diagram keeps in a read-out rather than drawing, so the table has it too.
+  const flowRows = useMemo(() => {
+    if (!flows) return [];
+    const labelOf = new Map(flows.nodes.map((node) => [node.id, node.label]));
+    const income = flows.nodes.find((node) => node.id === "income");
+    return [
+      ...income.payers.map((payer) => ({
+        from: payer.label,
+        to: income.label,
+        valueCents: payer.valueCents,
+      })),
+      ...flows.links.map((band) => ({
+        from: labelOf.get(band.source),
+        to: labelOf.get(band.target),
+        valueCents: band.valueCents,
+      })),
+    ];
+  }, [flows]);
   const coverage = coverageNote(report);
   // Which buckets the plan-against-books table needs a column for: the ones
   // that moved money somewhere in the window, carrying the index they sit at in
@@ -443,31 +462,28 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {flows.links.map((band, index) => {
-                        const label = (id) => flows.nodes.find((node) => node.id === id).label;
-                        return (
-                          <tr
-                            key={`${band.source}>${band.target}`}
-                            className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}
+                      {flowRows.map((band, index) => (
+                        <tr
+                          key={`${band.from}>${band.to}`}
+                          className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}
+                        >
+                          <td className="px-4 py-2 text-left font-sans text-row text-ink">
+                            {band.from}
+                          </td>
+                          <th
+                            scope="row"
+                            className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
                           >
-                            <td className="px-4 py-2 text-left font-sans text-row text-ink">
-                              {label(band.source)}
-                            </td>
-                            <th
-                              scope="row"
-                              className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
-                            >
-                              {label(band.target)}
-                            </th>
-                            <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink">
-                              {formatCents(band.valueCents)}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink-soft">
-                              {Math.round((band.valueCents / flows.totalCents) * 100)}%
-                            </td>
-                          </tr>
-                        );
-                      })}
+                            {band.to}
+                          </th>
+                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink">
+                            {formatCents(band.valueCents)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink-soft">
+                            {Math.round((band.valueCents / flows.totalCents) * 100)}%
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

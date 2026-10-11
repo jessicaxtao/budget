@@ -40,34 +40,47 @@ function expectConserved(graph) {
   expect(ends("right")).toBe(graph.totalCents);
 }
 
-test("a window that earned more than it spent ends in what was kept", () => {
+test("income starts the diagram, with who paid it carried on the node", () => {
   const graph = sankeyFlows(
     report({
-      incomeSources: [{ payeeId: "employer", incomeCents: 500000 }],
+      incomeSources: [
+        { payeeId: "employer", incomeCents: 400000 },
+        { payeeId: null, incomeCents: 100000 },
+      ],
       rows: [row("rent", "essentials", 200000), row("fun", "fun", 50000)],
     }),
     { payeeName: (id) => (id === "employer" ? "Acme" : null) }
   );
 
   expectConserved(graph);
-  expect(graph.totalCents).toBe(500000);
+  const income = graph.nodes[0];
+  expect(income).toMatchObject({ id: "income", column: 0, label: "Income", valueCents: 500000 });
+  expect(income.payers).toEqual([
+    { label: "Acme", valueCents: 400000 },
+    { label: "No payer named", valueCents: 100000 },
+  ]);
+  // Nothing else is on the left in an ordinary window.
+  expect(graph.nodes.filter((node) => node.column === 0)).toHaveLength(1);
   expect(graph.nodes.find((node) => node.id === "kept").valueCents).toBe(250000);
-  expect(graph.nodes.find((node) => node.kind === "income").label).toBe("Acme");
-  expect(graph.nodes.some((node) => node.kind === "shortfall")).toBe(false);
 });
 
-test("a window that spent more than it earned starts with the gap, rather than hiding it", () => {
+test("a window that spent more than it earned draws the gap under income, against the last buckets", () => {
   const graph = sankeyFlows(
     report({
       incomeSources: [{ payeeId: null, incomeCents: 100000 }],
-      rows: [row("rent", "essentials", 180000)],
+      rows: [row("rent", "essentials", 120000), row("fun", "fun", 60000)],
     })
   );
 
   expectConserved(graph);
   expect(graph.nodes.find((node) => node.kind === "shortfall").valueCents).toBe(80000);
-  expect(graph.nodes.find((node) => node.kind === "income").label).toBe("No payer named");
   expect(graph.nodes.some((node) => node.id === "kept")).toBe(false);
+  // Income pays for what comes first in the plan's order; the gap meets the rest.
+  expect(graph.links.filter((band) => band.source !== "bucket:essentials" && band.source !== "bucket:fun")).toEqual([
+    { source: "income", target: "bucket:essentials", valueCents: 100000 },
+    { source: "shortfall", target: "bucket:essentials", valueCents: 20000 },
+    { source: "shortfall", target: "bucket:fun", valueCents: 60000 },
+  ]);
 });
 
 test("a category refunded more than it spent enters on the left instead of being clamped", () => {
@@ -85,6 +98,16 @@ test("a category refunded more than it spent enters on the left instead of being
   expect(graph.nodes.some((node) => node.id === "category:travel")).toBe(false);
 });
 
+test("a window with no income still starts with it, at nothing", () => {
+  const graph = sankeyFlows(
+    report({ incomeSources: [], rows: [row("rent", "essentials", 50000)] })
+  );
+
+  expectConserved(graph);
+  expect(graph.nodes[0]).toMatchObject({ id: "income", valueCents: 0 });
+  expect(graph.nodes.find((node) => node.kind === "shortfall").valueCents).toBe(50000);
+});
+
 test("the smallest categories fold into one node per bucket, and nothing is lost", () => {
   const rows = Array.from({ length: MAX_CATEGORIES + 4 }, (_, index) =>
     row(`c${index}`, index % 2 ? "fun" : "essentials", 10000 - index * 100)
@@ -99,19 +122,17 @@ test("the smallest categories fold into one node per bucket, and nothing is lost
   expect(categories.length).toBe(MAX_CATEGORIES + 2);
 });
 
-test("payers past the fifth fold into one, and a narrow box ends at the buckets", () => {
-  const incomeSources = Array.from({ length: 8 }, (_, index) => ({
-    payeeId: `p${index}`,
-    incomeCents: 10000 * (8 - index),
-  }));
-  const graph = sankeyFlows(report({ incomeSources, rows: [row("rent", "essentials", 50000)] }), {
-    categories: false,
-  });
+test("a narrow box ends at the buckets", () => {
+  const graph = sankeyFlows(
+    report({
+      incomeSources: [{ payeeId: "p", incomeCents: 80000 }],
+      rows: [row("rent", "essentials", 50000)],
+    }),
+    { categories: false }
+  );
 
   expectConserved(graph);
-  expect(graph.columns).toBe(3);
-  expect(graph.nodes.filter((node) => node.kind === "income")).toHaveLength(5);
-  expect(graph.nodes.find((node) => node.id === "source:other").label).toBe("4 other payers");
+  expect(graph.columns).toBe(2);
   expect(graph.nodes.some((node) => node.kind === "category")).toBe(false);
 });
 
@@ -140,10 +161,10 @@ test("bands are as wide as their money, and fill each node exactly", () => {
     expect(band.width).toBeCloseTo(band.valueCents * layout.scale);
     expect(band.d).not.toMatch(/NaN/);
   }
-  // Every band leaving the pool sits inside it, top to bottom without a gap.
-  const hub = layout.nodes.find((node) => node.id === "hub");
-  const leaving = layout.bands.filter((band) => band.source === "hub").sort((a, b) => a.y0 - b.y0);
-  expect(leaving[0].y0).toBeCloseTo(hub.y);
+  // Every band leaving income sits inside it, top to bottom without a gap.
+  const income = layout.nodes.find((node) => node.id === "income");
+  const leaving = layout.bands.filter((band) => band.source === "income").sort((a, b) => a.y0 - b.y0);
+  expect(leaving[0].y0).toBeCloseTo(income.y);
   const lastBand = leaving[leaving.length - 1];
-  expect(lastBand.y0 + lastBand.width).toBeCloseTo(hub.y + hub.height);
+  expect(lastBand.y0 + lastBand.width).toBeCloseTo(income.y + income.height);
 });
