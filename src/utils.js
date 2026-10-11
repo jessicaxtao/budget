@@ -75,6 +75,46 @@ export function toCents(value) {
   return Math.round(Number((dollars * 100).toFixed(4)));
 }
 
+/**
+ * A leading "+" and whatever is written after it: "+250", "+ $1,250.50".
+ *
+ * Deliberately only the plus. A leading **minus** already means something in
+ * every field that takes one — it states a negative figure, which is how money
+ * is pulled back out of an envelope or a goal that was over-funded — and
+ * reinterpreting it as "subtract from what is there" would silently change a
+ * gesture the books already have. Nobody writes a leading plus to *state* a
+ * figure, so it was free to mean something.
+ */
+const INCREMENT = /^\+\s*(.+)$/;
+
+/**
+ * What a typed figure comes to **against the figure already stored** for the
+ * field: a plain one replaces it, and one written with a leading "+" is added
+ * to it. Junk is `null`, `toCents`' own answer, so a caller refuses it exactly
+ * as it always did.
+ *
+ * It exists because the commonest edit to a standing figure is "another two
+ * hundred into this", and the only way to say that with `toCents` alone is to
+ * read the figure on screen, add to it in your head, and type the total — which
+ * is arithmetic the app is holding the numbers for. "+200" is the same edit
+ * without it.
+ *
+ * The figure after the plus is read by `toCents` and nothing else, so "+$1,250"
+ * works like any other money field and "+ twelve" is refused like any other
+ * junk. A negative there subtracts ("+-50"), which follows from the same rule
+ * rather than being a second one.
+ */
+export function toCentsAgainst(value, currentCents) {
+  if (typeof value === "string") {
+    const increment = value.trim().match(INCREMENT);
+    if (increment) {
+      const cents = toCents(increment[1]);
+      return cents == null ? null : (currentCents ?? 0) + cents;
+    }
+  }
+  return toCents(value);
+}
+
 export function fromCents(cents) {
   return (cents ?? 0) / 100;
 }

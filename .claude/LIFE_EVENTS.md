@@ -71,6 +71,15 @@ target date becomes an event through "add as event", copied once — the money a
 aside sits in cash, and the event spends it from there. `enabled` keeps an event while leaving
 it out, which is what "with kids / without" and later Scenarios are built on.
 
+**Social Security is an income event with its own entry form** (`src/socialSecurity.js`,
+`SocialSecurityModal`) and **deliberately not a field on the plan**: the need is already the
+discounted sum of the retired-year draws net of event income, so there is nothing for a second
+term to add but a precedence rule between the two. The form asks the benefit at full retirement
+age — typed, since it rests on an earnings record this app has never seen — and a claiming age,
+and applies the statutory adjustment (70% at 62 to 124% at 70, the early reduction bending at
+three years out). It seeds and does not keep: those two are inputs to `annualCents`, not fields,
+so editing afterwards goes through the general form. `.claude/DERIVATIONS.md` carries the rest.
+
 ## Order
 
 1. ~~Projection and its assumptions, with the three tripwires.~~ Done.

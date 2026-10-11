@@ -627,6 +627,108 @@ describe("life events", () => {
     expect(within(events()).queryByText("Mystery")).not.toBeInTheDocument();
     expect(within(events()).queryByText("No age")).not.toBeInTheDocument();
   });
+
+  /**
+   * Social Security takes its own form, because the claiming adjustment is the
+   * form. The adjustment itself is `socialSecurity.test.js`'s — what is worth
+   * pinning down here is that the two questions become one ordinary event, that
+   * the event reaches the need, and that a benefit nobody stated is refused
+   * rather than written as nothing.
+   */
+  const security = () => screen.getByRole("dialog", { name: "Social Security" });
+
+  test("the benefit and the claiming age become one income event", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    fireEvent.click(within(events()).getByRole("button", { name: "Social Security" }));
+    // Its own form, not the general one seeded with a round figure.
+    expect(within(security()).queryByLabelText("Name")).not.toBeInTheDocument();
+    fireEvent.change(within(security()).getByLabelText("Benefit at full retirement age (67)"), {
+      target: { value: "$2,400" },
+    });
+
+    // $28,800 a year at full retirement age, and the two anchors either side of
+    // it say what the choice is worth before it is made.
+    const paid = () => within(security()).getByRole("table", { name: "What claiming at that age pays" });
+    const row = (name) => within(paid()).getByRole("rowheader", { name }).parentElement.textContent;
+    expect(row(/^At 67/)).toContain("100% of the full benefit");
+    expect(row(/^At 67/)).toContain("$28,800 a year");
+    expect(row(/^At 67/)).toContain("$2,400 a month");
+    expect(row(/^At 62/)).toContain("70%");
+    expect(row(/^At 62/)).toContain("$20,160 a year");
+    expect(row(/^At 70/)).toContain("124%");
+    expect(row(/^At 70/)).toContain("$35,712 a year");
+
+    fireEvent.change(within(security()).getByLabelText("Claim at age"), { target: { value: "62" } });
+    expect(row(/^At 62/)).toContain("70% of the full benefit");
+    expect(row(/^At 62/)).toContain("$1,680 a month");
+    // The chosen age leads, and 67 takes the anchor slot it vacated.
+    expect(within(paid()).getAllByRole("rowheader")[0].textContent).toMatch(/^At 62/);
+    expect(row(/^At 67/)).toContain("$28,800 a year");
+
+    fireEvent.click(within(security()).getByRole("button", { name: "Add to plan" }));
+    expect(within(events()).getByRole("checkbox", { name: "Include Social Security" })).toBeChecked();
+    expect(within(events()).getByText("In: $20,160 a year")).toBeInTheDocument();
+    // An ordinary event afterwards: from the claiming age, for the rest of the
+    // plan, and editable through the general form like any other.
+    expect(within(events()).getByText(/from 62 .* on/)).toBeInTheDocument();
+    fireEvent.click(within(events()).getByRole("button", { name: "Edit Social Security" }));
+    expect(within(screen.getByRole("dialog", { name: "Edit life event" })).getByLabelText("Every year it runs"))
+      .toHaveValue("20160.00");
+  });
+
+  test("it reaches the need, and claiming later takes more off it", () => {
+    seed();
+    renderPage();
+    statePlan();
+    const need = () => figure("You will need");
+    const before = money(need());
+
+    fireEvent.click(within(events()).getByRole("button", { name: "Social Security" }));
+    fireEvent.change(within(security()).getByLabelText("Benefit at full retirement age (67)"), {
+      target: { value: "$2,400" },
+    });
+    fireEvent.change(within(security()).getByLabelText("Claim at age"), { target: { value: "62" } });
+    fireEvent.click(within(security()).getByRole("button", { name: "Add to plan" }));
+    const atEarliest = money(need());
+    expect(atEarliest).toBeLessThan(before);
+
+    // The same household claiming the larger benefit three years later needs
+    // less again — the years it is not paid are inside the retirement this plan
+    // starts at 65, so the extra 24% outweighs them.
+    fireEvent.click(within(events()).getByRole("button", { name: "Remove Social Security" }));
+    fireEvent.click(within(events()).getByRole("button", { name: "Social Security" }));
+    fireEvent.change(within(security()).getByLabelText("Benefit at full retirement age (67)"), {
+      target: { value: "$2,400" },
+    });
+    fireEvent.change(within(security()).getByLabelText("Claim at age"), { target: { value: "70" } });
+    fireEvent.click(within(security()).getByRole("button", { name: "Add to plan" }));
+    expect(money(need())).toBeLessThan(atEarliest);
+  });
+
+  test("a benefit nobody stated is refused, and the form stays open", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    fireEvent.click(within(events()).getByRole("button", { name: "Social Security" }));
+    fireEvent.click(within(security()).getByRole("button", { name: "Add to plan" }));
+    expect(within(security()).getByRole("alert")).toHaveTextContent(
+      "Enter the monthly benefit from your statement as an amount more than zero."
+    );
+    expect(within(events()).getByText(/Nothing planned yet/)).toBeInTheDocument();
+
+    // And a figure that is not one is refused the same way, rather than parsed
+    // down to its first digit.
+    fireEvent.change(within(security()).getByLabelText("Benefit at full retirement age (67)"), {
+      target: { value: "2 thousand" },
+    });
+    fireEvent.click(within(security()).getByRole("button", { name: "Add to plan" }));
+    expect(within(security()).getByRole("alert")).toBeInTheDocument();
+    expect(within(events()).getByText(/Nothing planned yet/)).toBeInTheDocument();
+  });
 });
 
 describe("buying and selling a home", () => {

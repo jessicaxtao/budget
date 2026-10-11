@@ -13,8 +13,25 @@ import { toCents } from "../utils";
  * Independent of every store but one, in both directions: nothing here moves
  * money, and nothing but SavingsGoalAssignments references a goal's id — and
  * only to drop its assignments when the goal is deleted, never to read them
- * back. A goal is a standing intention — { id, name, targetCents, targetDate }
- * — with no link yet to a category or an account.
+ * back. A goal is a standing intention —
+ * { id, name, targetCents, targetDate, accountIds, accountAmounts }.
+ *
+ * **A goal's money can already be sitting off budget**, which is what the last
+ * two fields are for: a house deposit years out is usually invested rather than
+ * left in a current account, and before this the only money a goal could count
+ * was what the budget had assigned to it — so an invested fund read as a goal
+ * nobody had started. `accountIds` names the off-budget accounts holding it and
+ * `accountAmounts` says how much of one, where only part of it is this goal's.
+ *
+ * Both are **inert but kept**, the rule `EmergencyFundContext` and
+ * `RetirementContext` keep for the same question: this store reads no other, so
+ * an id is never checked against the live accounts. One whose account was
+ * deleted — or moved on budget, where its money is in the pool and counting it
+ * here would count it twice — contributes nothing, resolved where it is read in
+ * `useSavingsGoalEnvelopes`. An amount survives its account being unticked.
+ *
+ * It still holds no money and names no figure of its own: what an account is
+ * worth is `useNetWorth`'s answer, joined to the goal one level up.
  */
 const SavingsGoalsContext = React.createContext();
 
@@ -43,6 +60,62 @@ function parseGoalFields({ name, target, targetCents, targetDate }) {
   return { ok: true, name: trimmed, targetCents: cents, targetDate: date };
 }
 
+/** Ids, deduped. Anything that is not a string was never an account id. */
+function readAccountIds(value) {
+  if (!Array.isArray(value)) return null;
+  return [...new Set(value.filter((id) => typeof id === "string"))];
+}
+
+const AMOUNT_ERROR =
+  "Enter how much of an account is this goal, or leave it blank to count all of it.";
+
+/**
+ * The two holding fields, each only when the caller names it — a patch that
+ * says nothing about them leaves what is stored alone, which is what lets the
+ * edit modal save a renamed goal without restating where its money is.
+ *
+ * A blank amount is how a part is *removed* (the account goes back to counting
+ * whole), so the form drops the entry rather than sending an empty one; zero
+ * and a negative are refused here, since a part of nothing is not a part.
+ * `setFundAccountAmount`'s contract, asked of the whole map at once because
+ * this arrives from a form that commits every answer together.
+ */
+function parseHoldings({ accountIds, accountAmounts }) {
+  const patch = {};
+
+  if (accountIds !== undefined) {
+    const ids = readAccountIds(accountIds);
+    if (ids == null) return { ok: false, error: "Choose which accounts hold this goal's money." };
+    patch.accountIds = ids;
+  }
+
+  if (accountAmounts !== undefined) {
+    if (!accountAmounts || typeof accountAmounts !== "object" || Array.isArray(accountAmounts)) {
+      return { ok: false, error: AMOUNT_ERROR };
+    }
+    const amounts = {};
+    for (const [id, amount] of Object.entries(accountAmounts)) {
+      const cents = typeof amount === "number" ? amount : toCents(amount);
+      if (!isAmount(cents)) return { ok: false, error: AMOUNT_ERROR };
+      amounts[id] = cents;
+    }
+    patch.accountAmounts = amounts;
+  }
+
+  return { ok: true, patch };
+}
+
+/** Only well-formed entries survive a read of storage: a positive whole figure
+ *  under a string id. `EmergencyFundContext`'s `readAmounts`. */
+function storedAmounts(stored) {
+  const amounts = {};
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return amounts;
+  for (const [id, cents] of Object.entries(stored)) {
+    if (isAmount(cents)) amounts[id] = cents;
+  }
+  return amounts;
+}
+
 // Keyed on field presence rather than a version counter, so it is
 // self-describing and safe to re-run.
 function migrateGoals(stored) {
@@ -55,6 +128,11 @@ function migrateGoals(stored) {
       targetCents: goal.targetCents,
       // Optional: a goal without a date in mind is still a goal.
       targetDate: isDate(goal.targetDate) ? goal.targetDate : null,
+      // Purely additive, like every other field stamped on by a migration: a
+      // goal saved before its money could be held off budget was being funded
+      // out of the budget and nothing else, which is what these two say.
+      accountIds: readAccountIds(goal.accountIds) ?? [],
+      accountAmounts: storedAmounts(goal.accountAmounts),
     }));
 }
 
@@ -70,11 +148,24 @@ export const SavingsGoalsProvider = ({ children }) => {
     (fields) => {
       const parsed = parseGoalFields(fields);
       if (!parsed.ok) return parsed;
+      const holdings = parseHoldings(fields);
+      if (!holdings.ok) return holdings;
 
       const id = uuidV4();
       setGoals((previous) => [
         ...previous,
-        { id, name: parsed.name, targetCents: parsed.targetCents, targetDate: parsed.targetDate },
+        {
+          id,
+          name: parsed.name,
+          targetCents: parsed.targetCents,
+          targetDate: parsed.targetDate,
+          // Empty rather than a guess at which account the money is in — the
+          // `EmergencyFundContext` rule: naming one the household never agreed
+          // to would put a figure on screen nobody stated.
+          accountIds: [],
+          accountAmounts: {},
+          ...holdings.patch,
+        },
       ]);
       return { ok: true, id };
     },
@@ -94,11 +185,19 @@ export const SavingsGoalsProvider = ({ children }) => {
 
       const parsed = parseGoalFields(fields);
       if (!parsed.ok) return parsed;
+      const holdings = parseHoldings(fields);
+      if (!holdings.ok) return holdings;
 
       setGoals((previous) =>
         previous.map((goal) =>
           goal.id === id
-            ? { ...goal, name: parsed.name, targetCents: parsed.targetCents, targetDate: parsed.targetDate }
+            ? {
+                ...goal,
+                name: parsed.name,
+                targetCents: parsed.targetCents,
+                targetDate: parsed.targetDate,
+                ...holdings.patch,
+              }
             : goal
         )
       );

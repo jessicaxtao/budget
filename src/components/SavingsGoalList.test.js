@@ -20,6 +20,11 @@ const goal = (fields) => ({
   carriedInCents: 0,
   assignedCents: 0,
   availableCents: 0,
+  // The off-budget half of what a goal has: nothing, for a goal funded out of
+  // the budget alone, which is every goal here but the one that says otherwise.
+  heldCents: 0,
+  holdings: [],
+  savedCents: 0,
   remainingCents: 500000,
   ...fields,
 });
@@ -102,4 +107,99 @@ test("a target date reads as a date rather than as the ISO string it is stored a
   renderList();
 
   expect(screen.getByText("By May 1, 2027")).toBeInTheDocument();
+});
+
+/**
+ * The cell's other contract: what a typed figure *means* against the one
+ * already in it. A plain figure replaces it, which is what every money field in
+ * the app does; a leading plus adds to it, which is the whole point — the
+ * alternative is reading the stored figure off the screen and adding to it in
+ * your head. A leading minus is left alone deliberately: it already states a
+ * negative figure, which is how money is pulled back out of an over-funded
+ * goal, and that gesture is in the books.
+ */
+describe("adding to the figure already there", () => {
+  test("a leading plus adds, where a bare figure replaces", () => {
+    const assign = renderList();
+
+    const field = assignField("Camera");
+    fireEvent.change(field, { target: { value: "+250" } });
+    fireEvent.blur(field);
+
+    // $12,340.50 stored, $250 added.
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1259050);
+
+    fireEvent.change(field, { target: { value: "250" } });
+    fireEvent.blur(field);
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 25000);
+  });
+
+  test("a plus takes a figure written as money, and refuses junk like any other", () => {
+    const assign = renderList();
+
+    const field = assignField("Camera");
+    fireEvent.change(field, { target: { value: "+ $1,250.50" } });
+    fireEvent.blur(field);
+    // $12,340.50 stored plus $1,250.50 — symbol, separators and the space after
+    // the plus all read the way `toCents` reads them anywhere else.
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1359100);
+
+    fireEvent.change(field, { target: { value: "+ some" } });
+    fireEvent.blur(field);
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), null);
+  });
+
+  test("a bare minus still states a negative figure rather than subtracting", () => {
+    const assign = renderList();
+
+    const field = assignField("Camera");
+    fireEvent.change(field, { target: { value: "-250" } });
+    fireEvent.blur(field);
+
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), -25000);
+  });
+
+  test("adding to a goal nobody has funded this month is just that figure", () => {
+    const assign = renderList();
+
+    const field = assignField("Wedding");
+    fireEvent.change(field, { target: { value: "+250" } });
+    fireEvent.blur(field);
+
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Wedding" }), 25000);
+  });
+});
+
+/**
+ * A goal whose money is already invested. The two piles are stated apart — the
+ * holding under the goal's name, the assignment under the headline — because
+ * the household is the only thing that can move one into the other, and a
+ * single total would hide money that was assigned *and* already swept across.
+ */
+test("held money counts towards the goal and is named apart from what the budget assigned", () => {
+  const HOUSE = goal({
+    name: "House deposit",
+    targetCents: 4_000_000,
+    availableCents: 120000,
+    assignedCents: 0,
+    heldCents: 1_850_000,
+    holdings: [{ accountId: "a1", name: "Brokerage", countedCents: 1_850_000 }],
+    savedCents: 1_970_000,
+    remainingCents: 2_030_000,
+  });
+  renderList({ rows: [HOUSE] });
+
+  // The headline figure is both piles, and the column says so.
+  expect(screen.getByRole("columnheader", { name: "Saved" })).toBeInTheDocument();
+  expect(screen.getByText("$19,700")).toBeInTheDocument();
+  expect(screen.getByText("$18,500 held in Brokerage")).toBeInTheDocument();
+  expect(screen.getByText("$1,200 assigned")).toBeInTheDocument();
+  expect(screen.getByText("$20,300")).toBeInTheDocument();
+});
+
+test("a goal funded out of the budget alone says nothing about holdings", () => {
+  renderList();
+
+  expect(screen.queryByText(/held/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/assigned$/)).not.toBeInTheDocument();
 });

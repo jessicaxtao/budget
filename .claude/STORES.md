@@ -275,13 +275,23 @@ A rotating-category card is a capped bonus per round; "Next round" on the page o
 
 ## `SavingsGoalsContext`
 
-`savingsGoals`: a **standing intention**, `{ id, name, targetCents, targetDate }`, for the medium-term thing expected to *exceed* a normal month — a camera, a wedding, a special event — which is exactly what makes it a goal to plan around rather than a category to estimate.
+`savingsGoals`: a **standing intention**, `{ id, name, targetCents, targetDate, accountIds, accountAmounts }`, for the medium-term thing expected to *exceed* a normal month — a camera, a wedding, a special event — which is exactly what makes it a goal to plan around rather than a category to estimate.
 
 It holds **no money**: what has actually been put toward it lives next door, on the same split `BudgetsContext` keeps against `AssignmentsContext`, and for the same reason — the target is the estimate, the assignment is the money.
 
 `targetCents` must be a whole number **greater than zero**: a goal of nothing is not a goal, and unlike a category's `goalCents` there is no "not saving towards anything" state to express, since that is what having no goal record already means. `targetDate` is nullable — a goal with no date in mind is still a goal — and is `"YYYY-MM-DD"` or refused.
 
-A goal names **no category, no account and no transaction**, so nothing outside this pair deletes into or out of it. `updateSavingsGoal` refuses an id it cannot find rather than letting a `map` that matches nothing report the write as landed, because `useSyncedState` syncs a delete from another tab — or from another device — and the edit modal can be open on a record the store no longer has.
+### Where the money is already held
+
+**A goal's money does not have to be in the budget.** A deposit years out is usually invested rather than left in a current account, and a goal that could only count what the budget had assigned to it read an invested fund as a goal nobody had started. `accountIds` names the accounts holding it and `accountAmounts` (id → cents) says how much of one, where only part of it is this goal's — `EmergencyFundContext`'s pair, field for field, including that a missing amount is the whole balance and that an amount is **kept when its account is unticked**.
+
+Both are **inert but kept**: this store reads no other, so neither is checked against the live accounts, and an id whose account was deleted contributes nothing. **Only an off-budget account is ever counted, and that rule lives in `useSavingsGoalEnvelopes`, not here** — on-budget money is already in the pool a goal's assignment draws on, so counting a balance as well would promise one dollar twice; an id naming an on-budget account is therefore inert rather than refused, and counts again if the account moves off budget.
+
+`parseHoldings` checks each field **only when the caller names it**, so a patch that renames a goal leaves where its money is alone; an amount must be a positive whole figure, since a part of nothing is not a part, and the whole map is checked before any of it is written. The store still names no figure of its own: what an account is worth is `useNetWorth`'s answer, joined one level up.
+
+### The rest
+
+A goal names **no category and no transaction**, so nothing outside this pair deletes into or out of it — and the account it names is a reference it never reads back, the rule that keeps that true of accounts too. `updateSavingsGoal` refuses an id it cannot find rather than letting a `map` that matches nothing report the write as landed, because `useSyncedState` syncs a delete from another tab — or from another device — and the edit modal can be open on a record the store no longer has.
 
 ## `SavingsGoalAssignmentsContext`
 

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import Button from "./Button";
 import { SortableList, useSortableItem } from "./Sortable";
-import { amountEditing, formatCents, formatDateMedium, formatPeriod, toCents } from "../utils";
+import {
+  amountEditing,
+  formatCents,
+  formatDateMedium,
+  formatPeriod,
+  toCentsAgainst,
+} from "../utils";
 
 /**
  * The goals recorded so far, in the envelope shape: what each is saving
@@ -9,9 +15,18 @@ import { amountEditing, formatCents, formatDateMedium, formatPeriod, toCents } f
  * contribution is — editable right on the row, the same commit-on-blur
  * contract CategoryPlanner's estimate cell uses.
  *
- * `availableCents` is a goal's cumulative assignment (see useEnvelopes'
- * goalRows) — a goal has no ledger of its own, so there is no spend or
- * refund to net against it the way a category's balance does.
+ * **`savedCents` is the money that is there, wherever it sits**: the goal's
+ * cumulative assignment out of the budget (`availableCents`, see useEnvelopes'
+ * goalRows) plus whatever it holds in the off-budget accounts it names
+ * (`heldCents`). A goal has no ledger of its own, so there is no spend or refund
+ * to net against either the way a category's balance does.
+ *
+ * Where a goal holds both, **the two are named apart** — the holding under the
+ * goal's own name, the assignment under the headline figure — because they are
+ * two piles of money and the household is the only thing that can move one into
+ * the other. A single total would hide the one case worth seeing: money assigned
+ * *and* already swept into the holding, counted twice until the earmark is taken
+ * back off.
  */
 
 const TICKS = 24;
@@ -60,7 +75,9 @@ const headClass = "whitespace-nowrap py-2 font-mono text-label uppercase text-ch
 const COLUMNS = [
   { key: "goal", label: () => "Goal", className: "px-4 text-left" },
   { key: "target", label: () => "Target", className: "px-3 text-right" },
-  { key: "available", label: () => "Available", className: "px-3 text-right" },
+  // "Saved" rather than "Available": the figure under it is what the goal has,
+  // which is no longer only what the budget assigned to it.
+  { key: "saved", label: () => "Saved", className: "px-3 text-right" },
   { key: "assigned", label: (period) => formatPeriod(period), className: "px-3 text-right" },
   { key: "remaining", label: () => "Remaining", className: "px-3 text-right" },
   // Edit and Remove, which head nothing a reader needs to see.
@@ -86,13 +103,43 @@ const rowBg = (striped) => (striped ? "bg-sheet-alt" : "bg-sheet");
  */
 const assignedValue = (row) => (row.assignedCents ? amountEditing(row.assignedCents) : "");
 
+/** The id of the one note explaining the contribution cell, tied to every one
+ *  of them: a hint repeated per row would be the same sentence read out once
+ *  per goal. */
+const HINT_ID = "savings-goal-assign-hint";
+
+/**
+ * Where a goal's held money is, said under the goal's own name — the column
+ * built for a phrase, beside the target date, rather than in the column of
+ * figures. Named accounts up to two, counted past that: three account names on
+ * one row is a row read for its names rather than its money.
+ */
+function heldNote(row) {
+  if (!row.heldCents) return null;
+  const names = (row.holdings ?? []).map((holding) => holding.name);
+  const where =
+    names.length === 0
+      ? null
+      : names.length <= 2
+        ? names.join(" and ")
+        : `${names.length} accounts`;
+  return `${formatCents(row.heldCents)} held${where ? ` in ${where}` : ""}`;
+}
+
 function GoalRow({ row, period, striped, error, onAssign, onEdit, onDelete, sortable }) {
   const item = useSortableItem(row.goalId, { disabled: !sortable });
-  const ratio = row.targetCents > 0 ? row.availableCents / row.targetCents : 0;
+  const ratio = row.targetCents > 0 ? row.savedCents / row.targetCents : 0;
+  const held = heldNote(row);
 
   function handleBlur(e) {
     const raw = e.target.value;
-    const cents = raw.trim() === "" ? 0 : toCents(raw);
+    // A blank is "nothing this month", which is the row the store prunes. A
+    // figure written with a leading plus is added to what is already there, so
+    // another $250 into a goal is "+250" rather than arithmetic done in the
+    // reader's head — `toCentsAgainst` is where that rule lives, and a bare
+    // minus still states a negative figure, which is how money is pulled back
+    // out of a goal that was over-funded.
+    const cents = raw.trim() === "" ? 0 : toCentsAgainst(raw, row.assignedCents);
     const result = onAssign(row, cents);
     // Put the stored figure back when the store refuses the typed one — and say
     // why, under the row: a figure that reverts with no explanation reads as the
@@ -113,19 +160,30 @@ function GoalRow({ row, period, striped, error, onAssign, onEdit, onDelete, sort
               By {formatDateMedium(row.targetDate)}
             </div>
           )}
+          {held && (
+            <div className="mt-0.5 font-mono text-label uppercase text-ink-soft">{held}</div>
+          )}
         </th>
         <td data-label="Target" className={`${figureClass} text-ink-soft`}>
           {formatCents(row.targetCents)}
         </td>
-        <td data-label="Available" className={figureClass}>
+        <td data-label="Saved" className={figureClass}>
           <div>
-            <div className="font-medium text-ink">{formatCents(row.availableCents)}</div>
+            <div className="font-medium text-ink">{formatCents(row.savedCents)}</div>
             <div className="mt-1 flex justify-end">
               <GoalMeter
                 ratio={ratio}
                 label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the way to ${row.name}`}
               />
             </div>
+            {/* Only where there is held money to tell it apart from: on every
+                other goal the two figures are the same one, and printing it
+                twice would read as two facts. */}
+            {held && (
+              <div className="mt-1 font-mono text-label uppercase text-ink-soft">
+                {formatCents(row.availableCents)} assigned
+              </div>
+            )}
           </div>
         </td>
         <td data-label={formatPeriod(period)} className="px-3 py-2 text-right">
@@ -140,6 +198,7 @@ function GoalRow({ row, period, striped, error, onAssign, onEdit, onDelete, sort
             defaultValue={assignedValue(row)}
             placeholder="$0"
             aria-label={`Assign to ${row.name} this period`}
+            aria-describedby={HINT_ID}
             onBlur={handleBlur}
             className="w-24 border-0 border-b-2 border-rule bg-transparent px-0 py-1 text-right font-mono text-row tabular-nums text-ink outline-none transition-colors placeholder:text-ink-soft/60 focus:border-azure"
           />
@@ -255,6 +314,20 @@ export default function SavingsGoalList({ rows, period, onAssign, onEdit, onDele
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Said once, under the table, and tied to every contribution cell by
+          `aria-describedby`: the plus is the whole reason the cell no longer
+          asks the reader to add up what is already in it. */}
+      {rows.length > 0 && (
+        <p
+          id={HINT_ID}
+          className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft"
+        >
+          Type a figure in the {formatPeriod(period)} column to set this month's contribution, or
+          start it with a plus — <span className="font-mono text-chalk">+250</span> — to add that
+          much to what is already there.
+        </p>
       )}
     </section>
   );

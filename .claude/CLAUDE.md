@@ -11,8 +11,8 @@ This file is the orientation and the rules that bite everywhere. **Each companio
 | Doc | Read it before |
 |---|---|
 | **`STORES.md`** | changing a store's shape, its validation, or a cascade |
-| **`DERIVATIONS.md`** | changing any cross-store hook's maths, or a chart that reads one |
-| **`TESTING.md`** | adding a test suite, or working out where a claim belongs |
+| **`DERIVATIONS.md`** | changing any cross-store hook's maths, any sum the envelope identity covers, or a chart that reads one |
+| **`TESTING.md`** | writing or changing any test, or working out where a claim belongs |
 | **`UI.md`** | writing UI — the palette, the two modes, the shared components |
 | **`ACCOUNTS.md`** | touching auth, sync, or storage scoping |
 | **`DESKTOP_APP.md`** | touching the Electron shell, the books file, or packaging |
@@ -70,10 +70,10 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 | `/retirement` | The outlook, year-by-year chart + table twin, net worth by age, the account picker, assumptions, scenarios |
 | `/reports` | The window, headline figures, bucket split, cashflow chart, plan-vs-actual chart, spending by category ranked, per-category drill-in |
 | `/donations` | A year of giving: given against claimable, the year's gifts, the goal, the organizations |
-| `/savings-goals` | Goals with target, accumulated, remaining, this period's contribution; read-only to-be-assigned above |
+| `/savings-goals` | Goals with target, what is saved (assigned plus any off-budget holding), remaining, this period's contribution; read-only to-be-assigned above |
 | `/rewards` | Card offers and credits, which card to reach for, each card's fee against what it earns, then points/miles: value per point, catalog vs the household's own, planned trips |
 
-`Placeholder` marks what is still to come: asset allocation (`/net-worth`), non-cash gifts and pledges (`/donations`), linking a goal to a category or account (`/savings-goals`), a recurring filter and CSV export (`/reports`).
+`Placeholder` marks what is still to come: asset allocation (`/net-worth`), non-cash gifts and pledges (`/donations`), linking a goal to a category (`/savings-goals`), a recurring filter and CSV export (`/reports`).
 
 **The dashboard has no period selector.** Everything on it is as of `todayISO()`, read once in the page so the date, the countdown and the reconciliation ages cannot disagree. Walking back through the books is the register's job, and **funding a month ahead is `AssignIncomeModal`'s** — the month is a control on that form rather than on any page, so the pool keeps one door and the dashboard keeps one date. The Net worth page *does* have a month, because half of what is on it is typed in and the month it was typed for is the meaning of the figure. The Retirement page has none, because nothing on it is about a month at all.
 
@@ -96,7 +96,7 @@ A deleted category's funding **moves** to `UNCATEGORIZED_BUDGET_ID` (`src/contex
 
 ### The three shapes a ledger record takes
 
-**`TransactionsContext` is one ledger for every movement of money**, discriminated by `kind` (`TRANSACTION_KINDS.INFLOW` / `OUTFLOW` / `TRANSFER`), never a signed amount; `amountCents` is a non-negative magnitude. Three rules are load-bearing far outside that store:
+**`TransactionsContext` is one ledger for every movement of money**, discriminated by `kind` (`TRANSACTION_KINDS.INFLOW` / `OUTFLOW` / `TRANSFER`), never a signed amount; `amountCents` is a non-negative magnitude. Three rules are load-bearing far outside that store (`STORES.md` has the store's own detail):
 
 1. **An outflow must name a `budgetId`; an inflow may.** An inflow with no category is income into the pool; an inflow *with* one is a **refund** against that category. Spend $100 on food, be paid back $60, food shows $40 of activity.
 2. **A split's parts add up to `amountCents` exactly.** The envelopes read the parts while every balance reads the whole, and the two agree only because of that rule.
@@ -126,7 +126,7 @@ toBeAssigned(P)  = opening(P)
                  − assignedAhead(P)
 ```
 
-**A savings goal draws on the same pool a category does** — a dollar diverted to the wedding fund cannot also fund groceries. There is no second pool anywhere.
+**A savings goal draws on the same pool a category does** — a dollar diverted to the wedding fund cannot also fund groceries. There is no second pool anywhere. A goal may also *name* off-budget accounts holding its money (an invested house deposit), and that figure is on **neither** side of the identity — it was never the budget's to assign — so it is reported beside the assignment by `useSavingsGoalEnvelopes` and never folded into `goalRows`.
 
 **The invariant**, asserted after every mutation by the tripwire in `dataModel.test.js`:
 
@@ -134,64 +134,20 @@ toBeAssigned(P)  = opening(P)
 toBeAssigned + reserved + assignedAhead + Σ available + Σ goal available === opening + cumulative inflow − cumulative gross spend
 ```
 
-**Two terms are money that is still there and no longer free**, and each is subtracted from the pool and reported back so the identity closes over it:
+**Two terms are money that is still there and no longer free**, each subtracted from the pool and reported back so the identity closes over it: **`reserved`**, the emergency fund held back, and **`assignedAhead`**, a month funded before it arrived — because **an assignment, unlike a transaction, may be dated ahead on purpose**, and a pool that offered that money again would let one dollar fund two months. Both are floored at zero.
 
-- **`reserved` is the emergency fund held back** (`emergencyReservedCents`, from `useEmergencyFund`'s `reservedCents`, capped at the target where there is one, never below zero). Without it that money read as "to be assigned" and could be given to groceries. Only from the current month on, and off when `emergencyFund.holdBack` is false.
-- **`assignedAhead` is a month funded before it arrived** (`assignedAheadCents`) — budgeting ahead, YNAB's and Actual's. **An assignment, unlike a transaction, may be dated ahead on purpose**: it stays out of every figure belonging to the month on screen (it is not this month's `assignedCents`, it seeds no row, it is not in `carriedIn` until its month is behind), but it cannot stay out of the pool — the money it was given is today's money, and a pool that offered it again would let one dollar fund two months. Floored at zero, `reserved`'s rule, because a negative total ahead means a later month will *release* money that is sitting in its envelope today, where `available` already counts it.
-
-`ToBeAssignedBar` names both figures; `DashboardSummary`'s pool tile names the second, since the dashboard has no month on which a month ahead could otherwise be seen.
-
-The assignment terms cancel algebraically, so this checks **coverage, not arithmetic**. Five conditions keep it true:
-
-1. **`rows` is the union** of budget ids, the Uncategorized sentinel, and every id appearing in the ledger or in `assignments`. Filtering what the *grid* renders is fine; filtering what the *sums* cover is not.
-2. **Both sides use the same period filter**, and the one assignment that falls outside it is carried by a term of its own. The pool subtracts *every* assignment: those at or before `P` against `Σ available`, those after it against `assignedAhead`. Drop the term and funding next month reads as money vanishing; leave the assignment out of the pool instead and the same dollar is offered twice.
-3. **A split's parts are its legs and nothing else is.** `cumSpentCents` is built from the parts while `useAccountBalances` reads `amountCents`, so a division that did not add up would put the two cuts on two different transactions.
-4. **A refund is counted once on each side, by different routes.** `toBeAssigned` uses `cumPoolIncomeCents` (uncategorised inflows only) while the right-hand side uses `cumIncomeCents` (every inflow) and a **gross** `cumSpentCents`. Netting refunds off the spend as well would subtract them twice; adding them to the pool as well would create money.
-5. **A goal's `availableCents` is nothing but its own cumulative assignment**, which is what makes the third term cancel. **Give a goal any figure the ledger also sees and the identity breaks** — the whole reason a goal is not a category with an account behind it.
+The assignment terms cancel algebraically, so this checks **coverage, not arithmetic**. **`DERIVATIONS.md` carries the five conditions that keep it true**, and the two terms in full — read them before touching any sum on either side.
 
 **The balance sheet is the other cut of the same ledger**: `balance(a, P) = opening(a) + Σ inflows − Σ outflows, through P` (`useAccountBalances`, derived and never stored). Envelopes say what money is *for*, this says where it *is*. `accountBalancesAt` **stays the only definition of what an account holds.**
 
 ## The ten cross-store hooks
 
-Each owns a definition no single store can own. **`DERIVATIONS.md` is the detail.**
+`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `bucketTones`, `cashback`, `payeeSearch`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
 
-`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`.
-
-Not in the ten: `useDashboard` and `useStartingBalances` (they arrange what `useEnvelopes` derived), `usePlanHealth` (crosses three stores but never reads the books), `useNextPaycheck` (one store), `useRecordCashback` (a writer), and `useUpcoming` — one store, and it **must not become** a cross-store hook: a schedule is a prediction, and a hook that read the ledger would invite matching an occurrence against a transaction that looks like it, which is guesswork about intent and wrong the first time a bill is paid twice on purpose.
-
-The pure modules beside them: `src/paySchedule.js` (when the household's own pay lands), `src/recurrence.js` (which days a recurring bill lands on), `src/cadence.js` (what a recurring figure comes to in an average month), `src/netWorthProjection.js` (the whole balance sheet walked forward), `src/rewards.js`, `src/chartAxis.js`, `src/bucketTones.js`, `src/cashback.js`, `src/payeeSearch.js`, `src/receipts.js`. **Four cadence names appear in three of those tables by coincidence of English and they are not to be consolidated** — the proof is the weekend rule, which `paySchedule.js` has and `recurrence.js` must not.
-
-Two figures that look alike and are not: **`usePlanHealth`'s `plannedCents` grosses up by `pretaxContributionCents` and `useSpendingReport`'s does not**, because a pre-tax deduction never becomes a transaction a report of the books could find.
+**`DERIVATIONS.md` is the detail**, including which hooks are deliberately *not* in the ten and why `useUpcoming` must never join them, the four cadence names that look consolidatable and are not, and the two `plannedCents` figures that look alike and are not.
 
 ## Testing
 
-**`TESTING.md`** says which suite covers what. These are the parts that bite on any change.
+**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what, and the five tripwires.
 
-### Environment
-
-- jsdom 16 has no `<dialog>`; `src/setupTests.js` polyfills `showModal` / `show` / `close` and the `close` event, guarded so native support wins later.
-- **react-scripts sets `resetMocks: true`** — a mock implementation defined at module scope is wiped before every test. Stage them in `beforeEach` or they come back `undefined`.
-- A promise resolved in an effect needs `await act(async () => {})` before asserting, or its state update lands outside act.
-- **CRA pins Jest's `roots` to `<rootDir>/src` and does not allow it to be overridden** (`createJestConfig.js` lists what it takes, and `roots` is not on it), so a test under `electron/` is never discovered — it does not fail, it silently does not exist. That is why `electronBooks.test.js`, `electronAssist.test.js` and `electronReceipts.test.js` test main-process code from `src/`. They drive the real modules against **real files in a real temp directory** (the atomicity relied on is the filesystem's own); `jest.resetModules()` before each `require` is required, since the module is a singleton over one file.
-- A `<dt>` does not take its accessible name from its content, so `getByRole("term", { name })` finds nothing. Reach a figure through its term's text and `nextElementSibling`, scoped to the region.
-- A `type="number"` input in jsdom refuses non-numeric text exactly as a browser does — but the only number fields left are the ages and the day count. **Money and rates are textboxes**, so `getByRole` wants `"textbox"`, `toHaveValue` takes a **string** (`"$12,500"`, or `""` for empty, never `null`), and a rejected figure can be tested with a word.
-- React 17+ delegates `onFocus` through `focusin`: use `fireEvent.focusIn`, not `fireEvent.focus`.
-- dnd-kit drags need `getBoundingClientRect` stubbed to give each row a band by its index (jsdom lays nothing out), and a **60ms wait after each drag**, or its 50ms click-swallowing listener eats the next test's first click.
-- Deliver bridge answers inside `await act(async () => …)`. Left outside, the renders go to React's real scheduler and state a re-seed effect sets can still be pending when the next click lands. An empty `act()` afterwards does not help — it only flushes work scheduled inside it.
-- A write that follows an `await` lands after the render its button appears in, so `waitFor` the stored record.
-
-### Seeding
-
-- Tests seed pre-migration JSON into `localStorage` before `renderHook` and use the real `AppProviders`, exercising migrations and provider order rather than mocking them. **That this works is the point of the migration's shape**: with no `AuthProvider` above them the storage scope is null, so a bare key is the real key and no network exists to mock.
-- Seeding the `transactions` key — or the legacy `expenses` key, which still folds in — also fires the day-one assignment seed; to test spend with no funding, write an empty `assignments` key too.
-- Any test that writes a transaction must seed an **account** first: the store refuses one without an `accountId`.
-- **Tests that assert a whole stored record must list every field** — `payeeId`, `toAccountId` and `splits` on a transaction; `reconciledOn` on an account; `goalCents` on a budget. Several broke each time one was added, which is the point of asserting whole records.
-- **Nothing mocks a hook.** Pages render through the real providers; that is what caught a column dropped from a table header and left in its body.
-
-### The five tripwires — any change to the maths must keep these green
-
-- **`dataModel.test.js`** — `expectBalanced` is the envelope identity written out, **including the `goalRows` and `assignedAheadCents` terms**; drop the first and every goal assignment reads as money vanishing, drop the second and so does every month funded ahead. Its **funding a month ahead** block asserts the half the store cannot see: next month's envelope funded, today's pool paying for it, no row or figure of the month on screen touched, a goal funded ahead drawing on the same pool, over-funding shown rather than refused, and a later month's withdrawal not reading as money free today. Its `transfers` block asserts the same identity in **all four quadrants** of the matrix, the only thing standing between a change to `budgetLegs` and a transfer that quietly creates or destroys money. Its splits block carries **`expectCoversLedger`**, the stronger one: it adds up the raw `amountCents` of every outflow in the seed — a reading with no notion of parts — so it catches a division and its whole drifting *together*, which `expectBalanced` (self-consistent by construction) would not. Its `moveBetweenBudgets` block asserts the move is **one write**, so the sum across the two rows is unchanged at every point a reader of storage could look.
-- **`useRetirementProjection.test.js`** — a balance of `need` on the first day of retirement is a balance of zero on the last. The only thing holding the closed form and the year-by-year simulation to the same meaning.
-- **`netWorthProjection.test.js`** — three: `expectIdentity` (each year's change in net worth is exactly income − consumption − tax − interest + growth + unfunded, from the unrounded `exact` figures), the reproduction of `projectRetirement` to the cent with only a retirement pot, and a pot of `need` ending at zero through `retirementOutlook`. Asserted again under every event kind, a purchase, a sale, and a down payment bigger than the cash.
-- **`useSpendingReport.test.js`** — `netCents` equals every inflow less every outflow in the window, computed straight off the seed with no notion of income or refunds in it. `cashMoved` takes the off-budget account ids so it spells the transfer rule out for itself rather than reading `budgetLegs`: a tripwire that called the code under test would only assert the code agrees with itself.
-- **`storage.test.js`**'s last test **reads `src/contexts/*.js` and fails if a store's key is missing from `STORE_KEYS`**. The only test in the suite that reads source, because nothing else can catch it — the app works perfectly until the user opens it somewhere else.
+**The five tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `storage.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.

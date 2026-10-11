@@ -21,9 +21,14 @@ import { currentPeriod, formatCents } from "../utils";
  * stepper, on the same reasoning the dashboard has none: this answers where
  * each goal stands right now, not a month to walk back through.
  *
+ * A goal's money does not have to be in the budget: a fund years out is often
+ * invested, so a goal may name the off-budget accounts holding it and their
+ * value counts towards the target beside what has been assigned — see
+ * `useSavingsGoalEnvelopes`. Which categories a goal draws from is still to
+ * come.
+ *
  * `editingGoal` picks up the same add/edit modal AddAccountModal uses:
- * absent, it adds; a row's goal, and it amends that one. Linking a goal to
- * the category or account it draws from is still to come.
+ * absent, it adds; a row's goal, and it amends that one.
  */
 export default function SavingsGoalsPage() {
   const [showModal, setShowModal] = useState(false);
@@ -92,7 +97,7 @@ export default function SavingsGoalsPage() {
 
         <Placeholder
           title="Still to come"
-          items={["Linking a goal to the category or account it draws from"]}
+          items={["Linking a goal to the category it draws from"]}
         />
       </div>
 

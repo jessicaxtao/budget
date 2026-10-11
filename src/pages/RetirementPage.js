@@ -10,6 +10,7 @@ import RetirementAssumptionsPanel from "../components/RetirementAssumptionsPanel
 import RetirementChart from "../components/RetirementChart";
 import RetirementOutlook from "../components/RetirementOutlook";
 import RetirementStartingPoint from "../components/RetirementStartingPoint";
+import SocialSecurityModal from "../components/SocialSecurityModal";
 import { LIFE_EVENT_KINDS, useLifeEvents } from "../contexts/LifeEventsContext";
 import { migratePlan, useRetirement } from "../contexts/RetirementContext";
 import { useScenarios } from "../contexts/ScenariosContext";
@@ -159,6 +160,9 @@ export default function RetirementPage() {
   // One modal for adding and editing, the savings-goals page's arrangement:
   // `editing` is the record, `seed` what a new one starts from.
   const [eventModal, setEventModal] = useState({ show: false, editing: null, seed: null });
+  // Its own, because it writes its event rather than seeding the form above:
+  // the claiming arithmetic is the form. See `SocialSecurityModal`.
+  const [socialSecurity, setSocialSecurity] = useState(false);
   // What a sale can name: the property accounts, and every home an event buys.
   const saleOptions = [
     ...propertyOptions,
@@ -314,6 +318,7 @@ export default function RetirementPage() {
           goals={goals}
           propertyNames={propertyNames}
           onAdd={(seed) => setEventModal({ show: true, editing: null, seed })}
+          onAddSocialSecurity={() => setSocialSecurity(true)}
           onEdit={(event) => setEventModal({ show: true, editing: event, seed: null })}
           onToggle={setLifeEventEnabled}
           onRemove={deleteLifeEvent}
@@ -340,6 +345,8 @@ export default function RetirementPage() {
           debtOptions={debtOptions}
           handleClose={() => setEventModal((current) => ({ ...current, show: false }))}
         />
+
+        <SocialSecurityModal show={socialSecurity} handleClose={() => setSocialSecurity(false)} />
 
         <ScenariosPanel
           rows={scenarioRows}

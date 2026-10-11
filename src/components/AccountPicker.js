@@ -90,9 +90,15 @@ function AccountRow({ row, striped, onToggle, onPortionChange }) {
           <span>{row.account.name}</span>
         </label>
       </th>
+      {/* The one cell here that is allowed to wrap. It holds a phrase rather
+          than a figure, and held to one line it sets a floor on the table's
+          width that the two full-width panels never feel but a dialog does —
+          `AddSavingsGoalModal` is 672px wide and was scrolling the Counted
+          column off the end of it. Nothing moves on a wide panel, where the
+          phrase fits on one line either way. */}
       <td
         data-label="Source"
-        className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-ink-soft"
+        className="px-3 py-2 text-right font-mono text-label uppercase text-ink-soft"
       >
         {scopeLabel(row.account)} · {sourceNote(row)}
       </td>

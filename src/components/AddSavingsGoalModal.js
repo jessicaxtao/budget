@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import AccountPicker from "./AccountPicker";
 import Dialog from "./Dialog";
 import Field from "./Field";
 import Button from "./Button";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
-import { amountEditing } from "../utils";
+import { countedHoldingCents, useHoldingOptions } from "../hooks/useSavingsGoalEnvelopes";
+import { amountEditing, currentPeriod, toCents } from "../utils";
+
+const PORTION_ERROR =
+  "Enter how much of an account is this goal, or leave it blank to count all of it.";
 
 /**
  * Add a medium-term savings goal — a camera, a wedding, a special event — or
@@ -13,6 +18,18 @@ import { amountEditing } from "../utils";
  * absent, this adds one; present, it amends that one. Uncontrolled and
  * re-seeded on open, the contract every add-modal in the app keeps — the
  * modal stays mounted, so nothing else clears the previous entry.
+ *
+ * **Where the goal's money is held is the one part of this form held in
+ * state**, `SpendingMapFields`' exception and for its reason: a tick carries no
+ * form value for `FormData` to read, and a new goal has no id for a store
+ * mutator to write against yet. So the picker's answers are a draft that
+ * commits with the rest on submit — one write, and an abandoned form leaves
+ * nothing behind, which a picker writing on each tick could not promise for a
+ * goal that was never saved.
+ *
+ * Off-budget accounts only, and `useHoldingOptions` is where that rule lives:
+ * on-budget money is already in the pool a goal's assignment draws from, so
+ * counting a balance here as well would promise the same dollar twice.
  */
 export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   const formRef = useRef();
@@ -20,8 +37,13 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   const targetRef = useRef();
   const targetDateRef = useRef();
   const [error, setError] = useState(null);
+  // The draft of where the money is held: which accounts, and how much of one
+  // where only part of it is this goal's.
+  const [accountIds, setAccountIds] = useState([]);
+  const [amounts, setAmounts] = useState({});
 
   const { addSavingsGoal, updateSavingsGoal } = useSavingsGoals();
+  const options = useHoldingOptions(currentPeriod());
 
   const editing = goal != null;
 
@@ -35,7 +57,52 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
     // "1250.5" — the exact defect that keeps every money field off `type=number`.
     targetRef.current.value = goal ? amountEditing(goal.targetCents) : "";
     targetDateRef.current.value = goal?.targetDate ?? "";
+    setAccountIds(goal?.accountIds ?? []);
+    setAmounts(goal?.accountAmounts ?? {});
   }, [show, goal]);
+
+  const rows = options.map((row) => ({
+    ...row,
+    included: accountIds.includes(row.account.id),
+    portionCents: amounts[row.account.id] ?? null,
+  }));
+
+  const heldCents = rows
+    .filter((row) => row.included)
+    .reduce((sum, row) => sum + countedHoldingCents(row.valueCents, row.portionCents), 0);
+
+  function handleToggle({ accountId, included }) {
+    setAccountIds((previous) => {
+      const rest = previous.filter((id) => id !== accountId);
+      return included ? [...rest, accountId] : rest;
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Blank is how a part is *removed* — the account goes back to counting whole
+   * — so it can never be read as a refused figure; zero and a negative are,
+   * since a part of nothing is not a part. The same contract
+   * `setFundAccountAmount` keeps, checked here because this is a draft and the
+   * store does not see it until submit.
+   */
+  function handlePortion({ accountId, amount }) {
+    if (String(amount ?? "").trim() === "") {
+      setAmounts(({ [accountId]: _dropped, ...rest }) => rest);
+      setError(null);
+      return { ok: true };
+    }
+
+    const cents = toCents(amount);
+    if (cents == null || cents <= 0) {
+      setError(PORTION_ERROR);
+      return { ok: false, error: PORTION_ERROR };
+    }
+
+    setAmounts((previous) => ({ ...previous, [accountId]: cents }));
+    setError(null);
+    return { ok: true };
+  }
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -44,6 +111,11 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
       name: nameRef.current.value,
       target: targetRef.current.value,
       targetDate: targetDateRef.current.value || null,
+      accountIds,
+      // Kept rather than filtered to the ticked accounts, the switched-away-from
+      // rule: unticking an account and ticking it again should not lose the part
+      // of it that was stated.
+      accountAmounts: amounts,
     };
     const result = editing ? updateSavingsGoal({ id: goal.id, ...fields }) : addSavingsGoal(fields);
 
@@ -57,7 +129,14 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   }
 
   return (
-    <Dialog show={show} handleClose={handleClose} title={editing ? "Edit savings goal" : "New savings goal"}>
+    <Dialog
+      show={show}
+      handleClose={handleClose}
+      // Wide only where the holdings table is on it: a three-field form in a
+      // 2xl sheet reads as a form that lost its contents.
+      wide={options.length > 0}
+      title={editing ? "Edit savings goal" : "New savings goal"}
+    >
       <form ref={formRef} onSubmit={handleSubmit}>
         <Field label="Name" inputRef={nameRef} type="text" required />
         <Field
@@ -73,6 +152,42 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           inputRef={targetDateRef}
           type="date"
         />
+
+        <div className="mb-5 border border-edge">
+          <div className="border-b border-edge px-4 py-3">
+            <h3 className="font-sans text-row font-semibold text-chalk">
+              Money already held for this goal (optional)
+            </h3>
+            <p className="mt-1 font-sans text-row text-chalk-soft">
+              A fund years out is often invested rather than left in the current account. Tick the
+              off-budget accounts holding this one and their value counts towards the target beside
+              what the budget has assigned to it.
+            </p>
+          </div>
+          {options.length === 0 ? (
+            <p className="px-4 py-4 font-sans text-row text-chalk-soft">
+              No off-budget accounts yet. Add one on the budget plan — a brokerage or a savings
+              account the budget does not spend through — and it can be pointed at a goal here. An
+              on-budget balance is not offered: that money is already in what there is to assign.
+            </p>
+          ) : (
+            <>
+              <AccountPicker
+                rows={rows}
+                totalLabel="Held for this goal"
+                totalCents={heldCents}
+                emptyNote="a goal counts money held in an account the budget does not spend through."
+                onToggle={handleToggle}
+                onPortionChange={handlePortion}
+              />
+              <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
+                A ticked account counts in full. If only part of it is this goal — the rest is for
+                something else — enter that part under Counted.
+              </p>
+            </>
+          )}
+        </div>
+
         {error && (
           <p role="alert" className="-mt-2 mb-5 font-sans text-row text-vermilion">
             {error}

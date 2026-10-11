@@ -366,8 +366,12 @@ export default function AssignIncomeModal({
                     <tr key={row.goalId} className={i % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
                       <td className="px-3 py-2">
                         <div className="font-sans text-row text-ink">{row.name}</div>
+                        {/* `savedCents`, not the assignment alone: a goal part
+                            funded out of an off-budget holding is that much
+                            closer to its target, and Remaining beside it is
+                            already read that way. */}
                         <div className="font-mono text-label uppercase text-ink-soft">
-                          {formatCents(row.availableCents)} of {formatCents(row.targetCents)}
+                          {formatCents(row.savedCents)} of {formatCents(row.targetCents)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row text-ink-soft">

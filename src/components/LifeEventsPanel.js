@@ -43,10 +43,15 @@ export const LIFE_EVENT_TEMPLATES = [
     label: "Going part-time",
     seed: ({ retirementAge }) => ({ name: "Part-time", kind: LIFE_EVENT_KINDS.INCOME_CHANGE, startAge: Math.max(0, retirementAge - 5), years: 5, keptShareBps: 5000 }),
   },
+  // The one template with no seed. Social Security is an income event like a
+  // pension, but the figure it pays depends on the claiming age by a statutory
+  // adjustment, so it is stated through `SocialSecurityModal` and arrives here
+  // as an ordinary event. `opens` is what the panel branches on; a template
+  // either seeds the general form or names a form of its own.
   {
     key: "social-security",
     label: "Social Security",
-    seed: () => ({ name: "Social Security", kind: LIFE_EVENT_KINDS.INCOME, startAge: 67, years: null, annualCents: 24_000_00 }),
+    opens: "social-security",
   },
   {
     key: "pension",
@@ -145,6 +150,7 @@ export default function LifeEventsPanel({
   goals,
   propertyNames = {},
   onAdd,
+  onAddSocialSecurity,
   onEdit,
   onToggle,
   onRemove,
@@ -203,7 +209,15 @@ export default function LifeEventsPanel({
         {ready ? (
           <div className="flex flex-wrap gap-2">
             {LIFE_EVENT_TEMPLATES.map((template) => (
-              <Button key={template.key} variant="outline" onClick={() => onAdd(template.seed(ages))}>
+              <Button
+                key={template.key}
+                variant="outline"
+                onClick={() =>
+                  template.opens === "social-security"
+                    ? onAddSocialSecurity()
+                    : onAdd(template.seed(ages))
+                }
+              >
                 {template.label}
               </Button>
             ))}
