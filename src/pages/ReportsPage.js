@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { sankeyFlows } from "../cashflowSankey";
 import CashflowChart from "../components/CashflowChart";
+import CashflowSankey from "../components/CashflowSankey";
 import CategoryDetailPanel from "../components/CategoryDetailPanel";
 import PageHeader from "../components/PageHeader";
 import Placeholder from "../components/Placeholder";
@@ -159,6 +161,11 @@ export default function ReportsPage() {
   // `useSpendingReport`, which reads the ledger and the plan's own arrangement and
   // nothing else — a payee's name is not money, and the hook stays about money.
   const { payeeById } = usePayees();
+  const payeeName = useCallback((payeeId) => payeeById.get(payeeId)?.name ?? null, [payeeById]);
+  // The diagram's table twin reads the full four columns whatever width the
+  // chart was drawn at, so a phone that folded the categories away still has
+  // every band as a row.
+  const flows = useMemo(() => sankeyFlows(report, { payeeName }), [report, payeeName]);
   const coverage = coverageNote(report);
   // Which buckets the plan-against-books table needs a column for: the ones
   // that moved money somewhere in the window, carrying the index they sit at in
@@ -383,6 +390,89 @@ export default function ReportsPage() {
                 </table>
               </div>
             </details>
+          </section>
+
+          {/* The window collapsed to one flow: where the money came from and
+              where it went, in proportion. The chart above is the time axis and
+              the ranking below is the category axis; this is the one view of
+              the whole window at once, and the only one that shows each answer
+              as a share of everything that came in. */}
+          <section className="border border-edge bg-panel">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
+              <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
+                Where it came from, where it went
+              </h2>
+              {flows && (
+                <span className="font-mono text-label uppercase text-chalk-soft">
+                  {flows.shortfallCents > 0
+                    ? `${formatCents(flows.shortfallCents)} spent beyond income`
+                    : `${formatCents(flows.keptCents)} kept`}
+                </span>
+              )}
+            </div>
+
+            <CashflowSankey report={report} payeeName={payeeName} />
+
+            {flows && (
+              <details className="border-t border-edge">
+                <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+                  Show the flows as a table
+                </summary>
+                <div className="max-h-[30rem] overflow-auto border-t border-edge">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        {["From", "To"].map((label) => (
+                          <th
+                            key={label}
+                            scope="col"
+                            className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                          >
+                            {label}
+                          </th>
+                        ))}
+                        {["Amount", "Of money in"].map((label) => (
+                          <th
+                            key={label}
+                            scope="col"
+                            className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                          >
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {flows.links.map((band, index) => {
+                        const label = (id) => flows.nodes.find((node) => node.id === id).label;
+                        return (
+                          <tr
+                            key={`${band.source}>${band.target}`}
+                            className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}
+                          >
+                            <td className="px-4 py-2 text-left font-sans text-row text-ink">
+                              {label(band.source)}
+                            </td>
+                            <th
+                              scope="row"
+                              className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
+                            >
+                              {label(band.target)}
+                            </th>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink">
+                              {formatCents(band.valueCents)}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink-soft">
+                              {Math.round((band.valueCents / flows.totalCents) * 100)}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )}
           </section>
 
           {/* The second chart on the page, and it cuts the same months along a

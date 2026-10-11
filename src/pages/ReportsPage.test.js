@@ -217,6 +217,56 @@ describe("a year of books", () => {
   });
 });
 
+describe("where it came from, where it went", () => {
+  const flowsSection = () =>
+    screen.getByRole("heading", { name: "Where it came from, where it went" }).closest("section");
+  const flowRows = () =>
+    within(flowsSection())
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).getAllByRole(/cell|rowheader/).map((cell) => cell.textContent));
+
+  test("the payer is named, the pool reaches the buckets, and what was not spent is kept", () => {
+    seed({
+      payees: [{ id: "p1", name: "Acme Payroll", defaultBudgetId: null }],
+      budgetGroups: [{ id: "g1", name: "Bills", bucket: "essentials" }],
+      budgets: [
+        { id: "b1", name: "Rent", groupId: "g1", plannedCents: 0, goalCents: null, bucket: null },
+      ],
+      transactions: [
+        { ...inn(PERIOD, 500000), payeeId: "p1" },
+        out(PERIOD, 200000, "b1"),
+      ],
+    });
+    renderPage();
+
+    expect(within(flowsSection()).getByText("$3,000 kept")).toBeInTheDocument();
+    expect(flowRows()).toEqual([
+      ["Acme Payroll", "Money in", "$5,000", "100%"],
+      ["Money in", "Kept", "$3,000", "60%"],
+      ["Money in", "Essentials", "$2,000", "40%"],
+      ["Essentials", "Rent", "$2,000", "40%"],
+    ]);
+    // The diagram draws the same nodes, each named for a screen reader.
+    expect(
+      within(flowsSection()).getByRole("img", { name: /^Acme Payroll: \$5,000/ })
+    ).toBeInTheDocument();
+  });
+
+  test("a window that cost more than it earned draws the gap rather than hiding it", () => {
+    seed({
+      budgets: [
+        { id: "b1", name: "Rent", groupId: null, plannedCents: 0, goalCents: null, bucket: "essentials" },
+      ],
+      transactions: [inn(PERIOD, 100000), out(PERIOD, 150000, "b1")],
+    });
+    renderPage();
+
+    expect(within(flowsSection()).getByText("$500 spent beyond income")).toBeInTheDocument();
+    expect(flowRows()[1]).toEqual(["Spent beyond income", "Money in", "$500", "33%"]);
+  });
+});
+
 test("a window wider than the books says what it divided by", () => {
   seed({
     budgets: [{ id: "b1", name: "Rent", groupId: null, plannedCents: 0, goalCents: null, bucket: null }],
