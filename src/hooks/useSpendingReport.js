@@ -397,6 +397,11 @@ export default function useSpendingReport(
     let undatedCount = 0;
     let undatedSpentCents = 0;
     let undatedIncomeCents = 0;
+    // Income by who paid it — the left-hand column of the cashflow diagram.
+    // Keyed on the payee reference rather than a name, for the reason the
+    // drill-in's rows are: a name is not money, and the page resolves it. A
+    // record naming nobody keys on null and is still income.
+    const incomeByPayee = new Map();
 
     for (const transaction of transactions) {
       // A transfer the budget never sees is in no report either — it is money the
@@ -447,6 +452,8 @@ export default function useSpendingReport(
         // household actually earned.
         if (inflow && leg.budgetId == null) {
           month.incomeCents += amountCents;
+          const payeeId = transaction.payeeId ?? null;
+          incomeByPayee.set(payeeId, (incomeByPayee.get(payeeId) ?? 0) + amountCents);
           continue;
         }
 
@@ -658,6 +665,11 @@ export default function useSpendingReport(
 
       rows,
       buckets,
+      // The window's income by who paid it, biggest first. Adds up to
+      // `totalIncomeCents` exactly, since it is filled in the same branch.
+      incomeSources: [...incomeByPayee.entries()]
+        .map(([payeeId, cents]) => ({ payeeId, incomeCents: cents }))
+        .sort((a, b) => b.incomeCents - a.incomeCents),
 
       totalIncomeCents,
       totalSpentCents,
