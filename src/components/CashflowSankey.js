@@ -243,6 +243,8 @@ export default function CashflowSankey({ report, payeeName }) {
             const last = node.column === lastColumn;
             const chars = first ? leftChars : last ? rightChars : middleChars;
             const x = first ? node.x - 6 : node.x + node.width + 6;
+            const name = clip(node.label, chars);
+            const figure = formatCompactCents(node.valueCents);
             return (
               <g key={node.id}>
                 <rect
@@ -253,24 +255,30 @@ export default function CashflowSankey({ report, payeeName }) {
                   rx={2}
                   className={tone.fill}
                 />
+                {/* A label in the middle column sits over the bands leaving its
+                    node. A thin halo was not enough there — over a dark band in
+                    dark mode the figure under the name all but vanished — so it
+                    gets a backing in the card's own colour, sized to the words. */}
+                {!first && !last && (
+                  <rect
+                    x={x - 4}
+                    y={node.centre - 13}
+                    width={Math.max(name.length, figure.length) * CHAR_WIDTH + 8}
+                    height={28}
+                    rx={3}
+                    className="fill-panel"
+                    fillOpacity={0.92}
+                  />
+                )}
                 <text
                   x={x}
                   y={node.centre - 2}
                   textAnchor={first ? "end" : "start"}
-                  // A label in the middle sits over the bands; the halo in the
-                  // card's own colour keeps it legible across them.
-                  paintOrder="stroke"
-                  strokeWidth={first || last ? 0 : 3}
-                  strokeLinejoin="round"
-                  className="fill-chalk stroke-panel font-sans text-label tracking-normal"
+                  className="fill-chalk font-sans text-label tracking-normal"
                 >
-                  {clip(node.label, chars)}
-                  <tspan
-                    x={x}
-                    dy={12}
-                    className="fill-chalk-soft font-mono tabular-nums"
-                  >
-                    {formatCompactCents(node.valueCents)}
+                  {name}
+                  <tspan x={x} dy={12} className="fill-chalk-soft font-mono tabular-nums">
+                    {figure}
                   </tspan>
                 </text>
                 {/* The hit area is the node's whole slot and its label, so the
