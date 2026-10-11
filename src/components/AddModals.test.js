@@ -357,7 +357,14 @@ describe("one form for both directions", () => {
 
     const payees = JSON.parse(localStorage.getItem("payees"));
     expect(payees).toEqual([
-      { id: expect.any(String), name: "Blue Bottle", defaultBudgetId: null },
+      {
+        id: expect.any(String),
+        name: "Blue Bottle",
+        defaultBudgetId: null,
+        defaultSplit: null,
+        defaultAccountId: null,
+        defaultKind: null,
+      },
     ]);
 
     expect(JSON.parse(localStorage.getItem("transactions"))).toEqual([
@@ -2071,5 +2078,241 @@ describe("cash back paid onto the card", () => {
     fireEvent.click(screen.getByText("add"));
     type("Budgeting", "off-budget");
     expect(screen.queryByLabelText(/cash back/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("what a payee opens the form on, and what it can be told", () => {
+  const TWO_ACCOUNTS = [
+    { id: "acc1", name: "Everyday", openingBalanceCents: 100000 },
+    { id: "acc2", name: "Visa", openingBalanceCents: 0 },
+  ];
+
+  function openForm({ payees, accounts } = {}) {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts(accounts);
+    if (payees) localStorage.setItem("payees", JSON.stringify(payees));
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+  }
+
+  const type = (label, value) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+  function pickPayee(name) {
+    const field = screen.getByLabelText(/paid to|received from/i);
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: name.slice(0, 3) } });
+    fireEvent.click(screen.getByRole("option", { name: new RegExp(name) }));
+  }
+
+  // The "Paid from Visa" box is labelled with the same words as the select.
+  const accountSelect = () =>
+    screen.getAllByLabelText(/paid (from|into)/i).find((element) => element.tagName === "SELECT");
+
+  const storedPayees = () => JSON.parse(localStorage.getItem("payees"));
+  const SEVENTY_THIRTY = [
+    { budgetId: "a", shareBps: 7000 },
+    { budgetId: "b", shareBps: 3000 },
+  ];
+
+  test("a payee's split is laid out against the total, and follows it as it is typed", () => {
+    openForm({ payees: [{ id: "p1", name: "Costco", defaultBudgetId: null, defaultSplit: SEVENTY_THIRTY }] });
+    pickPayee("Costco");
+
+    // Named before the amount, as a payee usually is: the parts are there,
+    // waiting for a total.
+    expect(screen.getByLabelText("Category of part 1")).toHaveValue("a");
+    expect(screen.getByLabelText("Category of part 2")).toHaveValue("b");
+    expect(screen.getByLabelText("Amount of part 1")).toHaveValue("");
+
+    type(/^amount$/i, "124");
+    expect(screen.getByLabelText("Amount of part 1")).toHaveValue("$86.80");
+    expect(screen.getByLabelText("Amount of part 2")).toHaveValue("$37.20");
+
+    // A total that does not divide evenly still adds up to the cent.
+    type(/^amount$/i, "10.01");
+    expect(screen.getByLabelText("Amount of part 1")).toHaveValue("$7.01");
+    expect(screen.getByLabelText("Amount of part 2")).toHaveValue("$3");
+
+    // Opened on exactly what the payee already says, so there is nothing to
+    // offer back about the filing.
+    expect(screen.queryByRole("checkbox", { name: /split it/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const [row] = JSON.parse(localStorage.getItem("transactions"));
+    expect(row.budgetId).toBeNull();
+    expect(row.splits.map(({ budgetId, amountCents }) => ({ budgetId, amountCents }))).toEqual([
+      { budgetId: "a", amountCents: 701 },
+      { budgetId: "b", amountCents: 300 },
+    ]);
+  });
+
+  test("touching a part makes the division the person's own, and the total stops moving it", () => {
+    openForm({ payees: [{ id: "p1", name: "Costco", defaultBudgetId: null, defaultSplit: SEVENTY_THIRTY }] });
+    pickPayee("Costco");
+    type(/^amount$/i, "100");
+    type("Amount of part 1", "60");
+    type(/^amount$/i, "200");
+
+    expect(screen.getByLabelText("Amount of part 1")).toHaveValue("60");
+    expect(screen.getByLabelText("Amount of part 2")).toHaveValue("$30");
+  });
+
+  test("a split with a category since deleted is not laid out; the category beneath it is", () => {
+    openForm({
+      payees: [
+        {
+          id: "p1",
+          name: "Costco",
+          defaultBudgetId: "b",
+          defaultSplit: [
+            { budgetId: "a", shareBps: 7000 },
+            { budgetId: "gone", shareBps: 3000 },
+          ],
+        },
+      ],
+    });
+    pickPayee("Costco");
+
+    expect(screen.queryByLabelText("Category of part 1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^category$/i)).toHaveValue("b");
+  });
+
+  test("a payee turns the direction and the account, and its category follows", () => {
+    openForm({
+      accounts: TWO_ACCOUNTS,
+      payees: [
+        { id: "p1", name: "Acme Payroll", defaultBudgetId: null, defaultKind: "inflow", defaultAccountId: "acc2" },
+      ],
+    });
+    pickPayee("Acme Payroll");
+
+    expect(screen.getByRole("button", { name: "Money in" })).toHaveAttribute("aria-pressed", "true");
+    expect(accountSelect()).toHaveValue("acc2");
+    // Money in with no category is income — the payee had no refund to file.
+    expect(screen.getByLabelText(/refund to category/i)).toHaveValue("");
+  });
+
+  test("a direction or an account the person chose is not turned by a payee", () => {
+    openForm({
+      accounts: TWO_ACCOUNTS,
+      payees: [
+        { id: "p1", name: "Acme Payroll", defaultBudgetId: null, defaultKind: "inflow", defaultAccountId: "acc2" },
+      ],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Money out" }));
+    fireEvent.change(accountSelect(), { target: { value: "acc1" } });
+    pickPayee("Acme Payroll");
+
+    expect(screen.getByRole("button", { name: "Money out" })).toHaveAttribute("aria-pressed", "true");
+    expect(accountSelect()).toHaveValue("acc1");
+  });
+
+  test("a default account no longer spent through is passed over", () => {
+    openForm({
+      accounts: TWO_ACCOUNTS,
+      payees: [{ id: "p1", name: "Shell", defaultBudgetId: null, defaultAccountId: "gone" }],
+    });
+    const before = accountSelect().value;
+    pickPayee("Shell");
+    expect(accountSelect()).toHaveValue(before);
+  });
+
+  test("nothing is remembered unless a box is ticked", () => {
+    openForm({ accounts: TWO_ACCOUNTS });
+    type(/paid to/i, "Blue Bottle");
+    type(/^amount$/i, "4.50");
+    type(/^category$/i, "b");
+
+    // Offered, every one of them unticked.
+    for (const box of within(screen.getByRole("group", { name: /next time for blue bottle/i })).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(storedPayees()[0]).toMatchObject({
+      defaultBudgetId: null,
+      defaultSplit: null,
+      defaultAccountId: null,
+      defaultKind: null,
+    });
+  });
+
+  test("a new payee is created carrying what was ticked", () => {
+    openForm({ accounts: TWO_ACCOUNTS });
+    type(/paid to/i, "Blue Bottle");
+    type(/^amount$/i, "4.50");
+    type(/^category$/i, "b");
+    fireEvent.change(accountSelect(), { target: { value: "acc2" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "File it under Fuel" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Paid from Visa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(storedPayees()).toEqual([
+      {
+        id: expect.any(String),
+        name: "Blue Bottle",
+        defaultBudgetId: "b",
+        defaultSplit: null,
+        defaultAccountId: "acc2",
+        defaultKind: null,
+      },
+    ]);
+  });
+
+  test("a division can be remembered, as shares, for a payee that already exists", () => {
+    openForm({ payees: [{ id: "p1", name: "Costco", defaultBudgetId: "a" }] });
+    pickPayee("Costco");
+    type(/^amount$/i, "120");
+    fireEvent.click(screen.getByRole("button", { name: /split it between categories/i }));
+    type("Amount of part 1", "90");
+    fireEvent.click(screen.getByRole("button", { name: "Add a part" }));
+    type("Category of part 2", "b");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Split it Groceries 75% · Fuel 25%" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // The single category stays beneath the split, so taking the split off
+    // brings it back.
+    expect(storedPayees()).toEqual([
+      {
+        id: "p1",
+        name: "Costco",
+        defaultBudgetId: "a",
+        defaultSplit: [
+          { budgetId: "a", shareBps: 7500 },
+          { budgetId: "b", shareBps: 2500 },
+        ],
+        defaultAccountId: null,
+        defaultKind: null,
+      },
+    ]);
+  });
+
+  test("money in can be remembered as the direction, and a single category replaces a split", () => {
+    openForm({ payees: [{ id: "p1", name: "Costco", defaultBudgetId: null, defaultSplit: SEVENTY_THIRTY }] });
+    pickPayee("Costco");
+    type(/^amount$/i, "20");
+    fireEvent.click(screen.getByRole("button", { name: /file it all under one category/i }));
+    type(/^category$/i, "b");
+    fireEvent.click(screen.getByRole("checkbox", { name: "File it under Fuel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(storedPayees()[0]).toMatchObject({ defaultBudgetId: "b", defaultSplit: null });
+  });
+
+  test("a payee that opens as money in offers money out back, as no default at all", () => {
+    openForm({ payees: [{ id: "p1", name: "Acme Payroll", defaultBudgetId: null, defaultKind: "inflow" }] });
+    pickPayee("Acme Payroll");
+    fireEvent.click(screen.getByRole("button", { name: "Money out" }));
+    type(/^amount$/i, "20");
+    fireEvent.click(screen.getByRole("checkbox", { name: "As money out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(storedPayees()[0].defaultKind).toBeNull();
   });
 });

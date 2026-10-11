@@ -211,6 +211,37 @@ describe("writing one down", () => {
     expect(screen.getByLabelText("Category")).toHaveValue("b2");
   });
 
+  test("a payee's direction and account seed the form, and its category follows the turn", () => {
+    seed({
+      accounts: [
+        ACCOUNT,
+        { ...ACCOUNT, id: "acc2", name: "Savings" },
+      ],
+      payees: [
+        {
+          id: "p1",
+          name: "Acme Payroll",
+          defaultBudgetId: "b2",
+          defaultKind: TRANSACTION_KINDS.INFLOW,
+          defaultAccountId: "acc2",
+        },
+      ],
+    });
+    renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Schedule a transaction" }));
+
+    const payee = screen.getByLabelText("Paid to");
+    fireEvent.focus(payee);
+    fireEvent.change(payee, { target: { value: "acme payroll" } });
+    fireEvent.blur(payee);
+
+    expect(screen.getByRole("button", { name: "Money in" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Paid into")).toHaveValue("acc2");
+    // The category select remounted with the direction; the payee's answer is
+    // still the one it opens on.
+    expect(screen.getByLabelText("Refund to category")).toHaveValue("b2");
+  });
+
   test("money in asks for no category and takes none", () => {
     openForm();
 

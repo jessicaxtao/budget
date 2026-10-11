@@ -123,6 +123,51 @@ test("the default category commits on change, and blank takes it off", () => {
   expect(payees().find((payee) => payee.id === "p1").defaultBudgetId).toBeNull();
 });
 
+test("the account and the direction commit on change, and blank takes them off", () => {
+  renderPanel();
+
+  fireEvent.change(screen.getByLabelText("Default account for Shell"), {
+    target: { value: "acc1" },
+  });
+  fireEvent.change(screen.getByLabelText("Direction for Shell"), {
+    target: { value: TRANSACTION_KINDS.INFLOW },
+  });
+  expect(payees().find((payee) => payee.id === "p3")).toMatchObject({
+    defaultAccountId: "acc1",
+    defaultKind: TRANSACTION_KINDS.INFLOW,
+  });
+
+  fireEvent.change(screen.getByLabelText("Default account for Shell"), { target: { value: "" } });
+  fireEvent.change(screen.getByLabelText("Direction for Shell"), { target: { value: "" } });
+  expect(payees().find((payee) => payee.id === "p3")).toMatchObject({
+    defaultAccountId: null,
+    defaultKind: null,
+  });
+});
+
+test("a split is shown as shares, and taking it off brings back the category beneath it", () => {
+  renderPanel({
+    payees: [
+      {
+        id: "p1",
+        name: "Costco",
+        defaultBudgetId: "b2",
+        defaultSplit: [
+          { budgetId: "b1", shareBps: 7000 },
+          { budgetId: "b2", shareBps: 3000 },
+        ],
+      },
+    ],
+  });
+
+  expect(screen.getByText("Groceries 70% · Fuel 30%")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Default category for Costco")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Stop splitting Costco" }));
+  expect(payees()[0].defaultSplit).toBeNull();
+  expect(screen.getByLabelText("Default category for Costco")).toHaveValue("b2");
+});
+
 test("a default naming a category that is gone keeps an option of its own", () => {
   renderPanel({ payees: [{ id: "p1", name: "Costco", defaultBudgetId: "deleted" }] });
 
