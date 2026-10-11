@@ -7,6 +7,7 @@ import {
   UNCATEGORIZED_BUDGET_ID,
   UNGROUPED_ID,
 } from "./BudgetsContext";
+import { useDonations } from "./DonationsContext";
 import { useIncomePlan } from "./IncomePlanContext";
 import { TRANSACTION_KINDS, useTransactions } from "./TransactionsContext";
 import { useAccounts } from "./AccountsContext";
@@ -21,6 +22,7 @@ import useEnvelopes from "../hooks/useEnvelopes";
 import usePlanHealth from "../hooks/usePlanHealth";
 import { monthlyCents } from "../cadence";
 import { toSections } from "../planLayout";
+import { parseTags, withTag } from "../tags";
 import {
   addMonths,
   currentPeriod,
@@ -3751,5 +3753,379 @@ describe("one transaction divided between categories", () => {
       "t1",
     ]);
     expect(result.current.ledger.getBudgetTransactions("b3")).toEqual([]);
+  });
+});
+
+/**
+ * Several entries in one commit, and walking a commit back.
+ *
+ * Through the real providers, because both claims are about what *lands*: a
+ * batch that wrote half of itself and an undo that put a record back in the
+ * wrong place are invisible to a props-only test. The envelope identity is
+ * asserted after each one — a batch is the easiest way to write money into the
+ * books twice, and an undo the easiest way to write it out of them.
+ */
+describe("correcting several entries at once", () => {
+  const PERIOD = currentPeriod();
+
+  const useLedger = () => ({
+    ledger: useTransactions(),
+    donations: useDonations(),
+    now: useEnvelopes(PERIOD),
+    later: useEnvelopes(addMonths(PERIOD, 6)),
+  });
+
+  function setUp(transactions) {
+    seedAccounts();
+    localStorage.setItem(
+      "budgets",
+      JSON.stringify([
+        { id: "b1", name: "Groceries" },
+        { id: "b2", name: "Fuel" },
+      ])
+    );
+    localStorage.setItem("assignments", JSON.stringify([]));
+    localStorage.setItem("transactions", JSON.stringify(transactions));
+    return renderHook(useLedger, { wrapper });
+  }
+
+  const row = (id, fields = {}) => ({
+    id,
+    kind: TRANSACTION_KINDS.OUTFLOW,
+    payeeId: null,
+    description: "",
+    amountCents: 1000,
+    date: `${PERIOD}-05`,
+    accountId: ACCOUNT.id,
+    toAccountId: null,
+    budgetId: "b1",
+    splits: null,
+    ...fields,
+  });
+
+  const entry = (result, id) =>
+    result.current.ledger.transactions.find((transaction) => transaction.id === id);
+
+  test("a batch of patches lands in one commit", () => {
+    const { result } = setUp([row("t1"), row("t2"), row("t3")]);
+
+    let answer;
+    act(() => {
+      answer = result.current.ledger.updateTransactions([
+        { id: "t1", budgetId: "b2" },
+        { id: "t2", budgetId: "b2" },
+      ]);
+    });
+
+    expect(answer).toEqual({ ok: true, count: 2 });
+    expect(stored("transactions").map((t) => t.budgetId)).toEqual(["b2", "b2", "b1"]);
+    expectBalanced(result.current.now);
+  });
+
+  test("one bad row refuses all of it, and storage is left exactly as it was", () => {
+    // An inflow may have no category; an outflow may not. Clearing the category
+    // on three rows where one of them is an expense is three rows half-refiled,
+    // and the user cannot tell which half — so none of it is written.
+    const { result } = setUp([row("t1"), row("t2", { kind: TRANSACTION_KINDS.INFLOW })]);
+
+    let answer;
+    act(() => {
+      answer = result.current.ledger.updateTransactions([
+        { id: "t2", budgetId: "" },
+        { id: "t1", budgetId: "" },
+      ]);
+    });
+
+    expect(answer.ok).toBe(false);
+    expect(answer.error).toMatch(/category/i);
+    expect(answer.error).toMatch(/none of them did/i);
+    expect(stored("transactions").map((t) => t.budgetId)).toEqual(["b1", "b1"]);
+  });
+
+  test("rows the patch would not move are dropped rather than refused", () => {
+    const { result } = setUp([row("t1", { budgetId: "b2" }), row("t2")]);
+
+    let answer;
+    act(() => {
+      answer = result.current.ledger.updateTransactions([
+        { id: "t1", budgetId: "b2" },
+        { id: "t2", budgetId: "b2" },
+      ]);
+    });
+
+    // One of the two already read that way, which is no reason to refuse the
+    // other — and no reason to write it again either.
+    expect(answer).toEqual({ ok: true, count: 1 });
+  });
+
+  test("a tag goes onto every note in one write", () => {
+    const { result } = setUp([row("t1", { description: "shop" }), row("t2", { description: "" })]);
+
+    act(() => {
+      result.current.ledger.updateTransactions(
+        result.current.ledger.transactions.map((transaction) => ({
+          id: transaction.id,
+          description: withTag(transaction.description, "holiday"),
+        }))
+      );
+    });
+
+    // Tagging is text editing — the tag is a word in the note, derived back out
+    // of it, never a field of its own.
+    expect(stored("transactions").map((t) => t.description)).toEqual([
+      "shop #holiday",
+      "#holiday",
+    ]);
+    expect(parseTags(entry(result, "t1").description)).toEqual(["holiday"]);
+  });
+
+  test("a batch delete takes several rows and leaves the books balanced", () => {
+    const { result } = setUp([row("t1"), row("t2"), row("t3")]);
+
+    let answer;
+    act(() => {
+      answer = result.current.ledger.deleteTransactions(["t1", "t3"]);
+    });
+
+    expect(answer).toEqual({ ok: true, count: 2 });
+    expect(stored("transactions").map((t) => t.id)).toEqual(["t2"]);
+    expectBalanced(result.current.now);
+  });
+});
+
+describe("undoing what was just done", () => {
+  const PERIOD = currentPeriod();
+
+  const useLedger = () => ({
+    ledger: useTransactions(),
+    budgets: useBudgets(),
+    donations: useDonations(),
+    now: useEnvelopes(PERIOD),
+    later: useEnvelopes(addMonths(PERIOD, 6)),
+  });
+
+  function setUp(transactions = []) {
+    seedAccounts();
+    localStorage.setItem(
+      "budgets",
+      JSON.stringify([
+        { id: "b1", name: "Groceries" },
+        { id: "b2", name: "Fuel" },
+      ])
+    );
+    localStorage.setItem("assignments", JSON.stringify([]));
+    localStorage.setItem("transactions", JSON.stringify(transactions));
+    return renderHook(useLedger, { wrapper });
+  }
+
+  const row = (id, fields = {}) => ({
+    id,
+    kind: TRANSACTION_KINDS.OUTFLOW,
+    payeeId: null,
+    description: "",
+    amountCents: 1000,
+    date: `${PERIOD}-05`,
+    accountId: ACCOUNT.id,
+    toAccountId: null,
+    budgetId: "b1",
+    splits: null,
+    ...fields,
+  });
+
+  const entry = (result, id) =>
+    result.current.ledger.transactions.find((transaction) => transaction.id === id);
+
+  test("an edit goes back to what the fields held, and forward again", () => {
+    const { result } = setUp([row("t1", { description: "shop" })]);
+
+    act(() => {
+      result.current.ledger.updateTransaction({ id: "t1", amountCents: 2500, budgetId: "b2" });
+    });
+    expect(result.current.ledger.undoLabel).toBe("that edit");
+
+    act(() => {
+      result.current.ledger.undo();
+    });
+
+    // Only the fields the edit named are put back. Everything else on the row
+    // is untouched, which is what makes a step an inverse write rather than a
+    // copy of the ledger.
+    expect(entry(result, "t1")).toEqual(row("t1", { description: "shop" }));
+    expectBalanced(result.current.now);
+
+    act(() => {
+      result.current.ledger.redo();
+    });
+    expect(entry(result, "t1")).toMatchObject({ amountCents: 2500, budgetId: "b2" });
+    expectBalanced(result.current.now);
+  });
+
+  test("a delete puts the record back whole, at the place it held", () => {
+    const { result } = setUp([row("t1"), row("t2"), row("t3")]);
+
+    act(() => {
+      result.current.ledger.deleteTransaction({ id: "t2" });
+    });
+    expect(result.current.ledger.undoLabel).toBe("removing an entry");
+
+    act(() => {
+      result.current.ledger.undo();
+    });
+
+    // The array's order is the order things were logged, which the register's
+    // tie-break and `recentAccounts` both read — so a restored row goes back
+    // where it sat rather than onto the end.
+    expect(stored("transactions").map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
+    expect(entry(result, "t2")).toEqual(row("t2"));
+    expectBalanced(result.current.now);
+  });
+
+  test("an entry added is one step from gone again", () => {
+    const { result } = setUp();
+
+    let added;
+    act(() => {
+      added = result.current.ledger.addTransaction({
+        kind: TRANSACTION_KINDS.OUTFLOW,
+        accountId: ACCOUNT.id,
+        budgetId: "b1",
+        amount: "40",
+        date: `${PERIOD}-09`,
+      });
+    });
+    expect(result.current.ledger.undoLabel).toBe("adding an entry");
+
+    act(() => {
+      result.current.ledger.undo();
+    });
+    expect(result.current.ledger.transactions).toEqual([]);
+    expectBalanced(result.current.now);
+
+    act(() => {
+      result.current.ledger.redo();
+    });
+    expect(entry(result, added.id)).toMatchObject({ amountCents: 4000 });
+    expectBalanced(result.current.now);
+  });
+
+  test("a batch is one step, however many rows it moved", () => {
+    const { result } = setUp([row("t1"), row("t2"), row("t3")]);
+
+    act(() => {
+      result.current.ledger.updateTransactions([
+        { id: "t1", budgetId: "b2" },
+        { id: "t2", budgetId: "b2" },
+        { id: "t3", budgetId: "b2" },
+      ]);
+    });
+    expect(result.current.ledger.undoLabel).toBe("editing 3 entries");
+
+    act(() => {
+      result.current.ledger.undo();
+    });
+
+    // One Ctrl+Z, because one thing was done. A stack that recorded a step per
+    // row would make the user press it forty times to undo one gesture.
+    expect(stored("transactions").map((t) => t.budgetId)).toEqual(["b1", "b1", "b1"]);
+    expect(result.current.ledger.undoLabel).toBeNull();
+    expect(result.current.ledger.redoLabel).toBe("editing 3 entries");
+  });
+
+  test("a step the books have moved past under it is refused and dropped", () => {
+    const { result } = setUp([row("t1"), row("t2")]);
+
+    act(() => {
+      result.current.ledger.updateTransaction({ id: "t1", amountCents: 2500 });
+    });
+
+    // Another device deleting the row, which is the one way the ledger can move
+    // without a step being recorded: a remote document arrives through
+    // `useSyncedState` and never passes a mutator. This is what the inverse-write
+    // shape is for — the step is checked against the books as they stand, and is
+    // refused rather than resurrecting a record somebody else deleted.
+    act(() => {
+      localStorage.setItem("transactions", JSON.stringify([row("t2")]));
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "transactions",
+          newValue: JSON.stringify([row("t2")]),
+        })
+      );
+    });
+    expect(entry(result, "t1")).toBeUndefined();
+
+    let answer;
+    act(() => {
+      answer = result.current.ledger.undo();
+    });
+
+    expect(answer.ok).toBe(false);
+    expect(answer.error).toMatch(/no longer as they were/i);
+    expect(entry(result, "t1")).toBeUndefined();
+    // Dropped rather than left at the top of the stack: the next Ctrl+Z should
+    // reach the edit before it rather than the same message a second time.
+    expect(result.current.ledger.undoLabel).toBeNull();
+  });
+
+  test("nothing to undo says so rather than doing something else", () => {
+    const { result } = setUp([row("t1")]);
+
+    let answer;
+    act(() => {
+      answer = result.current.ledger.undo();
+    });
+    expect(answer).toEqual({ ok: false, error: "There is nothing to undo." });
+
+    act(() => {
+      answer = result.current.ledger.redo();
+    });
+    expect(answer).toEqual({ ok: false, error: "There is nothing to redo." });
+  });
+
+  test("a cascade from another store's delete is not on the stack", () => {
+    const { result } = setUp([row("t1")]);
+
+    act(() => {
+      result.current.budgets.deleteBudget({ id: "b1" });
+    });
+
+    // The ledger's half of a category delete is a consequence, not a thing the
+    // user did to the register — and an undo that put the rows back without the
+    // category would leave the books naming something that does not exist. The
+    // way back is to make the category again.
+    expect(entry(result, "t1").budgetId).toBe(UNCATEGORIZED_BUDGET_ID);
+    expect(result.current.ledger.undoLabel).toBeNull();
+  });
+
+  test("a deleted gift comes back with what was said about it", () => {
+    const { result } = setUp([row("t1", { description: "to the food bank" })]);
+
+    act(() => {
+      result.current.donations.addRecipient({ name: "Food bank" });
+    });
+    const organization = stored("donationRecipients")[0].id;
+    act(() => {
+      result.current.donations.recordDonation({
+        transactionId: "t1",
+        recipientId: organization,
+        deductibleCents: 1000,
+      });
+    });
+
+    act(() => {
+      result.current.ledger.deleteTransaction({ id: "t1" });
+    });
+    expect(stored("donations")).toEqual([]);
+
+    act(() => {
+      result.current.ledger.undo();
+    });
+
+    // The statement is a statement *about* an outflow, so it goes and comes back
+    // with it. What cannot come back is the receipt file, which was deleted with
+    // the gift — see `restoreDonations`.
+    expect(stored("donations")).toEqual([
+      expect.objectContaining({ transactionId: "t1", recipientId: organization, deductibleCents: 1000 }),
+    ]);
   });
 });

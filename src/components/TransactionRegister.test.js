@@ -585,3 +585,39 @@ describe("a divided row", () => {
     expect(footer.getByText("$202.40")).toBeInTheDocument();
   });
 });
+
+describe("ticking rows", () => {
+  test("a row's box reports the row, and nothing else about the selection", () => {
+    const onSelect = jest.fn();
+    renderRegister({ onSelect });
+
+    fireEvent.click(screen.getByLabelText("Select Trader Joe's"));
+
+    // The page owns which rows are ticked, exactly as it owns which rows are
+    // shown: the register is handed both and reports the gesture.
+    expect(onSelect).toHaveBeenCalledWith("t1");
+  });
+
+  test("the header box offers every row shown, and clears when they all are", () => {
+    const onSelectShown = jest.fn();
+    renderRegister({ onSelectShown });
+
+    fireEvent.click(screen.getByLabelText("Select every entry shown"));
+    expect(onSelectShown).toHaveBeenCalledWith(["t1", "t2"]);
+
+    onSelectShown.mockClear();
+    renderRegister({ onSelectShown, selected: new Set(["t1", "t2"]) });
+    fireEvent.click(screen.getAllByLabelText("Clear the selection")[0]);
+    expect(onSelectShown).toHaveBeenCalledWith([]);
+  });
+
+  test("partly ticked is a state of its own", () => {
+    renderRegister({ selected: new Set(["t1"]) });
+
+    // Without it, a box drawn empty over a ticked row reads as a selection that
+    // has been lost.
+    expect(screen.getByLabelText("Select every entry shown").indeterminate).toBe(true);
+    expect(screen.getByLabelText("Select Trader Joe's")).toBeChecked();
+    expect(screen.getByLabelText("Select Acme Payroll")).not.toBeChecked();
+  });
+});

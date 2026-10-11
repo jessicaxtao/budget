@@ -595,3 +595,421 @@ describe("naming a payee on a row", () => {
   });
 });
 
+/**
+ * The bar, scoped — a chip reading "#road" and a row's own Remove button both
+ * answer to the same text, so every query for a facet is made inside the
+ * section rather than across the page.
+ */
+const filters = () => within(screen.getByRole("region", { name: "Search and filter" }));
+
+describe("searching and filtering the register", () => {
+  const search = () => screen.getByRole("searchbox", { name: "Search the register" });
+  const type = (value) => fireEvent.change(search(), { target: { value } });
+  const openFacets = () => fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+
+  test("a search narrows the register and says what it is holding back", () => {
+    seed();
+    renderPage();
+
+    type("paycheck");
+
+    expect(screen.getByLabelText("Note on Paycheck")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Note on Trader Joe's")).not.toBeInTheDocument();
+    // "1 of 2" rather than "1": what is missing has to be a figure on screen,
+    // or the register would be quietly lying about the month.
+    expect(screen.getByText(/1 of 2 entries/i)).toBeInTheDocument();
+  });
+
+  test("the amount is searchable, because that is how a statement is reconciled", () => {
+    seed();
+    renderPage();
+
+    type("78.40");
+
+    expect(screen.getByLabelText("Note on Trader Joe's")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Note on Paycheck")).not.toBeInTheDocument();
+  });
+
+  test("a search reaches the whole ledger once the window says all time", () => {
+    const previous = addMonths(PERIOD, -3);
+    seed({
+      transactions: [
+        {
+          id: "t5",
+          kind: TRANSACTION_KINDS.OUTFLOW,
+          description: "Costco",
+          amountCents: 12400,
+          date: `${previous}-14`,
+          accountId: "acc1",
+          budgetId: "b1",
+        },
+      ],
+    });
+    renderPage();
+
+    // The month on screen has nothing in it, which is the whole reason the
+    // window is a control: a search bounded by the month cannot find the receipt
+    // from the spring.
+    type("costco");
+    expect(screen.queryByLabelText("Note on Costco")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "All time" }));
+
+    expect(screen.getByLabelText("Note on Costco")).toBeInTheDocument();
+    // The footing is a footing of the window, so it stops naming a month it is
+    // no longer about.
+    expect(screen.getByRole("row", { name: /Every month/ })).toBeInTheDocument();
+  });
+
+  test("a category and a tag narrow together", () => {
+    seed({
+      transactions: [
+        {
+          id: "t5",
+          kind: TRANSACTION_KINDS.OUTFLOW,
+          description: "Fuel up #road",
+          amountCents: 5000,
+          date: `${PERIOD}-03`,
+          accountId: "acc1",
+          budgetId: "b2",
+        },
+        {
+          id: "t6",
+          kind: TRANSACTION_KINDS.OUTFLOW,
+          description: "Snacks #road",
+          amountCents: 800,
+          date: `${PERIOD}-03`,
+          accountId: "acc1",
+          budgetId: "b1",
+        },
+      ],
+    });
+    renderPage();
+
+    openFacets();
+    fireEvent.click(filters().getByRole("button", { name: "#road · 2" }));
+    expect(screen.getByLabelText("Note on Fuel up #road")).toBeInTheDocument();
+    expect(screen.getByLabelText("Note on Snacks #road")).toBeInTheDocument();
+
+    fireEvent.click(filters().getByRole("button", { name: "Fuel" }));
+    expect(screen.getByLabelText("Note on Fuel up #road")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Note on Snacks #road")).not.toBeInTheDocument();
+  });
+
+  test("a filter that matches nothing offers to clear rather than to add", () => {
+    seed();
+    renderPage();
+
+    type("nothing like this");
+    // Offering "Add a transaction" to somebody who has just searched would
+    // answer a question they did not ask.
+    expect(screen.queryByRole("button", { name: /Add a transaction/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Clear the filter/ }));
+
+    expect(screen.getByLabelText("Note on Trader Joe's")).toBeInTheDocument();
+    expect(search()).toHaveValue("");
+  });
+});
+
+describe("keeping a search", () => {
+  const saved = () => JSON.parse(localStorage.getItem("savedFilters"));
+
+  function keepItAs(name) {
+    fireEvent.click(screen.getByRole("button", { name: "Save this search" }));
+    fireEvent.change(screen.getByLabelText("Name for this search"), { target: { value: name } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  }
+
+  test("a named search is one click away afterwards", () => {
+    seed();
+    renderPage();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "paycheck" },
+    });
+    keepItAs("Pay");
+
+    // The filter itself is what is stored — the question, not a description of
+    // it — so it can be applied again without anything being interpreted.
+    expect(saved()).toEqual([
+      { id: expect.any(String), name: "Pay", filter: expect.objectContaining({ text: "paycheck" }) },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Clear$/ }));
+    expect(screen.getByLabelText("Note on Trader Joe's")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pay" }));
+    expect(screen.queryByLabelText("Note on Trader Joe's")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Note on Paycheck")).toBeInTheDocument();
+  });
+
+  test("a clashing name is refused with the form still open on what was typed", () => {
+    seed();
+    renderPage();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "paycheck" },
+    });
+    keepItAs("Pay");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "trader" },
+    });
+    keepItAs("pay");
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/already a filter called/i);
+    expect(screen.getByLabelText("Name for this search")).toHaveValue("pay");
+    expect(saved()).toHaveLength(1);
+  });
+
+  test("a search with nothing in it is not worth a name", () => {
+    seed();
+    renderPage();
+
+    // Nothing is saveable until something is in force, so the button is not even
+    // on screen — a chip that did nothing when clicked would be worse.
+    expect(screen.queryByRole("button", { name: "Save this search" })).not.toBeInTheDocument();
+  });
+});
+
+describe("editing several rows at once", () => {
+  const pick = (name) => fireEvent.click(screen.getByLabelText(`Select ${name}`));
+
+  test("refiling a selection lands on every row in one commit", () => {
+    seed();
+    renderPage();
+
+    pick("Trader Joe's");
+    pick("Paycheck");
+    expect(screen.getByText("2 of 2 selected")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Refile the 2 entries selected into a category"), {
+      target: { value: "b2" },
+    });
+
+    expect(entry("t1").budgetId).toBe("b2");
+    expect(entry("t2").budgetId).toBe("b2");
+  });
+
+  test("the header box ticks what is shown and nothing more", () => {
+    seed();
+    renderPage();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "paycheck" },
+    });
+    fireEvent.click(screen.getByLabelText("Select every entry shown"));
+
+    // The rows a filter is hiding are not the rows a select-all would tick: a
+    // bulk edit that reached what nobody can see would be the worst button here.
+    expect(screen.getByText("1 of 1 selected")).toBeInTheDocument();
+  });
+
+  test("a refusal leaves every row as it was and says so once", () => {
+    seed();
+    renderPage();
+
+    pick("Trader Joe's");
+    pick("Paycheck");
+    fireEvent.change(screen.getByLabelText("Move the 2 entries selected to an account"), {
+      target: { value: "acc1" },
+    });
+
+    // Both rows already name that account, so nothing moved and nothing was
+    // written — the batch's own no-op rule, surfaced rather than silent.
+    expect(entry("t1").accountId).toBe("acc1");
+  });
+
+  test("a tag added to a selection lands in the notes and can be searched for", () => {
+    seed();
+    renderPage();
+
+    pick("Trader Joe's");
+    fireEvent.change(screen.getByLabelText("Tag to add or remove"), {
+      target: { value: "#holiday" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tag" }));
+
+    expect(entry("t1").description).toBe("Trader Joe's #holiday");
+    expect(screen.getByRole("status")).toHaveTextContent("#holiday is now on 1 entry.");
+
+    // And the tag is now a facet, because a tag is a reading of the note rather
+    // than a field beside it.
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(filters().getByRole("button", { name: "#holiday · 1" }));
+    expect(screen.queryByLabelText("Note on Paycheck")).not.toBeInTheDocument();
+  });
+
+  test("a tag that is not one word is refused before anything is written", () => {
+    seed();
+    renderPage();
+
+    pick("Trader Joe's");
+    fireEvent.change(screen.getByLabelText("Tag to add or remove"), {
+      target: { value: "two words" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tag" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/one word/i);
+    expect(entry("t1").description).toBe("Trader Joe's");
+  });
+
+  test("a divided receipt is left alone when a selection is refiled, and said so", () => {
+    seed({
+      transactions: [
+        {
+          id: "t1",
+          kind: TRANSACTION_KINDS.OUTFLOW,
+          description: "Trader Joe's",
+          amountCents: 7840,
+          date: `${PERIOD}-11`,
+          accountId: "acc1",
+          budgetId: "b1",
+        },
+        {
+          id: "t4",
+          kind: TRANSACTION_KINDS.OUTFLOW,
+          description: "Costco",
+          amountCents: 12400,
+          date: `${PERIOD}-14`,
+          accountId: "acc1",
+          budgetId: null,
+          splits: [
+            { id: "p1", budgetId: "b1", amountCents: 9000 },
+            { id: "p2", budgetId: "b2", amountCents: 3400 },
+          ],
+        },
+      ],
+    });
+    renderPage();
+
+    pick("Trader Joe's");
+    pick("Costco");
+    fireEvent.change(screen.getByLabelText("Refile the 2 entries selected into a category"), {
+      target: { value: "b2" },
+    });
+
+    // A division is an answer of its own to the question that select asks, and
+    // storing a category behind it would read as refiled while the money went on
+    // going where the parts say.
+    expect(entry("t1").budgetId).toBe("b2");
+    expect(entry("t4").splits).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent(/divided receipt was left alone/i);
+  });
+
+  test("removing a selection takes it off the books, and undo puts it back", () => {
+    seed();
+    renderPage();
+
+    pick("Trader Joe's");
+    pick("Paycheck");
+    fireEvent.click(screen.getByRole("button", { name: "Remove 2" }));
+
+    expect(ledger()).toEqual([]);
+
+    // No confirm dialog on the way out, because this is what protects the
+    // decision rather than the keystroke.
+    fireEvent.click(screen.getByRole("button", { name: "Undo removing 2 entries" }));
+
+    expect(ledger().map((transaction) => transaction.id)).toEqual(["t1", "t2"]);
+    expect(screen.getByLabelText("Note on Trader Joe's")).toBeInTheDocument();
+  });
+});
+
+describe("the running balance", () => {
+  function filterToTheAccount() {
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Everyday" }));
+  }
+
+  test("takes the account column's place once the filter names one account", () => {
+    seed();
+    renderPage();
+
+    expect(screen.getByLabelText("Account of Trader Joe's")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Balance" })).not.toBeInTheDocument();
+
+    filterToTheAccount();
+
+    // The two trade places: the account the filter names is not worth repeating
+    // on sixty rows, and the grid has no width for a seventh column.
+    expect(screen.getByRole("columnheader", { name: "Balance" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Account of Trader Joe's")).not.toBeInTheDocument();
+  });
+
+  test("is the account's own running figure, in the books' order and not the screen's", () => {
+    seed();
+    renderPage();
+    filterToTheAccount();
+
+    // $2,000 opening, then the paycheque on the 9th, then the shop on the 11th —
+    // even though the register draws them the other way up.
+    const pay = within(screen.getByRole("row", { name: /Paycheck/ }));
+    expect(pay.getByText("$4,140")).toBeInTheDocument();
+    const shop = within(screen.getByRole("row", { name: /Trader Joe's/ }));
+    expect(shop.getByText("$4,061.60")).toBeInTheDocument();
+  });
+
+  test("a figure the filter hides does not change the figures it shows", () => {
+    seed();
+    renderPage();
+    filterToTheAccount();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "trader" },
+    });
+
+    // The balance is a property of the row and the account, not of the view —
+    // so narrowing to one row leaves it the number the statement will show.
+    const shop = within(screen.getByRole("row", { name: /Trader Joe's/ }));
+    expect(shop.getByText("$4,061.60")).toBeInTheDocument();
+  });
+});
+
+describe("walking the ledger back", () => {
+  test("the button names what it will put back, and is dead until there is something", () => {
+    seed();
+    renderPage();
+
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Category of Trader Joe's"), { target: { value: "b2" } });
+
+    const undo = screen.getByRole("button", { name: "Undo that edit" });
+    fireEvent.click(undo);
+
+    expect(entry("t1").budgetId).toBe("b1");
+    expect(screen.getByRole("status")).toHaveTextContent("Undone — that edit.");
+    fireEvent.click(screen.getByRole("button", { name: "Redo that edit" }));
+    expect(entry("t1").budgetId).toBe("b2");
+  });
+
+  test("Ctrl+Z walks it back from the page, and leaves a text field's own typing alone", () => {
+    seed();
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("Category of Trader Joe's"), { target: { value: "b2" } });
+
+    // Inside a text field the gesture means the typing, and taking it over would
+    // be worse than not offering it.
+    fireEvent.keyDown(screen.getByLabelText("Note on Trader Joe's"), { key: "z", ctrlKey: true });
+    expect(entry("t1").budgetId).toBe("b2");
+
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+    expect(entry("t1").budgetId).toBe("b1");
+
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(entry("t1").budgetId).toBe("b2");
+  });
+
+  test("a removed row comes back where it sat", () => {
+    seed();
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove entry: Trader Joe's" }));
+    expect(ledger()).toHaveLength(1);
+
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+
+    expect(ledger().map((transaction) => transaction.id)).toEqual(["t1", "t2"]);
+  });
+});

@@ -73,6 +73,8 @@ export default function BulkEditBar({
   const select =
     "border border-edge bg-panel px-2 py-1 font-sans text-label text-chalk outline-none transition-colors focus:border-azure";
 
+  const chosen = `the ${count === 1 ? "entry" : `${count} entries`} selected`;
+
   return (
     <div
       // Azure is the selection colour everywhere in the app — the chips, the
@@ -83,13 +85,16 @@ export default function BulkEditBar({
         <span className="font-mono text-label uppercase text-chalk">
           {count} of {shownCount} selected
         </span>
+        {/* The two selects and the Remove button name the count in their own
+            accessible names, so the number is said where the action is rather
+            than only once at the start of the row. */}
 
         {/* Named by `aria-label` and not by a `<label>`: the prompt inside the
             select already says what it does on screen, and a visible label
             beside it would be the same words twice. */}
         <select
           value=""
-          aria-label={`Refile the ${count} selected entries into a category`}
+          aria-label={`Refile ${chosen} into a category`}
           onChange={(event) => run(() => onRefile(event.target.value))}
           className={select}
         >
@@ -103,7 +108,7 @@ export default function BulkEditBar({
 
         <select
           value=""
-          aria-label={`Move the ${count} selected entries to an account`}
+          aria-label={`Move ${chosen} to an account`}
           onChange={(event) => run(() => onMove(event.target.value))}
           className={select}
         >
