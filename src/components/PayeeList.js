@@ -3,9 +3,11 @@ import AddPayeeModal from "./AddPayeeModal";
 import Button from "./Button";
 import MergePayeesModal from "./MergePayeesModal";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
+import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
-import { useTransactions } from "../contexts/TransactionsContext";
+import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import { describeShares } from "../payeeDefaults";
 
 /**
  * The payee list, and the three things only this panel can do to it: rename,
@@ -37,7 +39,14 @@ import { useTransactions } from "../contexts/TransactionsContext";
  * rename re-seeds it with what was actually saved and a refused one puts the old
  * name back — the rest of the app still knows the payee by it. The default
  * category is a **controlled** select committing on **change**, because there is
- * nothing to type and the choice is made the moment it is made.
+ * nothing to type and the choice is made the moment it is made. The account and
+ * the direction are two more of those selects, on the same rule.
+ *
+ * **A split is shown, not edited, here.** It is learned off a receipt that
+ * already added up, from the entry form's "next time" box, because a division
+ * typed as bare percentages with no receipt in front of anybody is a guess. What
+ * the row offers is taking it off, which brings back the single category kept
+ * beneath it.
  */
 
 const nameClass = "w-full min-w-0 border-0 border-b-2 border-rule bg-transparent px-0 py-1 font-sans text-row text-ink outline-none transition-colors focus:border-azure";
@@ -45,7 +54,10 @@ const nameClass = "w-full min-w-0 border-0 border-b-2 border-rule bg-transparent
 export default function PayeeList() {
   const { payees, updatePayee, deletePayee, mergePayees } = usePayees();
   const { budgets } = useBudgets();
+  const { accounts } = useAccounts();
   const { transactions } = useTransactions();
+  const spendable = accounts.filter(spendsThroughBudget);
+  const budgetName = (id) => budgets.find((budget) => budget.id === id)?.name ?? null;
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [merging, setMerging] = useState(null);
@@ -67,8 +79,8 @@ export default function PayeeList() {
     return result;
   }
 
-  function handleDefaultChange(payee, budgetId) {
-    const result = updatePayee({ id: payee.id, defaultBudgetId: budgetId || null });
+  function handleDefaultChange(payee, changes) {
+    const result = updatePayee({ id: payee.id, ...changes });
     setError(result.ok ? null : result.error);
     return result;
   }
@@ -86,7 +98,7 @@ export default function PayeeList() {
           <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
             {payees.length === 0
               ? "Built as you enter transactions"
-              : `${payees.length} ${payees.length === 1 ? "payee" : "payees"} · rename, merge, set a default category`}
+              : `${payees.length} ${payees.length === 1 ? "payee" : "payees"} · rename, merge, set what each opens on`}
           </span>
         </summary>
 
@@ -95,8 +107,9 @@ export default function PayeeList() {
             Who you pay and who pays you. A payee is added the first time you name it on a
             transaction, so this list fills itself — what it is for is tidying up: rename one and
             every transaction that names it follows, merge two spellings of one shop into a single
-            payee, and give a payee the category it is usually filed under so the next transaction
-            to it starts there.
+            payee, and say what a payee usually is — its category, the account it is paid from, money
+            in or out — so the next transaction to it starts there. A split is remembered from
+            the entry form: divide a receipt, then tick “Split it” under “Next time”.
           </p>
 
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-edge px-4 py-2.5">
@@ -141,15 +154,27 @@ export default function PayeeList() {
                       and the remainder is a sensible width. */}
                   <th
                     scope="col"
-                    className="w-96 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                    className="w-72 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
                   >
                     Payee
                   </th>
                   <th
                     scope="col"
-                    className="w-44 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                    className="w-56 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
                   >
                     Usually filed under
+                  </th>
+                  <th
+                    scope="col"
+                    className="w-44 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                  >
+                    Usually paid through
+                  </th>
+                  <th
+                    scope="col"
+                    className="w-36 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                  >
+                    Opens as
                   </th>
                   <th
                     scope="col"
@@ -172,6 +197,11 @@ export default function PayeeList() {
                   // first entry and the payee would look re-filed by being looked
                   // at, which is the register's rule for exactly the same control.
                   const known = budgets.some((budget) => budget.id === payee.defaultBudgetId);
+                  // The same for the account: a deleted or off-budget one keeps
+                  // an option rather than reading as "Last used".
+                  const knownAccount = spendable.some(
+                    (account) => account.id === payee.defaultAccountId
+                  );
                   return (
                     <tr key={payee.id} className={striped ? "bg-sheet-alt" : "bg-sheet"}>
                       <td className="px-3 py-1.5">
@@ -188,27 +218,80 @@ export default function PayeeList() {
                         />
                       </td>
                       <td data-label="Usually filed under" className="px-3 py-1.5">
+                        {payee.defaultSplit ? (
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="font-sans text-row text-ink">
+                              {describeShares(payee.defaultSplit, budgetName)}
+                            </span>
+                            <Button
+                              variant="row"
+                              size="sm"
+                              aria-label={`Stop splitting ${payee.name}`}
+                              onClick={() => handleDefaultChange(payee, { defaultSplit: null })}
+                            >
+                              Unsplit
+                            </Button>
+                          </span>
+                        ) : (
+                          <select
+                            value={payee.defaultBudgetId ?? ""}
+                            aria-label={`Default category for ${payee.name}`}
+                            onChange={(e) =>
+                              handleDefaultChange(payee, { defaultBudgetId: e.target.value || null })
+                            }
+                            className={`${nameClass} ${striped ? "bg-sheet-alt" : "bg-sheet"}`}
+                          >
+                            {/* Blank is a real answer and the ordinary one: most
+                                payees are not always filed the same way. */}
+                            <option value="">None</option>
+                            {budgets.map((budget) => (
+                              <option key={budget.id} value={budget.id}>
+                                {budget.name}
+                              </option>
+                            ))}
+                            {payee.defaultBudgetId != null && !known && (
+                              <option value={payee.defaultBudgetId}>
+                                {payee.defaultBudgetId === UNCATEGORIZED_BUDGET_ID
+                                  ? "Uncategorized"
+                                  : "Unknown category"}
+                              </option>
+                            )}
+                          </select>
+                        )}
+                      </td>
+                      <td data-label="Usually paid through" className="px-3 py-1.5">
                         <select
-                          value={payee.defaultBudgetId ?? ""}
-                          aria-label={`Default category for ${payee.name}`}
-                          onChange={(e) => handleDefaultChange(payee, e.target.value)}
+                          value={payee.defaultAccountId ?? ""}
+                          aria-label={`Default account for ${payee.name}`}
+                          onChange={(e) =>
+                            handleDefaultChange(payee, { defaultAccountId: e.target.value || null })
+                          }
                           className={`${nameClass} ${striped ? "bg-sheet-alt" : "bg-sheet"}`}
                         >
-                          {/* Blank is a real answer and the ordinary one: most
-                              payees are not always filed the same way. */}
-                          <option value="">None</option>
-                          {budgets.map((budget) => (
-                            <option key={budget.id} value={budget.id}>
-                              {budget.name}
+                          {/* Blank opens on the account last used, the form's own
+                              habit — the ordinary answer. */}
+                          <option value="">Last used</option>
+                          {spendable.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
                             </option>
                           ))}
-                          {payee.defaultBudgetId != null && !known && (
-                            <option value={payee.defaultBudgetId}>
-                              {payee.defaultBudgetId === UNCATEGORIZED_BUDGET_ID
-                                ? "Uncategorized"
-                                : "Unknown category"}
-                            </option>
+                          {payee.defaultAccountId != null && !knownAccount && (
+                            <option value={payee.defaultAccountId}>Unknown account</option>
                           )}
+                        </select>
+                      </td>
+                      <td data-label="Opens as" className="px-3 py-1.5">
+                        <select
+                          value={payee.defaultKind ?? ""}
+                          aria-label={`Direction for ${payee.name}`}
+                          onChange={(e) =>
+                            handleDefaultChange(payee, { defaultKind: e.target.value || null })
+                          }
+                          className={`${nameClass} ${striped ? "bg-sheet-alt" : "bg-sheet"}`}
+                        >
+                          <option value="">Money out</option>
+                          <option value={TRANSACTION_KINDS.INFLOW}>Money in</option>
                         </select>
                       </td>
                       <td

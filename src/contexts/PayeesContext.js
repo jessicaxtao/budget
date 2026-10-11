@@ -1,7 +1,8 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { useTransactions } from "./TransactionsContext";
+import { TRANSACTION_KINDS, useTransactions } from "./TransactionsContext";
+import { describeDefaultSplitProblem } from "../payeeDefaults";
 
 /**
  * Who the money went to, as a record rather than as a string typed again on
@@ -18,7 +19,7 @@ import { useTransactions } from "./TransactionsContext";
  *
  * A record is:
  *
- *   payee { id, name, defaultBudgetId }
+ *   payee { id, name, defaultBudgetId, defaultSplit, defaultAccountId, defaultKind }
  *
  * The transaction names it by **id**, which is the whole point: a rename is one
  * write to one record and every row that names it says the new name, because no
@@ -48,6 +49,24 @@ import { useTransactions } from "./TransactionsContext";
  * ledger sits *inside* it, so it can call across. Deleting a payee detaches its
  * transactions and merging two repoints them, and both of those are the ledger's
  * writes to make. Nothing deletes *into* this store, so nothing else moves.
+ *
+ * **The three other defaults are the same kind of answer** — what the entry form
+ * opens on when this payee is named, never a restatement of a row:
+ *
+ *   - `defaultSplit` — null, or how a receipt here is usually divided, as shares
+ *     (`src/payeeDefaults.js`): "Costco is 70% groceries, 30% household". Where
+ *     it is set it is what the form opens on, ahead of `defaultBudgetId`, which
+ *     is **kept** beneath it rather than cleared — taking the split off brings
+ *     the single category back, the "both answers kept" rule.
+ *   - `defaultAccountId` — null, or the account money to this payee usually goes
+ *     through. Inert but kept, exactly like the category: a deleted or off-budget
+ *     account is passed over where it is read.
+ *   - `defaultKind` — null, or the direction the form turns to. `null` is money
+ *     out, the ordinary case; an employer is the payee worth saying "money in"
+ *     for.
+ *
+ * None of them is ever filled in by the app on its own. They are written from
+ * this panel, or from the entry form's "next time" boxes, which the person ticks.
  */
 const PayeesContext = React.createContext();
 
@@ -84,6 +103,38 @@ function cleanName(name) {
 
 const NAME_ERROR = "Give the payee a name.";
 
+const PAYEE_KINDS = [TRANSACTION_KINDS.INFLOW, TRANSACTION_KINDS.OUTFLOW];
+
+/**
+ * The default fields named in `fields`, cleaned, or an error. Undefined fields
+ * are left out, so `updatePayee` changes only what it was given; "" is what an
+ * unpicked select is worth in the DOM and is read as no default.
+ */
+function readDefaults(fields) {
+  const changes = {};
+  if (fields.defaultBudgetId !== undefined) changes.defaultBudgetId = fields.defaultBudgetId || null;
+  if (fields.defaultAccountId !== undefined) {
+    changes.defaultAccountId = fields.defaultAccountId || null;
+  }
+  if (fields.defaultKind !== undefined) {
+    const kind = fields.defaultKind || null;
+    if (kind != null && !PAYEE_KINDS.includes(kind)) {
+      return { error: "A payee opens as money in or money out." };
+    }
+    changes.defaultKind = kind;
+  }
+  if (fields.defaultSplit !== undefined) {
+    const split = fields.defaultSplit ?? null;
+    const problem = describeDefaultSplitProblem(split);
+    if (problem) return { error: problem };
+    changes.defaultSplit = split && split.map(({ budgetId, shareBps }) => ({ budgetId, shareBps }));
+  }
+  return { changes };
+}
+
+/** Whether a default field moved — by value, since a split is a list. */
+const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 // Keyed on field presence rather than a version counter, so it is
 // self-describing and safe to re-run.
 function migratePayees(stored) {
@@ -96,6 +147,11 @@ function migratePayees(stored) {
       // Null is the ordinary state, not a gap waiting to be filled: most payees
       // are not always filed under one category.
       defaultBudgetId: payee.defaultBudgetId ?? null,
+      // Stamped by presence, purely additive: nothing is guessed from the ledger
+      // about where a payee is usually paid from or how it is usually divided.
+      defaultSplit: payee.defaultSplit ?? null,
+      defaultAccountId: payee.defaultAccountId ?? null,
+      defaultKind: payee.defaultKind ?? null,
     }));
 }
 
@@ -126,9 +182,11 @@ export const PayeesProvider = ({ children }) => {
    * duplicate is the one option that cannot be right.
    */
   const addPayee = useCallback(
-    ({ name, defaultBudgetId }) => {
+    ({ name, ...defaults }) => {
       const trimmed = cleanName(name);
       if (!trimmed) return { ok: false, error: NAME_ERROR };
+      const read = readDefaults(defaults);
+      if (read.error) return { ok: false, error: read.error };
 
       const key = normalizePayeeName(trimmed);
       if (payees.some((payee) => normalizePayeeName(payee.name) === key)) {
@@ -138,9 +196,15 @@ export const PayeesProvider = ({ children }) => {
       const id = uuidV4();
       setPayees((previous) => [
         ...previous,
-        // "" is what an unpicked select is worth in the DOM; null is what "no
-        // default" is worth here, and the two must not be confused.
-        { id, name: trimmed, defaultBudgetId: defaultBudgetId || null },
+        {
+          id,
+          name: trimmed,
+          defaultBudgetId: null,
+          defaultSplit: null,
+          defaultAccountId: null,
+          defaultKind: null,
+          ...read.changes,
+        },
       ]);
       return { ok: true, id };
     },
@@ -148,9 +212,8 @@ export const PayeesProvider = ({ children }) => {
   );
 
   /**
-   * Rename a payee, or restate the category a new transaction to it starts on.
-   * Undefined fields are left alone; `defaultBudgetId: null` takes the default
-   * off.
+   * Rename a payee, or restate what a new transaction to it starts on. Undefined
+   * fields are left alone; a default given as null takes it off.
    *
    * Refuses an id it cannot find rather than letting a `map` that matches nothing
    * report the write as landed — `updateSavingsGoal`'s rule, for its reason:
@@ -158,7 +221,7 @@ export const PayeesProvider = ({ children }) => {
    * panel can be open on a row the store no longer has.
    */
   const updatePayee = useCallback(
-    ({ id, name, defaultBudgetId }) => {
+    ({ id, name, ...defaults }) => {
       const existing = payees.find((payee) => payee.id === id);
       if (!existing) return { ok: false, error: "That payee no longer exists." };
 
@@ -180,11 +243,13 @@ export const PayeesProvider = ({ children }) => {
         changes.name = trimmed;
       }
 
-      if (defaultBudgetId !== undefined) changes.defaultBudgetId = defaultBudgetId || null;
+      const read = readDefaults(defaults);
+      if (read.error) return { ok: false, error: read.error };
+      Object.assign(changes, read.changes);
 
       // Nothing actually moved. Writing anyway would re-render every consumer for
       // a cell the user only tabbed through.
-      const moved = Object.keys(changes).some((field) => changes[field] !== existing[field]);
+      const moved = Object.keys(changes).some((field) => !sameValue(changes[field], existing[field]));
       if (!moved) return { ok: true, id };
 
       setPayees((previous) =>
@@ -234,7 +299,9 @@ export const PayeesProvider = ({ children }) => {
    *
    * **The survivor adopts a default only where it has none of its own.** Merging
    * must not lose the only answer either side had, and must not overwrite an
-   * answer the survivor already gave.
+   * answer the survivor already gave. Where a receipt is filed — the category and
+   * the split — is **one** answer, adopted together: a survivor filed under one
+   * category that took a source's split would be refiled by the merge.
    */
   const mergePayees = useCallback(
     ({ fromIds, intoId }) => {
@@ -254,15 +321,23 @@ export const PayeesProvider = ({ children }) => {
 
       repointPayeeTransactions({ fromPayeeIds: sources, toPayeeId: intoId });
 
-      const adopted =
-        target.defaultBudgetId ??
-        merged.find((payee) => payee.defaultBudgetId)?.defaultBudgetId ??
-        null;
+      const files = (payee) => payee.defaultBudgetId != null || payee.defaultSplit != null;
+      const filing = files(target) ? target : merged.find(files) ?? target;
+      const adopted = {
+        defaultBudgetId: filing.defaultBudgetId ?? null,
+        defaultSplit: filing.defaultSplit ?? null,
+        defaultAccountId:
+          target.defaultAccountId ??
+          merged.find((payee) => payee.defaultAccountId)?.defaultAccountId ??
+          null,
+        defaultKind:
+          target.defaultKind ?? merged.find((payee) => payee.defaultKind)?.defaultKind ?? null,
+      };
 
       setPayees((previous) =>
         previous
           .filter((payee) => !sources.includes(payee.id))
-          .map((payee) => (payee.id === intoId ? { ...payee, defaultBudgetId: adopted } : payee))
+          .map((payee) => (payee.id === intoId ? { ...payee, ...adopted } : payee))
       );
       return { ok: true, id: intoId };
     },

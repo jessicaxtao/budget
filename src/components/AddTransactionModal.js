@@ -21,6 +21,13 @@ import useCardOffers from "../hooks/useCardOffers";
 import { OFFER_KINDS, offerNudges, rankCardsFor } from "../rewards";
 import { cashbackCents } from "../cashback";
 import useRecordCashback from "../hooks/useRecordCashback";
+import {
+  describeShares,
+  liveShares,
+  partsForTotal,
+  sameShares,
+  sharesFromSplits,
+} from "../payeeDefaults";
 import { amountAtRest, currentPeriod, formatBps, formatCents, toCents, todayISO } from "../utils";
 
 /**
@@ -96,6 +103,19 @@ import { amountAtRest, currentPeriod, formatBps, formatCents, toCents, todayISO 
  * every check, and the store still has the last word. `notes` are the places
  * the reading did not line up with the books, said above the fields so the
  * person knows which ones to look at before saving.
+ *
+ * **Naming a payee opens the rest of the form on what that payee usually is**:
+ * its direction, its account, and its category — or its remembered split, laid
+ * out against whatever total is typed and following the total as it changes,
+ * until a part is touched. Each of those is a default only while the question
+ * is open: a direction, an account or a category the person has already chosen
+ * on this form is an answer, and a payee named afterwards does not overwrite it.
+ *
+ * **And the form offers to remember** — under "Next time for …", one box per
+ * answer that differs from what the payee would have opened on, every box
+ * unticked. Nothing is learned silently, the line YNAB's last-used category
+ * crosses: a payee filed somewhere unusual once must not be filed there forever
+ * because nobody noticed.
  */
 /**
  * One card offer in a sentence, from where this purchase stands against it.
@@ -211,12 +231,27 @@ export default function AddTransactionModal({
   // mirrored for the one thing on screen that reads them as they change: the
   // card-offer reminder. Submit still reads the refs, so there is one answer.
   const [picked, setPicked] = useState({ budgetId: "", date: "" });
+  // A payee's remembered split while it is still the payee's: the shares, each
+  // with the id of the part it laid out. While set, the parts follow the total
+  // as it is typed; the first edit to a part makes the division the person's
+  // own, and this goes back to null.
+  const [templateShares, setTemplateShares] = useState(null);
+  // Whether the person has answered the direction or the account on this form
+  // themselves — `chosenBudgetRef`'s rule, for the two other questions a payee
+  // can carry an answer to.
+  const chosenKindRef = useRef(false);
+  const chosenAccountRef = useRef(false);
+  // Bumped when a payee re-points the account, and part of the account select's
+  // key: an uncontrolled select only takes a new `defaultValue` on a remount.
+  const [accountSeed, setAccountSeed] = useState(0);
+  // Which "next time" boxes are ticked, by the offer's key.
+  const [remember, setRemember] = useState({});
 
   const { addTransaction, transactions } = useTransactions();
   const recordCashback = useRecordCashback();
   const { accounts } = useAccounts();
   const { budgets } = useBudgets();
-  const { payees, addPayee, findPayeeByName } = usePayees();
+  const { payees, addPayee, updatePayee, findPayeeByName } = usePayees();
   // Most recently transacted with first, which is what the list shows before a
   // single letter has been typed — the payee somebody wants is usually one of the
   // last few they used.
@@ -305,7 +340,13 @@ export default function AddTransactionModal({
     setPayeeName(draft?.payeeName ?? "");
     setLastAdded(null);
     setOpenCount((count) => count + 1);
+    setTemplateShares(null);
+    setRemember({});
     chosenBudgetRef.current = Boolean(draft?.budgetId);
+    // A door other than "Money out" is a direction somebody chose, and so is a
+    // draft's; only the ordinary opening is left for a payee to turn.
+    chosenKindRef.current = draft != null || defaultKind !== TRANSACTION_KINDS.OUTFLOW;
+    chosenAccountRef.current = Boolean(draft?.accountId);
     pendingBudgetRef.current = draft?.budgetId ?? null;
     // The accounts last used this way, where there are any. Otherwise a spending
     // account wherever there is one: it is where money comes from and where a
@@ -412,6 +453,7 @@ export default function AddTransactionModal({
    * exactly as a fresh form would show it.
    */
   function handleSplitToggle() {
+    setTemplateShares(null);
     if (splitting) {
       setSplitting(false);
       setParts([]);
@@ -428,15 +470,39 @@ export default function AddTransactionModal({
     setError(null);
   }
 
+  /** A payee's split laid out against `cents`, one part per share. */
+  function templateParts(shares, cents) {
+    const amounts = partsForTotal(shares, cents);
+    return shares.map((share, index) => ({
+      id: share.partId,
+      budgetId: share.budgetId,
+      amount: amounts[index] == null ? "" : amountAtRest(amounts[index]),
+    }));
+  }
+
+  /**
+   * Put a category in the single select — now, if it is on screen, and on the
+   * next render as well, since a change of direction or the end of a split
+   * remounts it with its own first option.
+   */
+  function seedBudget(budgetId) {
+    if (budgetIdRef.current) budgetIdRef.current.value = budgetId;
+    pendingBudgetRef.current = budgetId;
+  }
+
   /**
    * A payee named: either an existing record, or a name that is not one yet.
    *
-   * Picking one **seeds the category**, which is the whole point of a payee
-   * knowing where it is usually filed — but only while the user has not answered
-   * that question themselves, and only when the default still names a live
-   * category. A default pointing at a category since deleted is inert rather than
-   * cleared (see `PayeesContext`), so it is checked here, where the live list is
-   * in hand, exactly as `defaultBudgetId` is checked in the re-seed effect above.
+   * Picking one **opens the form on what the payee usually is** — direction
+   * first, since it decides which category field exists, then the account, then
+   * the filing: its split where it has one, its category otherwise. Each only
+   * while the person has not answered that question themselves, and each only
+   * where it still names something live: a default pointing at a category or an
+   * account since deleted is inert rather than cleared (see `PayeesContext`), so
+   * it is checked here, where the live lists are in hand. A split left with
+   * fewer than two live categories is not laid out — filing the whole receipt
+   * under the one that survived would be a division nobody made — and the
+   * payee's single category, kept beneath it, is what the form opens on instead.
    */
   function handlePayeeCommit({ payeeId: picked, name }) {
     setPayeeId(picked);
@@ -444,18 +510,132 @@ export default function AddTransactionModal({
     // carries its own name.
     setPayeeName(picked ? "" : name);
     setError(null);
+    setRemember({});
 
-    const preferred = picked ? payees.find((payee) => payee.id === picked)?.defaultBudgetId : null;
-    if (!preferred || chosenBudgetRef.current || splitting) return;
-    if (!budgets.some((budget) => budget.id === preferred)) return;
-    if (budgetIdRef.current) budgetIdRef.current.value = preferred;
+    const payee = picked ? payees.find((entry) => entry.id === picked) : null;
+    if (!payee) return;
+
+    if (payee.defaultKind && payee.defaultKind !== kind && !chosenKindRef.current) {
+      handleKindChange(payee.defaultKind);
+    }
+
+    const account = payee.defaultAccountId;
+    if (
+      account &&
+      account !== fromAccountId &&
+      !chosenAccountRef.current &&
+      spendable.some((entry) => entry.id === account)
+    ) {
+      setFromAccountId(account);
+      setAccountSeed((count) => count + 1);
+    }
+
+    // A division the person is making themselves is their answer.
+    if (chosenBudgetRef.current || (splitting && !templateShares)) return;
+
+    const shares = liveShares(
+      payee.defaultSplit,
+      budgets.map((budget) => budget.id)
+    );
+    if (shares.length >= 2) {
+      const laidOut = shares.map((share) => ({ ...share, partId: blankPart().id }));
+      setTemplateShares(laidOut);
+      setParts(templateParts(laidOut, totalCents));
+      setSplitting(true);
+      return;
+    }
+
+    // The previous payee's split, still untouched, is not this one's.
+    if (templateShares) {
+      setTemplateShares(null);
+      setSplitting(false);
+      setParts([]);
+    }
+    const preferred = payee.defaultBudgetId;
+    if (!preferred || !budgets.some((budget) => budget.id === preferred)) return;
+    seedBudget(preferred);
   }
+
+  const budgetName = (id) => budgets.find((budget) => budget.id === id)?.name ?? null;
 
   /** Where a payee is usually filed, as the option's second line. */
   function describePayee(payee) {
-    const budget = budgets.find((entry) => entry.id === payee.defaultBudgetId);
-    return budget ? budget.name : null;
+    const live = liveShares(
+      payee.defaultSplit,
+      budgets.map((budget) => budget.id)
+    );
+    if (live.length >= 2) return describeShares(payee.defaultSplit, budgetName);
+    return budgetName(payee.defaultBudgetId);
   }
+
+  /**
+   * What this entry could teach the payee, as one offer per answer that differs
+   * from what the payee would have opened on — `{ key, label, changes }`, the
+   * `changes` being `updatePayee`'s fields. Read during the render, off the
+   * mirrored fields, so the boxes appear and disappear as the answers change.
+   *
+   * - **Filing**: a single category, or a split that checks out, as shares. A
+   *   split still exactly the payee's own is not offered back, and a blank
+   *   category on money in is income rather than an answer about this payee.
+   * - **Account**: only where there is more than one to choose between.
+   * - **Direction**: money out is what `null` already means.
+   */
+  function rememberOffers() {
+    if (isTransfer || blocked) return [];
+    const record = payeeId ? payees.find((payee) => payee.id === payeeId) : null;
+    if (!record && !payeeName.trim()) return [];
+    const list = [];
+
+    if (splitting) {
+      if (!templateShares && !describeSplitProblem(parts, totalCents)) {
+        const shares = sharesFromSplits(partsToSplits(parts));
+        if (shares && !sameShares(shares, record?.defaultSplit ?? null)) {
+          list.push({
+            key: "filing",
+            label: `Split it ${describeShares(shares, budgetName)}`,
+            changes: { defaultSplit: shares },
+          });
+        }
+      }
+    } else if (
+      picked.budgetId &&
+      (record?.defaultSplit != null || picked.budgetId !== record?.defaultBudgetId)
+    ) {
+      list.push({
+        key: "filing",
+        label: `File it under ${budgetName(picked.budgetId) ?? "this category"}`,
+        // Taking the split off is part of the answer: where one is set it is
+        // what the form opens on, and a single category under it would never
+        // be seen.
+        changes: { defaultBudgetId: picked.budgetId, defaultSplit: null },
+      });
+    }
+
+    if (spendable.length > 1 && fromAccountId && fromAccountId !== record?.defaultAccountId) {
+      const account = accounts.find((entry) => entry.id === fromAccountId);
+      if (account) {
+        list.push({
+          key: "account",
+          label: `${isOutflow ? "Paid from" : "Paid into"} ${account.name}`,
+          changes: { defaultAccountId: fromAccountId },
+        });
+      }
+    }
+
+    if (kind !== (record?.defaultKind ?? TRANSACTION_KINDS.OUTFLOW)) {
+      list.push({
+        key: "kind",
+        label: isInflow ? "As money in" : "As money out",
+        changes: { defaultKind: isOutflow ? null : kind },
+      });
+    }
+    return list;
+  }
+
+  const offers = rememberOffers();
+  const rememberLabel = payeeId
+    ? payees.find((payee) => payee.id === payeeId)?.name
+    : payeeName.trim();
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -489,6 +669,14 @@ export default function AddTransactionModal({
     // payee with nothing filed under it yet, which is a name in a list the user
     // was about to use anyway, where a transaction naming a payee that was never
     // created would be a row pointing at nothing.
+    // The ticked "next time" boxes, as the payee's fields. A payee created by
+    // this entry takes them as it is created — it is not in this render's list
+    // yet, so `updatePayee` could not find it.
+    const learned = Object.assign(
+      {},
+      ...offers.filter((offer) => remember[offer.key]).map((offer) => offer.changes)
+    );
+    let createdPayee = false;
     let resolvedPayeeId = isTransfer ? null : payeeId;
     if (!isTransfer && !resolvedPayeeId && payeeName.trim()) {
       // Checked against the store rather than trusted from the field: a payee
@@ -498,12 +686,13 @@ export default function AddTransactionModal({
       if (existing) {
         resolvedPayeeId = existing.id;
       } else {
-        const created = addPayee({ name: payeeName });
+        const created = addPayee({ name: payeeName, ...learned });
         if (!created.ok) {
           setError(created.error);
           return;
         }
         resolvedPayeeId = created.id;
+        createdPayee = true;
       }
     }
 
@@ -559,6 +748,17 @@ export default function AddTransactionModal({
       return;
     }
 
+    // Last, and only once the money has landed: a default is worth nothing
+    // learned off an entry the ledger refused. Refused itself, it says so rather
+    // than closing as though the payee had been told.
+    if (resolvedPayeeId && !createdPayee && Object.keys(learned).length > 0) {
+      const taught = updatePayee({ id: resolvedPayeeId, ...learned });
+      if (!taught.ok) {
+        setError(`The transaction was saved, but the payee was not updated: ${taught.error}`);
+        return;
+      }
+    }
+
     if (anotherRef.current) {
       anotherRef.current = false;
       startAnother();
@@ -591,8 +791,13 @@ export default function AddTransactionModal({
     setPayeeName("");
     setSplitting(false);
     setParts([]);
+    setTemplateShares(null);
+    setRemember({});
     setError(null);
     chosenBudgetRef.current = false;
+    // The account stays on screen as the answer last given, but like the
+    // category it is open again for the next payee to set.
+    chosenAccountRef.current = false;
     setEntryCount((count) => count + 1);
   }
 
@@ -701,7 +906,10 @@ export default function AddTransactionModal({
               key={option.value}
               type="button"
               aria-pressed={active}
-              onClick={() => handleKindChange(option.value)}
+              onClick={() => {
+                chosenKindRef.current = true;
+                handleKindChange(option.value);
+              }}
               className={`px-3 py-2 font-sans text-sm font-medium tracking-wide transition-colors ${
                 active
                   ? `${option.tone} text-panel`
@@ -788,7 +996,11 @@ export default function AddTransactionModal({
             type="text"
             inputMode="decimal"
             required
-            onChange={(e) => setTotalCents(toCents(e.target.value))}
+            onChange={(e) => {
+              const cents = toCents(e.target.value);
+              setTotalCents(cents);
+              if (templateShares) setParts(templateParts(templateShares, cents));
+            }}
           />
           <Field label="Date" inputRef={dateRef} type="date" required defaultValue={todayISO()} />
           {/* Keyed on the direction, because the option list is not the same one:
@@ -796,10 +1008,13 @@ export default function AddTransactionModal({
               so a reused element could be left showing an account no longer on
               offer. */}
           <SelectField
-            key={`from:${kind}:${openCount}`}
+            key={`from:${kind}:${openCount}:${accountSeed}`}
             label={isTransfer ? "From" : isOutflow ? "Paid from" : "Paid into"}
             defaultValue={fromAccountId}
-            onChange={(e) => handleFromChange(e.target.value)}
+            onChange={(e) => {
+              chosenAccountRef.current = true;
+              handleFromChange(e.target.value);
+            }}
             required
           >
             {sources.map((account) => (
@@ -839,7 +1054,10 @@ export default function AddTransactionModal({
               parts={parts}
               budgets={budgets}
               totalCents={totalCents}
-              onChange={setParts}
+              onChange={(next) => {
+                setTemplateShares(null);
+                setParts(next);
+              }}
             />
           )}
           {(needsCategory || isInflow) && budgets.length > 0 && !splitting && (
@@ -906,6 +1124,28 @@ export default function AddTransactionModal({
             type="text"
             placeholder={isTransfer ? undefined : "Optional"}
           />
+          {offers.length > 0 && rememberLabel && (
+            <fieldset className="-mt-1 mb-5">
+              <legend className="mb-1 font-mono text-label uppercase text-chalk-soft">
+                Next time for {rememberLabel}
+              </legend>
+              {offers.map((offer) => (
+                <label
+                  key={offer.key}
+                  className="flex items-center gap-2 font-sans text-row text-chalk-soft"
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(remember[offer.key])}
+                    onChange={(e) =>
+                      setRemember((previous) => ({ ...previous, [offer.key]: e.target.checked }))
+                    }
+                  />
+                  {offer.label}
+                </label>
+              ))}
+            </fieldset>
+          )}
           {isInflow && !splitting && (
             <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">
               Income lands in “to be assigned”, where you give it a job. Pick a category instead

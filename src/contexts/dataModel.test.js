@@ -3113,6 +3113,9 @@ describe("payees as records rather than typed text", () => {
   }
 
   const nameOf = (result, id) => result.current.payees.payeeById.get(id)?.name;
+  // The three defaults a payee carries beside its category, all unset — the
+  // ordinary state, written out so a whole stored record can be asserted.
+  const UNSET = { defaultSplit: null, defaultAccountId: null, defaultKind: null };
 
   test("a payee is a name and, optionally, where it is usually filed", () => {
     const { result } = withPayees();
@@ -3124,7 +3127,7 @@ describe("payees as records rather than typed text", () => {
 
     // Trimmed on the way in, and no default: most payees are not always filed the
     // same way, so null is the ordinary answer rather than a gap.
-    expect(stored("payees")).toEqual([{ id, name: "Costco", defaultBudgetId: null }]);
+    expect(stored("payees")).toEqual([{ id, name: "Costco", defaultBudgetId: null, ...UNSET }]);
   });
 
   test("two payees cannot share a name, however it is capitalised", () => {
@@ -3280,7 +3283,7 @@ describe("payees as records rather than typed text", () => {
     });
 
     expect(result.current.payees.payees).toEqual([
-      { id: "p1", name: "Costco", defaultBudgetId: null },
+      { id: "p1", name: "Costco", defaultBudgetId: null, ...UNSET },
     ]);
     expect(result.current.ledger.transactions.map((entry) => entry.payeeId)).toEqual(["p1", "p1"]);
     // And nothing about the money moved: a merge is about names.
@@ -3299,7 +3302,9 @@ describe("payees as records rather than typed text", () => {
       result.current.payees.mergePayees({ fromIds: ["p2"], intoId: "p1" });
     });
     // The only answer either of them had is kept.
-    expect(stored("payees")).toEqual([{ id: "p1", name: "Costco", defaultBudgetId: "b1" }]);
+    expect(stored("payees")).toEqual([
+      { id: "p1", name: "Costco", defaultBudgetId: "b1", ...UNSET },
+    ]);
   });
 
   test("a merge never overwrites an answer the survivor already gave", () => {
@@ -3339,8 +3344,156 @@ describe("payees as records rather than typed text", () => {
   test("a stored record from before the field existed reads as having no default", () => {
     const { result } = withPayees([{ id: "p1", name: "Costco" }]);
     expect(result.current.payees.payees).toEqual([
-      { id: "p1", name: "Costco", defaultBudgetId: null },
+      { id: "p1", name: "Costco", defaultBudgetId: null, ...UNSET },
     ]);
+  });
+
+  describe("what a payee opens the entry form on", () => {
+    const SEVENTY_THIRTY = [
+      { budgetId: "b1", shareBps: 7000 },
+      { budgetId: "b2", shareBps: 3000 },
+    ];
+
+    test("a split, an account and a direction are stored as given, and taken off with null", () => {
+      const { result } = withPayees([{ id: "p1", name: "Costco", defaultBudgetId: "b1" }]);
+
+      act(() => {
+        expect(
+          result.current.payees.updatePayee({
+            id: "p1",
+            defaultSplit: SEVENTY_THIRTY,
+            defaultAccountId: "visa",
+            defaultKind: "outflow",
+          }).ok
+        ).toBe(true);
+      });
+      // The single category is kept beneath the split, not cleared by it.
+      expect(stored("payees")).toEqual([
+        {
+          id: "p1",
+          name: "Costco",
+          defaultBudgetId: "b1",
+          defaultSplit: SEVENTY_THIRTY,
+          defaultAccountId: "visa",
+          defaultKind: "outflow",
+        },
+      ]);
+
+      act(() => {
+        result.current.payees.updatePayee({ id: "p1", defaultSplit: null, defaultAccountId: "" });
+      });
+      expect(stored("payees")[0]).toMatchObject({
+        defaultBudgetId: "b1",
+        defaultSplit: null,
+        defaultAccountId: null,
+      });
+    });
+
+    test("a split that does not divide the whole, or a direction that is not one, is refused", () => {
+      const { result } = withPayees([{ id: "p1", name: "Costco", defaultBudgetId: null }]);
+      const refused = [
+        { defaultSplit: [{ budgetId: "b1", shareBps: 10000 }] },
+        {
+          defaultSplit: [
+            { budgetId: "b1", shareBps: 7000 },
+            { budgetId: "b2", shareBps: 2000 },
+          ],
+        },
+        {
+          defaultSplit: [
+            { budgetId: "b1", shareBps: 10000 },
+            { budgetId: "b2", shareBps: 0 },
+          ],
+        },
+        {
+          defaultSplit: [
+            { budgetId: "b1", shareBps: 6999.5 },
+            { budgetId: "b2", shareBps: 3000.5 },
+          ],
+        },
+        { defaultKind: "transfer" },
+      ];
+      for (const fields of refused) {
+        act(() => {
+          expect(result.current.payees.updatePayee({ id: "p1", ...fields }).ok).toBe(false);
+        });
+      }
+      act(() => {
+        expect(
+          result.current.payees.addPayee({ name: "Aldi", defaultSplit: refused[1].defaultSplit }).ok
+        ).toBe(false);
+      });
+      expect(stored("payees")).toEqual([
+        { id: "p1", name: "Costco", defaultBudgetId: null, ...UNSET },
+      ]);
+    });
+
+    test("a new payee can be created already carrying its defaults", () => {
+      const { result } = withPayees();
+      let id;
+      act(() => {
+        id = result.current.payees.addPayee({
+          name: "Acme Payroll",
+          defaultKind: "inflow",
+          defaultAccountId: "checking",
+        }).id;
+      });
+      expect(stored("payees")).toEqual([
+        {
+          id,
+          name: "Acme Payroll",
+          defaultBudgetId: null,
+          defaultSplit: null,
+          defaultAccountId: "checking",
+          defaultKind: "inflow",
+        },
+      ]);
+    });
+
+    test("a merge adopts where a receipt is filed as one answer, and the others apart", () => {
+      // The survivor files under one category and has no split; the source has a
+      // split. Taking it would refile the survivor, so filing stays the
+      // survivor's — while the account and direction it never answered are
+      // adopted.
+      const { result } = withPayees([
+        { id: "p1", name: "Costco", defaultBudgetId: "b1" },
+        {
+          id: "p2",
+          name: "COSTCO",
+          defaultBudgetId: "b2",
+          defaultSplit: SEVENTY_THIRTY,
+          defaultAccountId: "visa",
+          defaultKind: "outflow",
+        },
+      ]);
+      act(() => {
+        result.current.payees.mergePayees({ fromIds: ["p2"], intoId: "p1" });
+      });
+      expect(stored("payees")).toEqual([
+        {
+          id: "p1",
+          name: "Costco",
+          defaultBudgetId: "b1",
+          defaultSplit: null,
+          defaultAccountId: "visa",
+          defaultKind: "outflow",
+        },
+      ]);
+    });
+
+    test("a survivor with no filing takes a source's split and the category beneath it", () => {
+      const { result } = withPayees([
+        { id: "p1", name: "Costco", defaultBudgetId: null },
+        { id: "p2", name: "COSTCO", defaultBudgetId: "b2", defaultSplit: SEVENTY_THIRTY },
+      ]);
+      act(() => {
+        result.current.payees.mergePayees({ fromIds: ["p2"], intoId: "p1" });
+      });
+      expect(stored("payees")[0]).toMatchObject({
+        defaultBudgetId: "b2",
+        defaultSplit: SEVENTY_THIRTY,
+      });
+    });
   });
 
   test("the ledger takes a payee but never requires one", () => {

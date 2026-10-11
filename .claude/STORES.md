@@ -50,12 +50,17 @@ A `budgetId` or a `toAccountId` left on a record that has stopped needing it is 
 
 ## `PayeesContext`
 
-`{ id, name, defaultBudgetId }`, who the money went to. The transaction names it by **id**, which is the whole point — a rename is one write and every row that names the payee follows it, because no row was ever holding the name.
+`{ id, name, defaultBudgetId, defaultSplit, defaultAccountId, defaultKind }`, who the money went to. The transaction names it by **id**, which is the whole point — a rename is one write and every row that names the payee follows it, because no row was ever holding the name.
 
 - `defaultBudgetId` is nullable and `null` is the ordinary case; it is **a default and nothing more**, the rule a recipient's `deductible` flag and a group's bucket both keep, so correcting where a shop is usually filed in March cannot restate what was filed in February. Inert but kept — a default naming a deleted category is resolved where it is read (`AddTransactionModal` guards a seeded category; `PayeeList` gives a stored-but-unknown value an option of its own).
 - **Two normalisers with different jobs**: `normalizePayeeName` (trim, collapse, lowercase) is **identity** and the only thing the clash check reads, while `searchKey` in `src/payeeSearch.js` also drops punctuation so typing "att" finds "AT&T" — folding punctuation into identity as well would refuse to let "ATT" and "AT&T" both exist, and they may be two real payees.
+- **Three more defaults, on the same terms** — each decides what the entry form opens on, never restates a row, and is inert but kept:
+  - `defaultSplit` is null or two or more `{ budgetId, shareBps }` adding up to exactly 10000 (`src/payeeDefaults.js`). **Shares, never amounts**, so the form lays it out against whatever total is typed through `apportion` and the parts meet the sum rule by construction. Where set it is what the form opens on, ahead of `defaultBudgetId`, which is **kept beneath it** — "Unsplit" on `PayeeList` brings the single category back. A split left with fewer than two live categories is not laid out; the category beneath it is.
+  - `defaultAccountId` — the account the form opens on in place of the last-used one; one no longer spent through is passed over.
+  - `defaultKind` — null (money out, the ordinary case) or `inflow`/`outflow`; anything else is refused.
+- **Nothing is learned silently.** The entry form offers one unticked "Next time for …" box per answer that differs from what the payee would have opened on; only ticked ones are written, after the ledger write lands (a payee the entry creates takes them in `addPayee`, since it is not in the render's list yet). `AddScheduleModal` reads the account and direction too, never the split — a schedule is never divided.
 - `deletePayee` detaches its transactions and keeps them, `deleteRecipient`'s rule.
-- `mergePayees({ fromIds, intoId })` is what the entity exists for: several sources at once because a household tidying up is dealing with a cluster, **the whole batch validated before anything is written**, the **ledger written first** (rows pointing at a payee that still exists is a merge that did not happen; payees deleted out from under their rows is not survivable), and the survivor **adopts a default only where it has none of its own**.
+- `mergePayees({ fromIds, intoId })` is what the entity exists for: several sources at once because a household tidying up is dealing with a cluster, **the whole batch validated before anything is written**, the **ledger written first** (rows pointing at a payee that still exists is a merge that did not happen; payees deleted out from under their rows is not survivable), and the survivor **adopts a default only where it has none of its own** — the category and the split as **one** answer (taking a source's split would refile a survivor filed under one category), the account and direction apart.
 
 ## `SchedulesContext`
 

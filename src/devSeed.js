@@ -257,7 +257,10 @@ const P = {
 // `defaultBudgetId` is a default and nothing more: it seeds the entry form and
 // never re-files a row that is already filed.
 const payees = [
-  { id: P.employer, name: "Acme Corp", defaultBudgetId: null },
+  // The employer opens the form as money in; the big-box store as a receipt
+  // already divided, since nearly every trip there is food and a few things for
+  // the house. Both are what a household would have ticked under "Next time".
+  { id: P.employer, name: "Acme Corp", defaultBudgetId: null, defaultKind: "inflow" },
   { id: P.clinic, name: "Northside Clinic", defaultBudgetId: null },
   { id: P.landlord, name: "Oak Street Rentals", defaultBudgetId: B.rent },
   { id: P.power, name: "City Power & Water", defaultBudgetId: B.utilities },
@@ -270,7 +273,15 @@ const payees = [
   { id: P.bistro, name: "Fernwood Bistro", defaultBudgetId: B.dining },
   { id: P.streaming, name: "Lumen Streaming", defaultBudgetId: B.fun },
   { id: P.online, name: "Parcelworks", defaultBudgetId: B.shopping },
-  { id: P.bigbox, name: "Greatmart", defaultBudgetId: null },
+  {
+    id: P.bigbox,
+    name: "Greatmart",
+    defaultBudgetId: null,
+    defaultSplit: [
+      { budgetId: B.groceries, shareBps: 7000 },
+      { budgetId: B.shopping, shareBps: 3000 },
+    ],
+  },
   { id: P.airline, name: "Northstar Airways", defaultBudgetId: B.travel },
   { id: P.hotel, name: "Harbour Rooms", defaultBudgetId: B.travel },
   { id: P.doctor, name: "Dr. Imani Chen", defaultBudgetId: B.health },
