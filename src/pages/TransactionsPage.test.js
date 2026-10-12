@@ -762,6 +762,28 @@ describe("keeping a search", () => {
     expect(saved()).toHaveLength(1);
   });
 
+  test("an applied search that has been edited offers to be updated, not saved twice", () => {
+    seed();
+    renderPage();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "paycheck" },
+    });
+    keepItAs("Pay");
+
+    // Kept exactly as it stands, so there is nothing left to save: the chip for
+    // it is pressed, and a second name for one question is not worth offering.
+    expect(screen.queryByRole("button", { name: "Save this search" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search the register" }), {
+      target: { value: "paycheck 2140" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Update/ }));
+
+    expect(saved()).toHaveLength(1);
+    expect(saved()[0]).toMatchObject({ name: "Pay", filter: { text: "paycheck 2140" } });
+  });
+
   test("a search with nothing in it is not worth a name", () => {
     seed();
     renderPage();
