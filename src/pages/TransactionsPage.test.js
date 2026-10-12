@@ -805,7 +805,7 @@ describe("editing several rows at once", () => {
     expect(screen.getByText("1 of 1 selected")).toBeInTheDocument();
   });
 
-  test("a refusal leaves every row as it was and says so once", () => {
+  test("a batch that moves nothing says so rather than sitting there", () => {
     seed();
     renderPage();
 
@@ -815,9 +815,11 @@ describe("editing several rows at once", () => {
       target: { value: "acc1" },
     });
 
-    // Both rows already name that account, so nothing moved and nothing was
-    // written — the batch's own no-op rule, surfaced rather than silent.
+    // Both rows already name that account, so the store writes nothing — which
+    // is right, and is also indistinguishable from a broken button unless the
+    // page says it.
     expect(entry("t1").accountId).toBe("acc1");
+    expect(screen.getByRole("status")).toHaveTextContent(/already reads that way/i);
   });
 
   test("a tag added to a selection lands in the notes and can be searched for", () => {
@@ -831,7 +833,10 @@ describe("editing several rows at once", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tag" }));
 
     expect(entry("t1").description).toBe("Trader Joe's #holiday");
-    expect(screen.getByRole("status")).toHaveTextContent("#holiday is now on 1 entry.");
+    // Anchored, because `toHaveTextContent` matches a substring and "##holiday"
+    // would pass a loose one — the `#` is how a tag is written, not part of its
+    // name, and the bar hands it over without one.
+    expect(screen.getByRole("status")).toHaveTextContent(/^#holiday is now on 1 entry\.$/);
 
     // And the tag is now a facet, because a tag is a reading of the note rather
     // than a field beside it.

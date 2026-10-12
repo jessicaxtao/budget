@@ -502,10 +502,11 @@ function RegisterRow({
       {/* `group` is what lets the note's mark appear with the pointer: it is the
           only thing on the row that is not drawn at rest. */}
       <tr className={`group ${rowBg(index)}`}>
-        {/* Unlabelled in the stacked phone layout — `data-label` is what makes a
-            cell a "LABEL … value" line there, and the tick belongs with the
-            controls at the foot of the card rather than among the figures. */}
-        <td className="px-1 py-1">
+        {/* `data-cell` rather than a `data-label`: the tick is not a "LABEL …
+            value" line on the stacked layout, it is one of the two controls
+            about the row as a whole, and the reflow grid has to tell it from the
+            other one or the two are drawn in the same place. See `index.css`. */}
+        <td data-cell="select" className="px-1 py-1">
           <input
             type="checkbox"
             checked={selected}

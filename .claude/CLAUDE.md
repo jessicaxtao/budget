@@ -40,7 +40,7 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 
 - **Inert but kept.** A reference to another store's record (a payee's `defaultBudgetId`, a schedule's `accountId`, an offer's `budgetIds`, `accountIds` anywhere, a life event's `propertyRef`) is **never validated against live records and nothing cascades into it**. A dangling id contributes nothing, resolved where it is read. This is what keeps the dependency graph one-way.
 - **Both answers kept.** Where a question has two legitimate answers (derived vs typed), both are stored and a `…Source` field says which is in force; the other is never cleared. Same for fields a cadence or kind does not currently read. Comparing them is the point, and a switch that destroyed what it switched away from could only be used once.
-- **Holds no money.** Stores of intentions, guesses and statements (`Schedules`, `SavingsGoals`, `Retirement`, `LifeEvents`, `Scenarios`, `Rewards`, `Donations`, `EmergencyFund`) are read by a hook or a page, never by the envelope or balance maths. Adding a record there moves no figure in the books.
+- **Holds no money.** Stores of intentions, guesses and statements (`Schedules`, `SavingsGoals`, `Retirement`, `LifeEvents`, `Scenarios`, `Rewards`, `Donations`, `EmergencyFund`, `SavedFilters`) are read by a hook or a page, never by the envelope or balance maths. Adding a record there moves no figure in the books.
 - **`{ ok, error }`.** Every mutator that can reject input returns it, and **callers must surface the error** — never close a modal as though the write succeeded. Batch mutators validate the **whole batch before writing any of it**.
 - **Blank vs zero.** A blank is a question left open; zero is an answer. Where both are meaningful (a balance snapshot, a goal, a rate) blank **removes the record** rather than storing zero.
 - **Nothing is invented.** No migration backfills a decision nobody made — no date on an undated record, no repair of an incoherent split.
@@ -64,7 +64,7 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 | Route | Subject |
 |---|---|
 | `/` | Dashboard — today's figures, accounts and their last reconciliation, categories as the plan groups them, the one door to moving money between envelopes |
-| `/transactions` | The editable register, a slim to-be-assigned bar, the ledger-entry modal, the split editor, assignment |
+| `/transactions` | The editable register, a slim to-be-assigned bar, search and filter with saved searches, bulk editing of what is ticked, undo, the ledger-entry modal, the split editor, assignment |
 | `/plan` | Categories, estimates and goals, expected income, pay schedule, accounts and openings, the emergency fund, the balance-history grid (closed, at the foot) |
 | `/net-worth` | Hero figure and band split, stacked chart + table twin, holdings by band, settling a statement, the monthly pass |
 | `/retirement` | The outlook, year-by-year chart + table twin, net worth by age, the account picker, assumptions, scenarios |
@@ -79,11 +79,13 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 
 **The dashboard and the register cut the same books along different axes.** What each *envelope* holds is answered once, on the dashboard, by `CategoryLedgerTable`. What *happened*, line by line, is the register. The one envelope figure on the register is what is left to assign. **Do not put a grid of envelope cards back on `/transactions`.**
 
-## State: sixteen providers in `src/contexts/AppProviders.js`
+**The register page carries two windows, and they answer different questions.** The month in the header is the window on the *money* — the to-be-assigned bar is read at it and `AssignIncomeModal` opens on it. The filter bar's own window (`FILTER_SPANS`, this month or all time) is the window on the *rows*, because finding the receipt from the spring is not a question about this month. Unifying them would mean either a search that cannot leave the month or a pool figure that moves when you search. A **custom date range stays the reports page's control** — `/reports` is where figures are read over a span, and the register's anchor is a month.
+
+## State: seventeen providers in `src/contexts/AppProviders.js`
 
 Add stores there, not in `index.js`. IDs are generated with `uuid` v4 **in the context**, never in form components. Each context memoises its value. **Cross-store maths belongs in a hook, never in a provider.**
 
-The stores: `Transactions`, `Payees`, `Schedules`, `EmergencyFund`, `Assignments`, `Budgets`, `Accounts`, `IncomePlan`, `PaySchedule`, `Retirement`, `Donations`, `LifeEvents`, `Scenarios`, `Rewards`, `SavingsGoals`, `SavingsGoalAssignments`. **`STORES.md` is the field-by-field detail.**
+The stores: `Transactions`, `Payees`, `Schedules`, `EmergencyFund`, `Assignments`, `Budgets`, `Accounts`, `IncomePlan`, `PaySchedule`, `Retirement`, `Donations`, `LifeEvents`, `Scenarios`, `Rewards`, `SavingsGoals`, `SavingsGoalAssignments`, `SavedFilters`. **`STORES.md` is the field-by-field detail.**
 
 **Provider order is a cascade order** — a store that cleans up after another's delete sits *outside* it:
 
@@ -110,6 +112,10 @@ A deleted category's funding **moves** to `UNCATEGORIZED_BUDGET_ID` (`src/contex
 | off budget | off budget | **none** — a rollover |
 
 **`budgetLegs(transaction, insideBudget)` is what every consumer reads**, and it returns a **list** — one leg per split part, one for an undivided record, none for a transfer the budget never sees. One list on both sides of the identity below, so a split or a transfer cannot be counted as cash on one side and missed on the other.
+
+**Undo is the ledger's own, and it is the only store that could hold one.** Every movement of money is written through `TransactionsContext`'s five mutators, so a stack kept there sees every write by construction — and only the writes a *person* made, since a document arriving from another device moves the state through `useSyncedState` and never past a mutator. A step is the **inverse write, not a snapshot**: it touches only the records it recorded, so a row edited elsewhere in between is left alone, a step whose record is gone is refused and dropped, and every inverse goes back through the same `RULES` as the edit it undoes. The cascades (`reassignBudgetTransactions` and the three detaches) are deliberately not on it — each is a consequence of another store's delete, and the way back is to make that record again. `/transactions` wires Ctrl+Z to it and a text field keeps its own undo; `STORES.md` has the step shape.
+
+**A tag is a `#word` in a record's `description`, derived and never stored** (`src/tags.js`), the same rule a period follows: a `tags` array beside the note would be a second copy of what the note already says. Which rows a search or a filter leaves on screen is `src/transactionFilter.js`, a plain-JSON filter object — which is what lets `SavedFiltersContext` store the question itself rather than a description of it.
 
 ## The envelope identity
 
@@ -142,12 +148,14 @@ The assignment terms cancel algebraically, so this checks **coverage, not arithm
 
 ## The ten cross-store hooks
 
-`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `bucketTones`, `cashback`, `payeeSearch`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
+`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `bucketTones`, `cashback`, `payeeSearch`, `tags`, `transactionFilter`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
+
+`runningBalances` is the **second reading of `useAccountBalances`' own definition** and lives in that file for exactly that reason: it walks the movements in order so a register row can carry the figure beside it, and the figure on the last row of a month is the figure `accountBalancesAt` reports for that month. A reading written beside the register would be free to drift from the one on the balance sheet.
 
 **`DERIVATIONS.md` is the detail**, including which hooks are deliberately *not* in the ten and why `useUpcoming` must never join them, the four cadence names that look consolidatable and are not, and the two `plannedCents` figures that look alike and are not.
 
 ## Testing
 
-**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what, and the five tripwires.
+**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what, and the six tripwires.
 
-**The five tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `storage.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.
+**The six tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `useAccountBalances.test.js`, `storage.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.

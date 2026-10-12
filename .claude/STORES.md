@@ -1,6 +1,6 @@
 # STORES.md
 
-The sixteen providers in `src/contexts/AppProviders.js`, field by field. `CLAUDE.md` carries the cascade order, the recurring conventions these rules lean on, and the envelope identity; this is the detail behind them. **Read this before changing a store's shape, its validation, or a cascade.**
+The seventeen providers in `src/contexts/AppProviders.js`, field by field. `CLAUDE.md` carries the cascade order, the recurring conventions these rules lean on, and the envelope identity; this is the detail behind them. **Read this before changing a store's shape, its validation, or a cascade.**
 
 ## `TransactionsContext`
 
@@ -11,9 +11,26 @@ The sixteen providers in `src/contexts/AppProviders.js`, field by field. `CLAUDE
 - **`payeeId` names who the money went to; `description` is the note beside it.** Nullable, and **no rule requires it** — this store is mounted above `PayeesContext` so it cannot check that a payee exists, and a cash withdrawal, a transfer and every record written before the field existed all name nobody. `migrateTransactions` stamps `payeeId: null`, purely additive like `toAccountId` and `splits`, and **mints nothing from the text a legacy row already holds**, which stays where it is as that row's note.
 - Every rule a record has to satisfy is written out once, as `RULES`, and checked through `firstBroken`, because two callers check the same rules against different amounts of the record. `addTransaction` builds a whole record and checks all of it. **`updateTransaction` takes a patch and checks only the rules the named fields could break** — which is what lets the register commit one cell at a time and a legacy row (no date, no account) have its description fixed without being asked to invent the rest. It cannot *open* one of those gaps: clearing a date or an account touches that field, so the rule runs and refuses. The cross-field rules are "an outflow names a category" and, for a transfer, "names a second account, and a different one" — each lists every field it reads so either side moving re-checks it. A patch that changes nothing is not written, so tabbing across a row does not re-render every consumer once per column.
 - `reassignBudgetTransactions` moves **both kinds** and `getBudgetTransactions` returns both, so a delete cannot strand a refund away from the spend it offsets.
-- `deleteTransaction` also calls `removeDonation`: a donation record is a statement *about* an outflow and holds no money, so once the outflow is gone there is nothing left for it to describe. A cascade, unlike `detachAccountTransactions`, where what is left is the money and the money still moved.
+- **`updateTransactions(patches)` and `deleteTransactions(ids)` are the batch pair** — what a bulk edit on the register is. A patch *per row* rather than one patch for all of them, because the commonest bulk edit is not one value written everywhere: adding a tag to forty notes is forty different notes with a word appended, and `src/tags.js` is where that string arithmetic lives. The **whole batch is checked before any of it is written**, and a refusal names the rule and says that nothing landed; rows a patch would not actually move are **dropped rather than refused**, since a category set to the one a row already has is no reason to refuse the other thirty-nine. One write either way, so no reader of storage sees a batch half-applied. A delete is idempotent, so an id that is already gone is dropped rather than refused.
+- `deleteTransactions` also calls `removeDonation` per row: a donation record is a statement *about* an outflow and holds no money, so once the outflow is gone there is nothing left for it to describe. A cascade, unlike `detachAccountTransactions`, where what is left is the money and the money still moved. `removeDonation` **hands back the statement it took** so the undo stack can put it back without this store having to read the donations store — which would make the mutator change identity on every write to it and ripple through every consumer of the ledger. `deleteTransaction` is `deleteTransactions` with a batch of one.
 - `detachAccountTransactions` cuts **both** sides of a transfer. `detachPayeeTransactions` and `repointPayeeTransactions` are the two cascades `PayeesContext` calls — the first is `detachAccountTransactions` one field over, the second is what a merge is made of.
 - The lazy default folds the old `income` and `expenses` keys in via `foldLegacyLedger`; the old keys are left in storage. `readStoredLedger` is the no-React read for `AssignmentsContext`'s lazy default.
+
+### The undo stack
+
+**This store keeps it, and it is the only store that could.** Every movement of money is written through the five mutators above, so a history kept here sees every write by construction — and only the writes a person made, since a document arriving from another device moves the state through `useSyncedState` and never past a mutator. A stack kept in a page could not say either: the entry form is in the header on *every* page and the split editor writes from a modal.
+
+A step is `{ label, undo, redo }` where each half is an **op** — `{ restore, patches, remove, donations }`, applied in that order by `applyOp`, and never more than one kind in practice:
+
+| what was done | undo | redo |
+|---|---|---|
+| `addTransaction` | `remove: [id]` | `restore` at the end (the index is clamped to the length) |
+| `updateTransaction` / `updateTransactions` | `patches` holding the fields' **old** values | `patches` holding the new ones |
+| `deleteTransaction` / `deleteTransactions` | `restore` at the **index each record held**, plus `donations` | `remove: ids` |
+
+**Inverse writes, not snapshots**, and that is what makes the stack safe to keep across a sync: a step touches only the records it recorded, `checkOp` validates the whole of it against the ledger as it stands — a restore whose id is back, a patch whose row is gone, a patch that would break a `RULE` — and a step that no longer applies is **refused and dropped** rather than left at the top to refuse again on the next keystroke. `restore` goes back at the stored index because array order is the order things were logged, which the register's tie-break and `recentAccounts` both read. Bounded at `MAX_HISTORY` (50), since a delete step carries whole records.
+
+The **cascades are deliberately absent** — `reassignBudgetTransactions` and the three detaches are each a consequence of another store's delete, and an undo that put the ledger's half back without the category or account would leave the books naming something that does not exist. What cannot be put back either is a gift's **receipt file**: `removeDonation` deleted it, best effort, so a restored statement may point at a file that is gone — inert but kept, like any other dangling reference.
 
 ### Splits
 
@@ -301,9 +318,18 @@ A goal names **no category and no transaction**, so nothing outside this pair de
 
 `setPeriodAssignments({ period, entries })` validates the **whole batch before writing any of it**, so a bad figure in the ninth goal cannot land after the first eight have already committed — the rule `AssignmentsContext` and `setPeriodBalances` both keep, and the one that makes `AssignIncomeModal`'s single submit safe. `removeGoalAssignments` is the cascade `deleteSavingsGoal` calls.
 
+## `SavedFiltersContext`
+
+`savedFilters`, one record per kept search: `{ id, name, filter }`, where the filter is exactly the object `src/transactionFilter.js` describes and nothing else. That is the whole reason a saved search can exist — every facet is plain JSON, so what is stored is the **question itself** rather than a description of it, and `readFilter` is both the normaliser for one being saved and the migration for one read back. A filter made of predicates would need a second, serialisable copy of itself and the two would drift.
+
+- **Holds no money.** Nothing derived from the books reads it, so saving a search moves no figure anywhere — the standing `Scenarios` has.
+- It names categories, accounts and tags **by id and inert but kept**: a filter whose category was deleted contributes nothing when it is applied, nothing cascades in, and clearing the dead id out would quietly turn a narrow search into a wide one.
+- Names are unique by their trimmed, case-folded form (`Scenarios`' rule: two searches called "Costco" are a list nobody can choose from). There is **no cap** — a saved filter costs a chip in a wrapping row, not a colour nobody measured.
+- A filter that **narrows nothing is refused**: it would be a chip that does nothing when it is clicked. `updateSavedFilter` restates one in place, which is what the bar's Update button sends once an applied search has been edited.
+
 ## Mutators that can reject input
 
-`addBudget`, `addTransaction`, `updateTransaction`, `addAccount`, `updateAccount`, `reconcileAccount`, `setAssignedAmount`, `setPeriodAssignments`, `moveBetweenBudgets`, `setBalance`, `setPeriodBalances`, `setBalanceHistory`, `setPaySchedule`, `setRetirementPlan`, `setEmergencyFund`, `addRecipient`, `updateRecipient`, `recordDonation`, `updateDonation`, `setGivingGoal`, `addSavingsGoal`, `updateSavingsGoal`, and the savings-goal `setAssignedAmount` / `setPeriodAssignments` — all return `{ ok, error }`.
+`addBudget`, `addTransaction`, `updateTransaction`, `updateTransactions`, `deleteTransactions`, `undo`, `redo`, `saveFilter`, `updateSavedFilter`, `renameSavedFilter`, `addAccount`, `updateAccount`, `reconcileAccount`, `setAssignedAmount`, `setPeriodAssignments`, `moveBetweenBudgets`, `setBalance`, `setPeriodBalances`, `setBalanceHistory`, `setPaySchedule`, `setRetirementPlan`, `setEmergencyFund`, `addRecipient`, `updateRecipient`, `recordDonation`, `updateDonation`, `setGivingGoal`, `addSavingsGoal`, `updateSavingsGoal`, and the savings-goal `setAssignedAmount` / `setPeriodAssignments` — all return `{ ok, error }`.
 
 `deleteSavingsGoal` is the exception in that pair and deliberately so: a goal holds no money and nothing else names its id, so there is nothing a delete could be refused for.
 

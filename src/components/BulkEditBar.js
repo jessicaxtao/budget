@@ -1,6 +1,5 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import Button from "./Button";
-import { isTag } from "../tags";
 
 /**
  * What to do with the rows that are ticked.
@@ -30,10 +29,13 @@ import { isTag } from "../tags";
  * the decision. Ctrl+Z puts the rows back where they sat, their statements with
  * them — see `TransactionsContext`.
  *
- * Every action hands back the `{ ok, error }` its store produced, plus a `note`
- * for the thing a batch can do that a single edit cannot: leave some of the
- * chosen rows alone, which a divided receipt forces. Both are said here, where
- * the button that caused them is.
+ * **Nothing is said here**, and that is deliberate: every action hands its
+ * `{ ok, error, note }` back to the page, which carries the one line that says
+ * what just happened — the same line an undo writes to. Two places saying it
+ * would mean a note from the last bulk edit sitting under these buttons while
+ * the ledger had since been walked back out from under it, which is the sort of
+ * stale sentence a reader has no way to date. The bar keeps one piece of state
+ * of its own, the tag being typed, and clears it when the write lands.
  */
 export default function BulkEditBar({
   count,
@@ -47,26 +49,11 @@ export default function BulkEditBar({
   onDelete,
   onClear,
 }) {
-  const [error, setError] = useState(null);
-  const [note, setNote] = useState(null);
   const tagRef = useRef(null);
 
-  /** Run one action and say what came back of it. */
-  function run(action) {
-    const result = action() ?? { ok: true };
-    setError(result.ok ? null : result.error);
-    setNote(result.ok ? result.note ?? null : null);
-    return result;
-  }
-
+  /** A tag written, or taken off. The field is cleared only if the write landed. */
   function tagWith(action) {
-    const typed = tagRef.current.value;
-    if (!isTag(typed)) {
-      setNote(null);
-      setError("A tag is one word — letters, digits, hyphens or underscores, as in #holiday.");
-      return;
-    }
-    const result = run(() => action(typed));
+    const result = action(tagRef.current.value) ?? { ok: true };
     if (result.ok) tagRef.current.value = "";
   }
 
@@ -95,7 +82,7 @@ export default function BulkEditBar({
         <select
           value=""
           aria-label={`Refile ${chosen} into a category`}
-          onChange={(event) => run(() => onRefile(event.target.value))}
+          onChange={(event) => onRefile(event.target.value)}
           className={select}
         >
           <option value="">Refile into…</option>
@@ -109,7 +96,7 @@ export default function BulkEditBar({
         <select
           value=""
           aria-label={`Move ${chosen} to an account`}
-          onChange={(event) => run(() => onMove(event.target.value))}
+          onChange={(event) => onMove(event.target.value)}
           className={select}
         >
           <option value="">Move to…</option>
@@ -136,7 +123,7 @@ export default function BulkEditBar({
           </Button>
         </div>
 
-        <Button variant="danger" size="sm" onClick={() => run(onDelete)}>
+        <Button variant="danger" size="sm" onClick={onDelete}>
           Remove {count}
         </Button>
 
@@ -144,19 +131,6 @@ export default function BulkEditBar({
           Clear selection
         </Button>
       </div>
-
-      {/* Under the controls rather than beside them, so a message does not move
-          the buttons the eye has just found. */}
-      {error && (
-        <p role="alert" className="mt-2 font-sans text-row text-vermilion">
-          {error}
-        </p>
-      )}
-      {note && !error && (
-        <p role="status" className="mt-2 font-sans text-row text-chalk-soft">
-          {note}
-        </p>
-      )}
     </div>
   );
 }

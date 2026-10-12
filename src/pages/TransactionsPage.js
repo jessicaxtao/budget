@@ -17,7 +17,7 @@ import { isSplit, useTransactions } from "../contexts/TransactionsContext";
 import { runningBalances } from "../hooks/useAccountBalances";
 import useEnvelopes from "../hooks/useEnvelopes";
 import { orderPayeesByUse } from "../payeeSearch";
-import { formatTag, ledgerTags, withTag, withoutTag } from "../tags";
+import { formatTag, isTag, ledgerTags, readTag, withTag, withoutTag } from "../tags";
 import { EMPTY_FILTER, FILTER_SPANS, filterTransactions } from "../transactionFilter";
 import { currentPeriod, toPeriod } from "../utils";
 
@@ -50,6 +50,19 @@ import { currentPeriod, toPeriod } from "../utils";
  * write to the books goes past it — see that file for why a stack kept on a page
  * could not be complete.
  */
+
+/**
+ * A batch that moved nothing, said rather than left silent.
+ *
+ * Choosing nine rows, picking a category and seeing the page sit there is the
+ * one outcome a bulk control must not have: it is indistinguishable from a
+ * button that is broken. The store is right to write nothing — every row
+ * already read that way — so the saying is the page's job.
+ */
+const unchanged = (result) =>
+  result.ok && result.count === 0
+    ? { ...result, note: "Nothing to change — every entry chosen already reads that way." }
+    : result;
 
 /** A tick box's worth of state, as the one operation it performs. */
 const togglePicked = (picked, id) => {
@@ -173,10 +186,22 @@ export default function TransactionsPage() {
 
   const splitTarget = transactions.find((entry) => entry.id === splitTargetId) ?? null;
 
-  /** Say what a store handed back, once, where the user is looking. */
+  /**
+   * Say what a store handed back, once, where the user is looking — and hand
+   * the result on to whoever asked, since a control still has to know whether
+   * to clear itself.
+   *
+   * One line for the whole page rather than one per control. A bulk edit, an
+   * undo and a saved filter all answer the same question — what just happened —
+   * and two places answering it means a note from the last bulk edit sitting
+   * under its buttons while an undo has since walked the ledger out from under
+   * it. `note` is the thing only a batch can report: that it deliberately left
+   * some of the chosen rows alone.
+   */
   const report = useCallback((result) => {
     if (!result) return result;
-    setNotice(result.ok ? null : { ok: false, text: result.error });
+    if (!result.ok) setNotice({ ok: false, text: result.error });
+    else setNotice(result.note ? { ok: true, text: result.note } : null);
     return result;
   }, []);
 
@@ -284,7 +309,7 @@ export default function TransactionsPage() {
       };
     }
 
-    const result = updateTransactions(plain.map((row) => ({ id: row.id, budgetId })));
+    const result = unchanged(updateTransactions(plain.map((row) => ({ id: row.id, budgetId }))));
     if (!result.ok || divided.length === 0) return result;
     return {
       ...result,
@@ -294,7 +319,7 @@ export default function TransactionsPage() {
 
   function moveTo(accountId) {
     if (!accountId) return { ok: true };
-    return updateTransactions(selectedRows.map((row) => ({ id: row.id, accountId })));
+    return unchanged(updateTransactions(selectedRows.map((row) => ({ id: row.id, accountId }))));
   }
 
   /**
@@ -306,7 +331,18 @@ export default function TransactionsPage() {
    * drops the ones nothing moves — which is what makes tagging a mixed selection
    * safe to do twice.
    */
-  function tagWith(write, tag, verb) {
+  function tagWith(write, typed, verb) {
+    // Without the `#` somebody may have typed in front of it: the hash is how a
+    // tag is written, not part of its name, and keeping it would have the note
+    // read "##holiday" the moment the tag was written back out.
+    const tag = readTag(typed);
+    if (!isTag(tag)) {
+      return {
+        ok: false,
+        error: "A tag is one word — letters, digits, hyphens or underscores, as in #holiday.",
+      };
+    }
+
     const patches = selectedRows.map((row) => ({
       id: row.id,
       description: write(row.description, tag),
@@ -391,6 +427,23 @@ export default function TransactionsPage() {
         onDeleteSavedFilter={deleteSavedFilter}
       />
 
+      {selected.size > 0 && (
+        <BulkEditBar
+          count={selected.size}
+          shownCount={rows.length}
+          budgets={budgets}
+          accounts={accounts}
+          onRefile={(budgetId) => report(refile(budgetId))}
+          onMove={(accountId) => report(moveTo(accountId))}
+          onTag={(typed) => report(tagWith(withTag, typed, "is now on"))}
+          onUntag={(typed) => report(tagWith(withoutTag, typed, "came off"))}
+          onDelete={() => report(removeSelected())}
+          onClear={() => setPicked(new Set())}
+        />
+      )}
+
+      {/* Under the bar that caused it and above the rows it is about, which is
+          where it lands whether the bar is on screen or not. */}
       {notice && (
         <p
           role={notice.ok ? "status" : "alert"}
@@ -398,21 +451,6 @@ export default function TransactionsPage() {
         >
           {notice.text}
         </p>
-      )}
-
-      {selected.size > 0 && (
-        <BulkEditBar
-          count={selected.size}
-          shownCount={rows.length}
-          budgets={budgets}
-          accounts={accounts}
-          onRefile={refile}
-          onMove={moveTo}
-          onTag={(tag) => tagWith(withTag, tag, "is now on")}
-          onUntag={(tag) => tagWith(withoutTag, tag, "came off")}
-          onDelete={removeSelected}
-          onClear={() => setPicked(new Set())}
-        />
       )}
 
       <TransactionRegister

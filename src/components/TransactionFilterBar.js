@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import Button from "./Button";
-import Chip, { chipBase, chipOff, toggleId } from "./Chip";
+import Chip, { chipBase, chipOff, chipOn, toggleId } from "./Chip";
 import SegmentedControl from "./SegmentedControl";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
 import { toSections } from "../planLayout";
@@ -143,6 +143,9 @@ export default function TransactionFilterBar({
 
   const appliedTo = savedFilters.find((saved) => saved.id === appliedId) ?? null;
   const edited = appliedTo != null && !sameFilter(appliedTo.filter, filter);
+  // Already kept, under whatever name: the chip for it is pressed, so offering
+  // to save it again would be offering a second name for one question.
+  const kept = savedFilters.some((saved) => sameFilter(saved.filter, filter));
 
   return (
     <section aria-label="Search and filter" className="mb-4 rounded-2xl border border-edge bg-panel">
@@ -309,27 +312,33 @@ export default function TransactionFilterBar({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-edge px-3 py-2">
           <span className="font-mono text-label uppercase text-chalk-soft">Saved</span>
 
-          {savedFilters.map((saved) => (
-            <Chip
-              key={saved.id}
-              label={saved.name}
-              on={sameFilter(saved.filter, filter)}
-              onToggle={() => apply(saved)}
-              trailing={
-                <button
-                  type="button"
-                  aria-label={`Forget the saved filter "${saved.name}"`}
-                  onClick={() => {
-                    if (appliedId === saved.id) setAppliedId(null);
-                    onDeleteSavedFilter(saved.id);
-                  }}
-                  className={`${chipBase} ${chipOff} px-1.5 leading-none hover:text-vermilion`}
-                >
-                  &times;
-                </button>
-              }
-            />
-          ))}
+          {savedFilters.map((saved) => {
+            const inForce = sameFilter(saved.filter, filter);
+            return (
+              <Chip
+                key={saved.id}
+                label={saved.name}
+                on={inForce}
+                onToggle={() => apply(saved)}
+                trailing={
+                  // Wearing the chip's own state, or the strip would be half
+                  // azure and half edge with a seam down the middle of one
+                  // object.
+                  <button
+                    type="button"
+                    aria-label={`Forget the saved filter "${saved.name}"`}
+                    onClick={() => {
+                      if (appliedId === saved.id) setAppliedId(null);
+                      onDeleteSavedFilter(saved.id);
+                    }}
+                    className={`${chipBase} ${inForce ? chipOn : chipOff} px-1.5 leading-none hover:text-vermilion`}
+                  >
+                    &times;
+                  </button>
+                }
+              />
+            );
+          })}
 
           {savedFilters.length === 0 && (
             <span className="font-sans text-row text-chalk-soft">
@@ -344,6 +353,7 @@ export default function TransactionFilterBar({
           )}
 
           {active &&
+            !kept &&
             (naming ? (
               <form onSubmit={save} className="flex flex-wrap items-end gap-2">
                 <label className="w-44">
