@@ -68,7 +68,7 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 | `/plan` | Categories, estimates and goals, expected income, pay schedule, accounts and openings, the emergency fund, the balance-history grid (closed, at the foot) |
 | `/net-worth` | Hero figure and band split, stacked chart + table twin, holdings by band, settling a statement, the monthly pass |
 | `/retirement` | The outlook, year-by-year chart + table twin, net worth by age, the account picker, assumptions, scenarios |
-| `/reports` | The window, headline figures, bucket split, cashflow chart, plan-vs-actual chart, spending by category ranked, per-category drill-in |
+| `/reports` | The window, headline figures, bucket split, cashflow chart, where-it-went flow diagram, plan-vs-actual chart, spending by category ranked, per-category drill-in |
 | `/donations` | A year of giving: given against claimable, the year's gifts, the goal, the organizations |
 | `/savings-goals` | Goals with target, what is saved (assigned plus any off-budget holding), remaining, this period's contribution; read-only to-be-assigned above |
 | `/rewards` | Card offers and credits, which card to reach for, each card's fee against what it earns, then points/miles: value per point, catalog vs the household's own, planned trips |
@@ -148,7 +148,7 @@ The assignment terms cancel algebraically, so this checks **coverage, not arithm
 
 ## The ten cross-store hooks
 
-`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `bucketTones`, `cashback`, `payeeSearch`, `tags`, `transactionFilter`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
+`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `cashflowSankey`, `bucketTones`, `cashback`, `payeeSearch`, `payeeDefaults`, `tags`, `transactionFilter`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
 
 `runningBalances` is the **second reading of `useAccountBalances`' own definition** and lives in that file for exactly that reason: it walks the movements in order so a register row can carry the figure beside it, and the figure on the last row of a month is the figure `accountBalancesAt` reports for that month. A reading written beside the register would be free to drift from the one on the balance sheet.
 

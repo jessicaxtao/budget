@@ -31,7 +31,10 @@ import { amountEditing, todayISO } from "../utils";
  * the category select exactly as it does on the entry form — a schedule *is* an
  * entry form, one written in advance — but only while adding: on a schedule that
  * already exists the question has an answer, and correcting a name must not refile
- * the bill. That is the same line the register draws, one surface over.
+ * the bill. That is the same line the register draws, one surface over. The
+ * payee's direction and account seed the same way and on the same terms; its
+ * split does not, since a schedule is never divided, and the single category
+ * kept beneath a split is what it opens on instead.
  *
  * Uncontrolled and re-seeded on open, with the direction held in state because it
  * decides which other fields exist and `form.reset()` cannot reach it — the
@@ -54,6 +57,10 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
   // idiom: a choice already made is not a default. It starts answered when
   // editing, since the stored record *is* the answer.
   const chosenBudgetRef = useRef(false);
+  // The same, for the direction and the account a payee can also seed.
+  const chosenKindRef = useRef(false);
+  const chosenAccountRef = useRef(false);
+  const pendingBudgetRef = useRef(null);
 
   const { addSchedule, updateSchedule } = useSchedules();
   const { accounts } = useAccounts();
@@ -79,6 +86,8 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
     setPayeeId(schedule?.payeeId ?? null);
     setPayeeName("");
     chosenBudgetRef.current = editing;
+    chosenKindRef.current = editing;
+    chosenAccountRef.current = editing;
     // Absent while the modal is showing the "nothing to schedule against"
     // message, which renders in place of the form.
     if (!formRef.current) return;
@@ -122,11 +131,43 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
     setPayeeName(picked ? "" : name);
     setError(null);
 
-    const preferred = picked ? payees.find((payee) => payee.id === picked)?.defaultBudgetId : null;
+    const payee = picked ? payees.find((entry) => entry.id === picked) : null;
+    if (!payee) return;
+
+    // The category select is keyed on the direction, so a turned direction
+    // remounts it on its own first option — the category waits for that render.
+    const turned =
+      payee.defaultKind && payee.defaultKind !== kind && !chosenKindRef.current;
+    if (turned) setKind(payee.defaultKind);
+
+    const account = payee.defaultAccountId;
+    if (
+      account &&
+      !chosenAccountRef.current &&
+      accountIdRef.current &&
+      spendable.some((entry) => entry.id === account)
+    ) {
+      accountIdRef.current.value = account;
+    }
+
+    const preferred = payee.defaultBudgetId;
     if (!preferred || chosenBudgetRef.current) return;
     if (!budgets.some((budget) => budget.id === preferred)) return;
-    if (budgetIdRef.current) budgetIdRef.current.value = preferred;
+    if (turned) {
+      pendingBudgetRef.current = preferred;
+    } else if (budgetIdRef.current) {
+      budgetIdRef.current.value = preferred;
+    }
   }
+
+  // A payee's category, the first render its select exists in after a change of
+  // direction remounted it.
+  useEffect(() => {
+    const pending = pendingBudgetRef.current;
+    if (!pending || !budgetIdRef.current) return;
+    budgetIdRef.current.value = pending;
+    pendingBudgetRef.current = null;
+  });
 
   /** Where a payee is usually filed, as the option's second line. */
   function describePayee(payee) {
@@ -197,6 +238,7 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
               type="button"
               aria-pressed={active}
               onClick={() => {
+                chosenKindRef.current = true;
                 setKind(option.value);
                 setError(null);
               }}
@@ -274,6 +316,9 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
             label={isOutflow ? "Paid from" : "Paid into"}
             selectRef={accountIdRef}
             required
+            onChange={() => {
+              chosenAccountRef.current = true;
+            }}
           >
             {spendable.map((account) => (
               <option key={account.id} value={account.id}>

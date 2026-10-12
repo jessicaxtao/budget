@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { isOffBudget } from "../contexts/AccountsContext";
+import { ACCOUNT_TYPES, isOffBudget } from "../contexts/AccountsContext";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
 import useEnvelopes from "./useEnvelopes";
 import useNetWorth from "./useNetWorth";
@@ -34,10 +34,20 @@ export function countedHoldingCents(valueCents, portionCents) {
  * the only honest way to allow it would be a second `reserved` term in the
  * envelope identity. Off-budget money needs none — it was never the budget's to
  * assign — which is exactly why this is where a goal is allowed to reach.
+ *
+ * **And an asset, never a debt.** A mortgage is off budget and so passed the
+ * test above, which put it on the picker beside the brokerage — and because a
+ * liability's value is signed negative all the way down the balance sheet
+ * (`signedOpeningCents`), ticking one would have *subtracted* a third of a
+ * million from the deposit it was supposed to be saved in. Nothing is held in a
+ * debt: what is owed on the house is the reason to save, not the saving.
  */
+const isHolding = (account) =>
+  isOffBudget(account) && account.type !== ACCOUNT_TYPES.LIABILITY;
+
 export function useHoldingOptions(period) {
   const { rows } = useNetWorth(period, { months: 1 });
-  return useMemo(() => rows.filter((row) => isOffBudget(row.account)), [rows]);
+  return useMemo(() => rows.filter((row) => isHolding(row.account)), [rows]);
 }
 
 /**

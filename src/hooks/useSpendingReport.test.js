@@ -296,6 +296,31 @@ describe("income, spending and what was left", () => {
     expect(report.netSpentCents).toBe(218000);
   });
 
+  test("income is split by who paid it, and the split adds up to the income", () => {
+    seed({
+      budgets: [budget("b1", "Rent")],
+      transactions: [
+        { ...inn("2026-07-01", 500000), payeeId: "employer" },
+        { ...inn("2026-08-01", 500000), payeeId: "employer" },
+        { ...inn("2026-08-02", 20000), payeeId: "bank" },
+        // Naming nobody is still income, keyed on null rather than dropped.
+        inn("2026-08-03", 3000),
+        // A refund names a category, so it is not anybody's income.
+        { ...inn("2026-08-04", 9000, "b1"), payeeId: "shop" },
+      ],
+    });
+    const report = read("3m");
+
+    expect(report.incomeSources).toEqual([
+      { payeeId: "employer", incomeCents: 1000000 },
+      { payeeId: "bank", incomeCents: 20000 },
+      { payeeId: null, incomeCents: 3000 },
+    ]);
+    expect(report.incomeSources.reduce((sum, source) => sum + source.incomeCents, 0)).toBe(
+      report.totalIncomeCents
+    );
+  });
+
   test("the savings rate is a share of income, and a dash where there is none", () => {
     setup();
     // $1,000,000 in, $218,000 out: $782,000 kept, which is 78.2%.
