@@ -1,4 +1,5 @@
-import { MAX_AGE, SPENDING_SOURCES } from "../contexts/RetirementContext";
+import { MAX_AGE, RETURN_SOURCES, SPENDING_SOURCES } from "../contexts/RetirementContext";
+import { effectiveReturnRates } from "../hooks/useRetirementProjection";
 import SourceChoice from "./SourceChoice";
 import { formatBps, formatCents } from "../utils";
 
@@ -35,6 +36,11 @@ export const noteClass = "mt-1.5 font-sans text-row text-chalk-soft";
 const SPENDING_OPTIONS = [
   { value: SPENDING_SOURCES.INCOME_SHARE, label: "A share of what I earn now" },
   { value: SPENDING_SOURCES.MANUAL, label: "A yearly figure I enter" },
+];
+
+const RETURN_OPTIONS = [
+  { value: RETURN_SOURCES.MANUAL, label: "A flat rate I enter" },
+  { value: RETURN_SOURCES.MIX, label: "A stock/bond mix" },
 ];
 
 export function Block({ title, hint, children }) {
@@ -101,6 +107,7 @@ export default function RetirementAssumptionsPanel({
   onChange,
 }) {
   const byShare = plan.spendingSource === SPENDING_SOURCES.INCOME_SHARE;
+  const byMix = plan.returnSource === RETURN_SOURCES.MIX;
 
   return (
     <section className="border border-edge bg-panel">
@@ -251,25 +258,117 @@ export default function RetirementAssumptionsPanel({
             onCommit={(inflationRateBps) => onChange({ inflationRateBps })}
             note="Every figure on this page is in today's dollars, which is what this buys."
           />
-          <Field
-            label="Return while saving"
-            type="text"
-            inputMode="decimal"
-            placeholder="10"
-            seed={plan.growthRateBps / 100}
-            onCommit={(growthRateBps) => onChange({ growthRateBps })}
-            note={`${formatBps(projection.realGrowthBps)} a year after inflation. Ten before it, not the seven usually quoted — that figure is already net of inflation, and this one is not.`}
-          />
-          <Field
-            label="Return once retired"
-            type="text"
-            inputMode="decimal"
-            placeholder="5.5"
-            seed={plan.drawdownRateBps / 100}
-            onCommit={(drawdownRateBps) => onChange({ drawdownRateBps })}
-            note={`${formatBps(projection.realDrawdownBps)} a year after inflation. Lower than while saving, because a portfolio being lived on is not a thirty-year bet.`}
-          />
+          {!byMix && (
+            <>
+              <Field
+                label="Return while saving"
+                type="text"
+                inputMode="decimal"
+                placeholder="10"
+                seed={plan.growthRateBps / 100}
+                onCommit={(growthRateBps) => onChange({ growthRateBps })}
+                note={`${formatBps(projection.realGrowthBps)} a year after inflation. Ten before it, not the seven usually quoted — that figure is already net of inflation, and this one is not.`}
+              />
+              <Field
+                label="Return once retired"
+                type="text"
+                inputMode="decimal"
+                placeholder="5.5"
+                seed={plan.drawdownRateBps / 100}
+                onCommit={(drawdownRateBps) => onChange({ drawdownRateBps })}
+                note={`${formatBps(projection.realDrawdownBps)} a year after inflation. Lower than while saving, because a portfolio being lived on is not a thirty-year bet.`}
+              />
+            </>
+          )}
         </div>
+      </Block>
+
+      <Block
+        title="Where the money is invested"
+        hint={byMix ? "Nominal rates, before inflation" : undefined}
+      >
+        <SourceChoice
+          name="retirement-return-source"
+          legend="How the invested-pot return is worked out"
+          value={plan.returnSource}
+          options={RETURN_OPTIONS}
+          onChange={(returnSource) => onChange({ returnSource })}
+        />
+
+        {byMix && (
+          <div className="mt-4 grid gap-x-5 gap-y-4 sm:grid-cols-2">
+            <Field
+              label="Equity share while saving"
+              type="text"
+              inputMode="decimal"
+              placeholder="80"
+              seed={plan.equityShareBps / 100}
+              onCommit={(equityShareBps) => onChange({ equityShareBps })}
+            />
+            <Field
+              label="Equity share once retired"
+              type="text"
+              inputMode="decimal"
+              placeholder="50"
+              seed={plan.equityShareRetiredBps / 100}
+              onCommit={(equityShareRetiredBps) => onChange({ equityShareRetiredBps })}
+            />
+            <Field
+              label="Expected equity return"
+              type="text"
+              inputMode="decimal"
+              placeholder="10.5"
+              seed={plan.equityReturnBps / 100}
+              onCommit={(equityReturnBps) => onChange({ equityReturnBps })}
+            />
+            <Field
+              label="Equity volatility"
+              type="text"
+              inputMode="decimal"
+              placeholder="18"
+              seed={plan.equityVolatilityBps / 100}
+              onCommit={(equityVolatilityBps) => onChange({ equityVolatilityBps })}
+              note="How much a single year's return typically swings from the expected figure — what a Monte Carlo trial draws around."
+            />
+            <Field
+              label="Expected bond return"
+              type="text"
+              inputMode="decimal"
+              placeholder="4.5"
+              seed={plan.bondReturnBps / 100}
+              onCommit={(bondReturnBps) => onChange({ bondReturnBps })}
+            />
+            <Field
+              label="Bond volatility"
+              type="text"
+              inputMode="decimal"
+              placeholder="7"
+              seed={plan.bondVolatilityBps / 100}
+              onCommit={(bondVolatilityBps) => onChange({ bondVolatilityBps })}
+            />
+            <Field
+              label="Stock/bond correlation"
+              type="text"
+              inputMode="decimal"
+              placeholder="0"
+              seed={plan.returnCorrelationBps / 100}
+              onCommit={(returnCorrelationBps) => onChange({ returnCorrelationBps })}
+              note="How the two move together in a bad year. Zero unless you have a specific figure in mind."
+            />
+            <div>
+              <span className={labelClass}>Comes to</span>
+              <div className="border-b-2 border-transparent py-1.5 font-mono text-lg text-chalk">
+                {formatBps(effectiveReturnRates(plan).growthRateBps)} while saving,{" "}
+                {formatBps(effectiveReturnRates(plan).drawdownRateBps)} once retired
+              </div>
+              <p className={noteClass}>
+                {formatBps(projection.realGrowthBps)} and {formatBps(projection.realDrawdownBps)} a
+                year after inflation — what the deterministic figures above use, and what a
+                simulation draws around instead of holding flat.
+              </p>
+            </div>
+          </div>
+        )}
       </Block>
 
       {error && (

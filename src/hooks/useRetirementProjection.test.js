@@ -1,4 +1,5 @@
-import { projectRetirement, requiredNestEgg } from "./useRetirementProjection";
+import { effectiveReturnRates, projectRetirement, requiredNestEgg, simulationPhases } from "./useRetirementProjection";
+import { RETURN_SOURCES } from "../contexts/RetirementContext";
 
 /**
  * The projection maths on its own, driven as the pure function it is.
@@ -242,5 +243,65 @@ describe("a plan that cannot be answered yet", () => {
     expect(issues).toEqual(
       expect.arrayContaining(["Say what you expect retirement to cost each year."])
     );
+  });
+});
+
+const MIX_PLAN = {
+  returnSource: RETURN_SOURCES.MIX,
+  growthRateBps: 1000,
+  drawdownRateBps: 550,
+  equityShareBps: 8000,
+  equityShareRetiredBps: 5000,
+  equityReturnBps: 1050,
+  equityVolatilityBps: 1800,
+  bondReturnBps: 450,
+  bondVolatilityBps: 700,
+  returnCorrelationBps: -500,
+  inflationRateBps: 200,
+};
+
+describe("effectiveReturnRates", () => {
+  test("manual leaves the typed rates exactly as they are", () => {
+    const rates = effectiveReturnRates({ ...MIX_PLAN, returnSource: RETURN_SOURCES.MANUAL });
+
+    expect(rates).toEqual({ growthRateBps: 1000, drawdownRateBps: 550 });
+  });
+
+  test("a mix blends each phase's equity share against the equity and bond means", () => {
+    // 80% * 10.5% + 20% * 4.5% = 9.3%; 50% * 10.5% + 50% * 4.5% = 7.5%.
+    const rates = effectiveReturnRates(MIX_PLAN);
+
+    expect(rates).toEqual({ growthRateBps: 930, drawdownRateBps: 750 });
+  });
+
+  test("an all-equity phase is just the equity mean, an all-bond phase just the bond mean", () => {
+    const rates = effectiveReturnRates({
+      ...MIX_PLAN,
+      equityShareBps: 10000,
+      equityShareRetiredBps: 0,
+    });
+
+    expect(rates).toEqual({ growthRateBps: 1050, drawdownRateBps: 450 });
+  });
+});
+
+describe("simulationPhases", () => {
+  test("every rate comes out real, deflated once by the plan's inflation", () => {
+    const phases = simulationPhases(MIX_PLAN);
+
+    // (1.105 / 1.02) - 1 ≈ 8.33%; volatility scaled by the same (1 + inflation).
+    expect(phases.saving.equityReturnBps).toBe(833);
+    expect(phases.saving.equityVolatilityBps).toBe(Math.round((0.18 / 1.02) * 10000));
+    expect(phases.saving.bondReturnBps).toBe(Math.round(((1.045 / 1.02 - 1) * 10000)));
+    expect(phases.saving.correlationBps).toBe(-500);
+  });
+
+  test("only the equity share differs between the saving and retired phase", () => {
+    const phases = simulationPhases(MIX_PLAN);
+
+    expect(phases.saving.equityShareBps).toBe(8000);
+    expect(phases.retired.equityShareBps).toBe(5000);
+    expect(phases.retired.equityReturnBps).toBe(phases.saving.equityReturnBps);
+    expect(phases.retired.bondVolatilityBps).toBe(phases.saving.bondVolatilityBps);
   });
 });

@@ -190,6 +190,8 @@ One record `retirementPlan`: the ages, the rates, and what the plan is counting 
 
 `src/netWorthProjection.js`'s assumptions sit on the same record: see `DERIVATIONS.md`.
 
+**A third question with two answers: `returnSource`** (`RETURN_SOURCES`, default `"manual"`) says whether `growthRateBps`/`drawdownRateBps` are typed or derived. Under `"mix"` they stop being read and `effectiveReturnRates` blends `equityShareBps`/`equityShareRetiredBps` (default 8000/5000 — more in equities while the money is still a thirty-year bet) against `equityReturnBps`/`bondReturnBps` (1050/450) instead; `equityVolatilityBps`/`bondVolatilityBps` (1800/700) and the signed `returnCorrelationBps` (0) exist only for `src/retirementSimulation.js` to draw around, never for the deterministic figure. `simulationTrials` (500, bounded 100–2000) is how many Monte Carlo trials a "Run simulation" click asks for; the historical engine ignores it and runs once per year its dataset covers. All seven default to exactly today's behaviour until a household opts into `"mix"` — see `DERIVATIONS.md`'s "Probabilistic outcomes" for the maths.
+
 ## `DonationsContext`
 
 Giving, in four keys and **no money**: `donationRecipients` (the organizations), `donations` (one statement per gift), `donationGoals` (one per year), and `givingSettings` (`{ budgetIds, excludedIds }`).

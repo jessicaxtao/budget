@@ -57,6 +57,22 @@ export const SPENDING_SOURCES = {
   MANUAL: "manual",
 };
 
+/**
+ * How the invested-pot return is arrived at — the question `runSimulation`
+ * (`useRetirementProjection.js`) needs an answer to that `growthRateBps`/
+ * `drawdownRateBps` alone cannot give it: a flat typed rate has no
+ * volatility to draw from, so a Monte Carlo trial or a historical cohort can
+ * only run once a stock/bond mix is in force.
+ */
+export const RETURN_SOURCES = {
+  /** The typed `growthRateBps`/`drawdownRateBps` — today's behaviour. */
+  MANUAL: "manual",
+  /** `equityShareBps`/`equityShareRetiredBps`, blending `equityReturnBps`
+   *  and `bondReturnBps` — what the deterministic figure uses as its
+   *  expected blended rate, and what the simulation draws around. */
+  MIX: "mix",
+};
+
 // Owned by the projection module, which cannot import a context; re-exported
 // here so the page reads every source enum from the store that keeps the answer.
 export { INCOME_SOURCES };
@@ -64,6 +80,7 @@ export { INCOME_SOURCES };
 const STARTING_SOURCE_VALUES = Object.values(STARTING_SOURCES);
 const INCOME_SOURCE_VALUES = Object.values(INCOME_SOURCES);
 const SPENDING_SOURCE_VALUES = Object.values(SPENDING_SOURCES);
+const RETURN_SOURCE_VALUES = Object.values(RETURN_SOURCES);
 
 // An age has to be a whole number of years on a human scale. The bounds only
 // have to exclude nonsense — a life expectancy of 130 is a plan nobody is
@@ -79,6 +96,19 @@ export const MAX_RATE_BPS = 5000;
 // A retirement that costs twice today's income is a real answer — a mortgage
 // paid off and a lot of travel — but ten times over is a typo.
 export const MAX_SHARE_BPS = 20000;
+
+// A portfolio share is a share of one pot — never more than all of it, unlike
+// the income share above, which is compared against a different total.
+export const MAX_ALLOCATION_BPS = 10000;
+
+// A correlation is signed and bounded at plus or minus one.
+export const MAX_CORRELATION_BPS = 10000;
+
+// Enough trials for a smooth fan chart without a "Run simulation" click
+// taking long enough to notice; few enough that a thousand-year walk is
+// still a sub-second batch. See the performance note in `useRetirementProjection.js`.
+export const MIN_TRIALS = 100;
+export const MAX_TRIALS = 2000;
 
 /**
  * What the plan is before anyone touches it.
@@ -158,6 +188,36 @@ export const DEFAULT_PLAN = {
   drawdownRateBps: 550,
   inflationRateBps: 250,
 
+  // ── The stock/bond mix (`src/retirementSimulation.js` reads this) ──
+  //
+  // `MANUAL` leaves every figure above exactly as it is today — the default,
+  // so nothing about an existing plan changes until a household opts in.
+  // `MIX` makes `growthRateBps`/`drawdownRateBps` *derived* rather than
+  // typed — `useRetirementProjection.js`'s `effectiveReturnRates` blends
+  // `equityReturnBps`/`bondReturnBps` by the share below, the same
+  // two-answers-kept rule as `startingSource`/`spendingSource` above, and
+  // what a Monte Carlo trial or a historical cohort draws around instead of
+  // a single flat rate.
+  returnSource: RETURN_SOURCES.MANUAL,
+  // Two phases, like growth/drawdown themselves: more in equities while the
+  // money is still a thirty-year bet, less once it is next year's groceries.
+  equityShareBps: 8000,
+  equityShareRetiredBps: 5000,
+  // Nominal, deflated once by `inflationRateBps` wherever they are read —
+  // the same convention as every rate above. A real stock/bond portfolio,
+  // not the single blended rate `growthRateBps`/`drawdownRateBps` stand for.
+  equityReturnBps: 1050,
+  equityVolatilityBps: 1800,
+  bondReturnBps: 450,
+  bondVolatilityBps: 700,
+  // How the two move together in a bad year — signed, unlike every other
+  // rate here, and defaulted to none rather than assumed, since a precise
+  // figure would claim more than this kind of plan can know.
+  returnCorrelationBps: 0,
+  // How many trials a Monte Carlo run draws. Not read by the historical
+  // engine, which runs once per year the dataset covers.
+  simulationTrials: 500,
+
   // ── The whole-balance-sheet projection (`src/netWorthProjection.js`) ──
   //
   // **What the working years earn has two legitimate answers, and both are
@@ -202,6 +262,10 @@ const isAge = (value) => Number.isInteger(value) && value >= MIN_AGE && value <=
 const isRate = (value) => Number.isInteger(value) && value >= 0 && value <= MAX_RATE_BPS;
 const isShare = (value) => Number.isInteger(value) && value >= 0 && value <= MAX_SHARE_BPS;
 const isAmount = (value) => Number.isInteger(value) && value >= 0;
+const isAllocation = (value) => Number.isInteger(value) && value >= 0 && value <= MAX_ALLOCATION_BPS;
+const isCorrelation = (value) =>
+  Number.isInteger(value) && value >= -MAX_CORRELATION_BPS && value <= MAX_CORRELATION_BPS;
+const isTrials = (value) => Number.isInteger(value) && value >= MIN_TRIALS && value <= MAX_TRIALS;
 
 const isSalary = (salary) =>
   salary &&
@@ -271,6 +335,26 @@ export function migratePlan(stored) {
     growthRateBps: take(plan.growthRateBps, isRate, DEFAULT_PLAN.growthRateBps),
     drawdownRateBps: take(plan.drawdownRateBps, isRate, DEFAULT_PLAN.drawdownRateBps),
     inflationRateBps: take(plan.inflationRateBps, isRate, DEFAULT_PLAN.inflationRateBps),
+
+    returnSource: RETURN_SOURCE_VALUES.includes(plan.returnSource)
+      ? plan.returnSource
+      : DEFAULT_PLAN.returnSource,
+    equityShareBps: take(plan.equityShareBps, isAllocation, DEFAULT_PLAN.equityShareBps),
+    equityShareRetiredBps: take(
+      plan.equityShareRetiredBps,
+      isAllocation,
+      DEFAULT_PLAN.equityShareRetiredBps
+    ),
+    equityReturnBps: take(plan.equityReturnBps, isRate, DEFAULT_PLAN.equityReturnBps),
+    equityVolatilityBps: take(plan.equityVolatilityBps, isRate, DEFAULT_PLAN.equityVolatilityBps),
+    bondReturnBps: take(plan.bondReturnBps, isRate, DEFAULT_PLAN.bondReturnBps),
+    bondVolatilityBps: take(plan.bondVolatilityBps, isRate, DEFAULT_PLAN.bondVolatilityBps),
+    returnCorrelationBps: take(
+      plan.returnCorrelationBps,
+      isCorrelation,
+      DEFAULT_PLAN.returnCorrelationBps
+    ),
+    simulationTrials: take(plan.simulationTrials, isTrials, DEFAULT_PLAN.simulationTrials),
 
     incomeSource: INCOME_SOURCE_VALUES.includes(plan.incomeSource)
       ? plan.incomeSource
@@ -370,6 +454,43 @@ export const RetirementProvider = ({ children }) => {
         return null;
       };
 
+      // A portfolio share, like a rate, has no "unstated" state — a mix
+      // needs a split to blend — so a cleared field puts the default back.
+      const allocation = (field, label) => {
+        const value = changes[field];
+        if (value === undefined) return null;
+        const bps = isBlank(value) ? DEFAULT_PLAN[field] : toBps(value);
+        if (bps == null || !isAllocation(bps)) {
+          return `Enter ${label} as a percentage between 0 and ${MAX_ALLOCATION_BPS / 100}.`;
+        }
+        patch[field] = bps;
+        return null;
+      };
+
+      const correlation = (field, label) => {
+        const value = changes[field];
+        if (value === undefined) return null;
+        const bps = isBlank(value) ? DEFAULT_PLAN[field] : toBps(value);
+        if (bps == null || !isCorrelation(bps)) {
+          return `Enter ${label} as a percentage between -${MAX_CORRELATION_BPS / 100} and ${
+            MAX_CORRELATION_BPS / 100
+          }.`;
+        }
+        patch[field] = bps;
+        return null;
+      };
+
+      const trials = (field, label) => {
+        const value = changes[field];
+        if (value === undefined) return null;
+        const count = isBlank(value) ? DEFAULT_PLAN[field] : Number(value);
+        if (!isTrials(count)) {
+          return `Enter ${label} as a whole number between ${MIN_TRIALS} and ${MAX_TRIALS}.`;
+        }
+        patch[field] = count;
+        return null;
+      };
+
       const error =
         age("currentAge", "your age today") ??
         age("retirementAge", "the age you want to retire") ??
@@ -377,6 +498,14 @@ export const RetirementProvider = ({ children }) => {
         rate("growthRateBps", "the return while you are saving") ??
         rate("drawdownRateBps", "the return once you have retired") ??
         rate("inflationRateBps", "inflation") ??
+        rate("equityReturnBps", "the expected return on equities") ??
+        rate("equityVolatilityBps", "the volatility of equities") ??
+        rate("bondReturnBps", "the expected return on bonds") ??
+        rate("bondVolatilityBps", "the volatility of bonds") ??
+        allocation("equityShareBps", "your equity share while saving") ??
+        allocation("equityShareRetiredBps", "your equity share once retired") ??
+        correlation("returnCorrelationBps", "the correlation between stocks and bonds") ??
+        trials("simulationTrials", "the number of Monte Carlo trials") ??
         rate("incomeGrowthRateBps", "how fast your pay grows") ??
         rate("workingTaxRateBps", "the tax on your salary") ??
         rate("retirementTaxRateBps", "the tax on retirement withdrawals") ??
@@ -387,6 +516,13 @@ export const RetirementProvider = ({ children }) => {
         amount("pretaxContributionCents", "your pretax retirement contributions") ??
         amount("annualContributionCents", "what you put away each year");
       if (error) return { ok: false, error };
+
+      if (changes.returnSource !== undefined) {
+        if (!RETURN_SOURCE_VALUES.includes(changes.returnSource)) {
+          return { ok: false, error: "Choose how your invested-pot return is worked out." };
+        }
+        patch.returnSource = changes.returnSource;
+      }
 
       if (changes.incomeShareBps !== undefined) {
         const bps = isBlank(changes.incomeShareBps)

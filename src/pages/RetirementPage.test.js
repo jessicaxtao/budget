@@ -905,3 +905,49 @@ describe("scenarios", () => {
     expect(endOf("Inflation 3.5%")).toBeLessThan(endOf("As planned"));
   });
 });
+
+const switchToMix = () => fireEvent.click(screen.getByRole("radio", { name: "A stock/bond mix" }));
+const yearByYear = () => screen.getByRole("group", { name: "How to project the plan" });
+
+describe("simulation", () => {
+  test("a flat rate has nothing to simulate, so the probabilistic views ask for a mix instead", () => {
+    seed();
+    renderPage();
+    statePlan();
+
+    fireEvent.click(within(yearByYear()).getByRole("button", { name: "Monte Carlo" }));
+
+    expect(
+      screen.getByText(/switch "Where the money is invested" below to a stock\/bond mix/)
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run simulation" })).not.toBeInTheDocument();
+  });
+
+  test("a Monte Carlo run reports a success rate and a range of outcomes", () => {
+    seed();
+    renderPage();
+    statePlan();
+    switchToMix();
+
+    fireEvent.click(within(yearByYear()).getByRole("button", { name: "Monte Carlo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+
+    expect(screen.getByText(/% kept the money from running out/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: /Range of outcomes by age/ })
+    ).toBeInTheDocument();
+  });
+
+  test("a historical backtest lists real starting years, 2008 among them", () => {
+    seed();
+    renderPage();
+    statePlan();
+    switchToMix();
+
+    fireEvent.click(within(yearByYear()).getByRole("button", { name: "Historical" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run simulation" }));
+    fireEvent.click(screen.getByText("Show every historical starting year"));
+
+    expect(screen.getByRole("rowheader", { name: "2008" })).toBeInTheDocument();
+  });
+});

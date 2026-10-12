@@ -275,6 +275,13 @@ export function projectNetWorth({
   cashRateBps = 0,
   propertyRateBps = 0,
   events = [],
+  // The rate `grow()` applies to the invested and retirement pots, read fresh
+  // each year rather than fixed at the two phase constants below. The default
+  // reproduces today's flat-rate walk exactly — the only caller that varies it
+  // is the simulation engine (`retirementSimulation.js`), feeding it a drawn
+  // or a historical return instead of `rates.growth`/`rates.drawdown`. Nothing
+  // about the deterministic walk changes unless a caller passes this.
+  investedRateAt,
 }) {
   const issues = issuesFor({ currentAge, retirementAge, lifeExpectancy });
   const rates = {
@@ -283,6 +290,7 @@ export function projectNetWorth({
     growth: realRate(growthRateBps, inflationRateBps),
     drawdown: realRate(drawdownRateBps, inflationRateBps),
   };
+  const returnAt = investedRateAt ?? ((age, working) => (working ? rates.growth : rates.drawdown));
   const base = {
     ready: false,
     issues,
@@ -521,7 +529,7 @@ export function projectNetWorth({
       consumption += spendingCents - statedPayments + happening.expense + housing;
       const freed = statedPayments - paid;
 
-      grow(rates.growth);
+      grow(returnAt(age, true));
       pots.invested += saved;
       pots.retirement += afterTax + pretax;
       pots.cash +=
@@ -555,7 +563,7 @@ export function projectNetWorth({
           first.shortfallAge = age;
         }
       }
-      grow(rates.drawdown);
+      grow(returnAt(age, false));
     }
 
     Object.assign(point, {

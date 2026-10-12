@@ -185,6 +185,36 @@ test("a retirement pot funded to the cent runs out to the cent", () => {
   expect(Math.abs(projection.atEndCents)).toBeLessThanOrEqual(5);
 });
 
+test("an investedRateAt that reproduces the constant rate changes nothing", () => {
+  // `retirementSimulation.js` threads a per-year return through this
+  // parameter instead of the flat `growthRateBps`/`drawdownRateBps` rate; the
+  // guard that keeps that engine honest is that nobody calling it this way
+  // changes the deterministic walk by so much as a cent.
+  const args = {
+    currentAge: 35,
+    retirementAge: 60,
+    lifeExpectancy: 88,
+    pots: { cashCents: 5_000_00, investedCents: 60_000_00, retirementCents: 120_000_00 },
+    income: { source: INCOME_SOURCES.GROWTH, takeHomeAnnualCents: 90_000_00, growthRateBps: 200 },
+    spendingCents: 50_000_00,
+    savingsCents: 8_000_00,
+    afterTaxRetirementCents: 4_000_00,
+    retirementSpendingCents: 45_000_00,
+    growthRateBps: 900,
+    drawdownRateBps: 450,
+    inflationRateBps: 200,
+  };
+
+  const plain = projectNetWorth(args);
+  const rates = plain.rates;
+  const threaded = projectNetWorth({
+    ...args,
+    investedRateAt: (age, working) => (working ? rates.growth : rates.drawdown),
+  });
+
+  expect(threaded).toEqual(plain);
+});
+
 describe("income while working", () => {
   const context = { currentAge: 40, pretaxCents: 10_000_00, inflationRateBps: 0 };
 

@@ -4,12 +4,14 @@ import { PLAN_BUCKETS, useBudgets } from "../contexts/BudgetsContext";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
 import { useLifeEvents } from "../contexts/LifeEventsContext";
 import {
+  RETURN_SOURCES,
   SPENDING_SOURCES,
   STARTING_SOURCES,
   useRetirement,
 } from "../contexts/RetirementContext";
 import useNetWorth, { HOLDING_CLASSES } from "./useNetWorth";
 import { projectNetWorth, retirementOutlook } from "../netWorthProjection";
+import { runHistoricalBacktest, runMonteCarlo } from "../retirementSimulation";
 import { currentPeriod, fromBps } from "../utils";
 
 /**
@@ -276,6 +278,60 @@ export function projectRetirement({
  * account kept as a buffer) and property are left out: neither is usually what
  * somebody means by retirement savings, and either is one tick away.
  */
+/**
+ * The invested-pot rate the deterministic walk actually grows at.
+ *
+ * Under `MANUAL`, exactly `plan.growthRateBps`/`plan.drawdownRateBps` — the
+ * typed figures, unchanged. Under `MIX`, those two fields stop being read
+ * and become *derived*: each phase's equity share blended against
+ * `equityReturnBps`/`bondReturnBps`, the expected value of what
+ * `retirementSimulation.js` draws around instead of holding flat. Both
+ * answers kept, the `…Source` rule — a household switching back to manual
+ * finds its typed rate exactly as it left it.
+ */
+export function effectiveReturnRates(plan) {
+  if (plan.returnSource !== RETURN_SOURCES.MIX) {
+    return { growthRateBps: plan.growthRateBps, drawdownRateBps: plan.drawdownRateBps };
+  }
+  const blend = (equityShareBps) => {
+    const equityShare = fromBps(equityShareBps);
+    return Math.round(equityShare * plan.equityReturnBps + (1 - equityShare) * plan.bondReturnBps);
+  };
+  return {
+    growthRateBps: blend(plan.equityShareBps),
+    drawdownRateBps: blend(plan.equityShareRetiredBps),
+  };
+}
+
+/** A rate deflated once, same as every other rate `projectNetWorth` reads. */
+const deflatedRateBps = (bps, inflationRateBps) => Math.round(realRate(bps, inflationRateBps) * 10000);
+
+/**
+ * A volatility deflated the same way — inflation here is one typed, fixed
+ * assumption rather than a second random variable, so scaling a nominal
+ * standard deviation down by `(1 + inflation)` is the whole of it.
+ */
+const deflatedVolatilityBps = (bps, inflationRateBps) =>
+  Math.round((fromBps(bps) / (1 + fromBps(inflationRateBps))) * 10000);
+
+/**
+ * The two phases `retirementSimulation.js` draws around — everything already
+ * real, so that module never has to read an inflation assumption of its own.
+ */
+export function simulationPhases(plan) {
+  const shared = {
+    equityReturnBps: deflatedRateBps(plan.equityReturnBps, plan.inflationRateBps),
+    equityVolatilityBps: deflatedVolatilityBps(plan.equityVolatilityBps, plan.inflationRateBps),
+    bondReturnBps: deflatedRateBps(plan.bondReturnBps, plan.inflationRateBps),
+    bondVolatilityBps: deflatedVolatilityBps(plan.bondVolatilityBps, plan.inflationRateBps),
+    correlationBps: plan.returnCorrelationBps,
+  };
+  return {
+    saving: { ...shared, equityShareBps: plan.equityShareBps },
+    retired: { ...shared, equityShareBps: plan.equityShareRetiredBps },
+  };
+}
+
 export function retirementAccountIncluded(plan, row) {
   if (plan.accountsStated) return plan.accountIds.includes(row.account.id);
   return (
@@ -389,7 +445,12 @@ export function resolveProjection({ plan, events, rows, budgets, expectedMonthly
   const pretaxRetirementCents = Math.min(pretaxContributionCents, annualContributionCents);
   const afterTaxRetirementCents = annualContributionCents - pretaxRetirementCents;
 
-  const netWorth = projectNetWorth({
+  // Everything `projectNetWorth` needs except the invested-pot rate itself —
+  // the deterministic call below adds `effectiveReturnRates(plan)` on top;
+  // `runSimulation` (the hook, below) feeds this exact object to the
+  // simulation engine instead, so a trial or a cohort is built from the same
+  // books the headline figure is and can never silently drift from it.
+  const walkInputs = {
     currentAge: plan.currentAge,
     retirementAge: plan.retirementAge,
     lifeExpectancy: plan.lifeExpectancy,
@@ -415,16 +476,17 @@ export function resolveProjection({ plan, events, rows, budgets, expectedMonthly
     pretaxRetirementCents,
     retirementSpendingCents: annualSpendingCents,
     retirementTaxRateBps: plan.retirementTaxRateBps,
-    growthRateBps: plan.growthRateBps,
-    drawdownRateBps: plan.drawdownRateBps,
     inflationRateBps: plan.inflationRateBps,
     cashRateBps: plan.cashRateBps,
     propertyRateBps: plan.propertyRateBps,
     events,
-  });
+  };
+
+  const netWorth = projectNetWorth({ ...walkInputs, ...effectiveReturnRates(plan) });
 
   return {
     plan,
+    walkInputs,
     accountRows,
     // Every resolved input, reported alongside the projection so the page can
     // show its working: which figure was used, and whether it was seeded or
@@ -488,8 +550,24 @@ export default function useRetirementProjection() {
     [events, rows, budgets, expectedMonthlyCents]
   );
 
-  return useMemo(
-    () => ({ ...resolveWith(plan), resolveWith }),
+  // A Monte Carlo batch or a historical backtest, run only when asked —
+  // unlike every other figure on this page, these do not recompute live as
+  // the plan is edited. See the performance note where this is called.
+  // `trials`/`seed` are read at call time rather than closed over, so a
+  // "Run simulation" click always uses what is on screen, including a fresh
+  // seed for "run it again".
+  const runSimulation = useCallback(
+    ({ mode, trials, seed }) => {
+      const { walkInputs } = resolveWith(plan);
+      const phases = simulationPhases(plan);
+      if (mode === "historical") return runHistoricalBacktest({ walkInputs, phases });
+      return runMonteCarlo({ walkInputs, phases, trials: trials ?? plan.simulationTrials, seed });
+    },
     [plan, resolveWith]
+  );
+
+  return useMemo(
+    () => ({ ...resolveWith(plan), resolveWith, runSimulation }),
+    [plan, resolveWith, runSimulation]
   );
 }
