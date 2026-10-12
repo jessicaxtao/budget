@@ -700,7 +700,7 @@ export const TransactionsProvider = ({ children }) => {
       });
 
       // A statement *about* a row goes and comes back with it, the same cascade
-      // `deleteTransaction` runs. What does not come back is the receipt file:
+      // `deleteTransactions` runs. What does not come back is the receipt file:
       // that was deleted with the gift on a best-effort basis and nothing here
       // can re-upload it, so a restored statement may point at a file that is
       // gone — a dangling reference, inert but kept, like any other.
