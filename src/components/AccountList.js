@@ -1,7 +1,15 @@
+import { useState } from "react";
 import Button from "./Button";
 import { SortableList, useSortableItem } from "./Sortable";
 import { ACCOUNT_SCOPES, ACCOUNT_TYPES } from "../contexts/AccountsContext";
 import { formatCents } from "../utils";
+
+// Archived rows still render through `AccountRow` — its drag handle plumbing
+// and all — but outside any section a drag can see, so a drop among them
+// would have nowhere real to land; wrapping them in their own inert
+// `SortableList` keeps `useSortableItem` inside the context it expects
+// without actually letting the pointer move anything.
+const NO_REORDER = () => {};
 
 /**
  * The accounts the household holds, split by what each is to the budget.
@@ -31,7 +39,7 @@ import { formatCents } from "../utils";
  * balance for, so a caller that has none simply gets the names.
  */
 
-function AccountRow({ account, balanceCents, striped, onEdit, onDelete, sortable }) {
+function AccountRow({ account, balanceCents, striped, onEdit, onArchive, onDelete, sortable }) {
   const item = useSortableItem(account.id, { disabled: !sortable });
   // One definition of trouble, as in the category table: an account that is
   // *owned* and has gone under. Neither way a debt can read is trouble — owed is
@@ -72,6 +80,18 @@ function AccountRow({ account, balanceCents, striped, onEdit, onDelete, sortable
         >
           Edit
         </Button>
+        {/* Retired rather than deleted: everything it already moved stays
+            exactly where it is, and the account itself comes back the moment
+            it is unarchived. The less destructive of the two, so it sits
+            beside Edit rather than beside Remove. */}
+        <Button
+          variant="row-action"
+          size="sm"
+          aria-label={account.archived ? `Unarchive account: ${account.name}` : `Archive account: ${account.name}`}
+          onClick={() => onArchive(account, !account.archived)}
+        >
+          {account.archived ? "Unarchive" : "Archive"}
+        </Button>
         <Button
           variant="row"
           size="sm"
@@ -95,6 +115,7 @@ function AccountSection({
   empty,
   onAdd,
   onEdit,
+  onArchive,
   onDelete,
   onReorder,
 }) {
@@ -174,6 +195,7 @@ function AccountSection({
                   balanceCents={balanceById?.get(account.id)}
                   striped={stripe++ % 2 === 1}
                   onEdit={onEdit}
+                  onArchive={onArchive}
                   onDelete={onDelete}
                   sortable={onReorder != null}
                 />
@@ -213,20 +235,42 @@ const SECTIONS = [
 
 /**
  * `onReorder`, where given, lets a row be dragged to a new place in its
- * section; it is handed the ids that section shows, in their new order.
+ * section; it is handed the ids that section shows, in their new order. An
+ * archived account is simply left out of what any section sees —
+ * `reorderSubset`'s rule is that a record a drag never saw keeps its exact
+ * index, so there is no drift to guard against the way there is on the plan.
  */
-export default function AccountList({ accounts, balanceById, onAdd, onEdit, onDelete, onReorder }) {
+export default function AccountList({
+  accounts,
+  balanceById,
+  onAdd,
+  onEdit,
+  onArchive,
+  onDelete,
+  onReorder,
+}) {
+  const [showArchived, setShowArchived] = useState(false);
+  const archived = accounts.filter((account) => account.archived);
+  const active = accounts.filter((account) => !account.archived);
+
   // Filed by scope, with anything unrecognised falling to on budget — matching
   // the store's default, and keeping every account on a screen that is the only
   // place one can be deleted from. Built as a bucket per section rather than a
   // filter per section so no account can land in two, or in none.
   const byScope = new Map(SECTIONS.map((section) => [section.scope, []]));
-  for (const account of accounts) {
+  for (const account of active) {
     (byScope.get(account.scope) ?? byScope.get(ACCOUNT_SCOPES.ON_BUDGET)).push(account);
   }
 
   return (
     <div className="space-y-3">
+      {archived.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowArchived((shown) => !shown)}>
+            {showArchived ? "Hide archived" : `Show ${archived.length} archived`}
+          </Button>
+        </div>
+      )}
       {SECTIONS.map((section) => (
         <AccountSection
           key={section.scope}
@@ -239,10 +283,39 @@ export default function AccountList({ accounts, balanceById, onAdd, onEdit, onDe
           empty={section.empty}
           onAdd={onAdd}
           onEdit={onEdit}
+          onArchive={onArchive}
           onDelete={onDelete}
           onReorder={onReorder}
         />
       ))}
+      {showArchived && archived.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
+          <div className="border-b border-edge px-4 py-3">
+            <h3 className="font-sans text-base font-semibold tracking-tight text-chalk">Archived</h3>
+            <p className="mt-0.5 font-sans text-row text-chalk-soft">
+              Kept for their history, out of every day-to-day picker. Unarchive to spend through
+              one again.
+            </p>
+          </div>
+          {/* Not actually sortable — see `NO_REORDER` above — and `reorderSubset`
+              leaves an id it never saw at its exact index regardless, so there
+              is nothing to preserve by letting a drag move one of these. */}
+          <SortableList ids={archived.map((account) => account.id)} onReorder={NO_REORDER}>
+            {archived.map((account, index) => (
+              <AccountRow
+                key={account.id}
+                account={account}
+                balanceCents={balanceById?.get(account.id)}
+                striped={index % 2 === 1}
+                onEdit={onEdit}
+                onArchive={onArchive}
+                onDelete={onDelete}
+                sortable={false}
+              />
+            ))}
+          </SortableList>
+        </section>
+      )}
     </div>
   );
 }

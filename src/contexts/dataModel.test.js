@@ -1414,6 +1414,110 @@ describe("deleting a budget", () => {
   });
 });
 
+describe("a category that opts out of rollover", () => {
+  const NOW = currentPeriod();
+  const NEXT = addMonths(NOW, 1);
+  const AFTER = addMonths(NOW, 2);
+
+  function setUp() {
+    seedAccounts();
+    return renderHook(
+      () => ({
+        budgets: useBudgets(),
+        ledger: useTransactions(),
+        assignments: useAssignments(),
+        now: useEnvelopes(NOW),
+        next: useEnvelopes(NEXT),
+        after: useEnvelopes(AFTER),
+      }),
+      { wrapper }
+    );
+  }
+
+  test("an overspent month shows its own trouble but does not carry the deficit forward", () => {
+    const { result } = setUp();
+
+    let id;
+    act(() => {
+      id = result.current.budgets.addBudget({
+        name: "Groceries",
+        planned: "200",
+        rolloverEnabled: false,
+      }).id;
+    });
+    act(() => {
+      result.current.assignments.setAssignedAmount({ budgetId: id, period: NOW, amountCents: 20000 });
+      result.current.ledger.addTransaction(
+        spend({ description: "Shop", amount: "300", budgetId: id, date: `${NOW}-15` })
+      );
+    });
+
+    // Overspent within the month it happened — the app's one definition of
+    // trouble, undisturbed: a no-rollover category still has to show this.
+    expect(envelopeFor(result.current.now, id).availableCents).toBe(-10000);
+    expect(result.current.now.forgivenOverspendCents).toBe(0);
+    expectBalanced(result.current.now);
+
+    // Next month starts clean rather than owing the $100 back — forgiven out
+    // of the pool instead, which is what keeps the identity closed.
+    expect(envelopeFor(result.current.next, id).carriedInCents).toBe(0);
+    expect(envelopeFor(result.current.next, id).availableCents).toBe(0);
+    expect(result.current.next.forgivenOverspendCents).toBe(10000);
+    expectBalanced(result.current.next);
+  });
+
+  test("an ordinary category still carries its overspend forward", () => {
+    const { result } = setUp();
+
+    let id;
+    act(() => {
+      id = result.current.budgets.addBudget({ name: "Groceries", planned: "200" }).id;
+    });
+    act(() => {
+      result.current.assignments.setAssignedAmount({ budgetId: id, period: NOW, amountCents: 20000 });
+      result.current.ledger.addTransaction(
+        spend({ description: "Shop", amount: "300", budgetId: id, date: `${NOW}-15` })
+      );
+    });
+
+    expect(envelopeFor(result.current.next, id).carriedInCents).toBe(-10000);
+    expect(result.current.next.forgivenOverspendCents).toBe(0);
+    expectBalanced(result.current.next);
+  });
+
+  test("turning rollover back on reads the same history through the flat sum again", () => {
+    const { result } = setUp();
+
+    let id;
+    act(() => {
+      id = result.current.budgets.addBudget({
+        name: "Groceries",
+        planned: "200",
+        rolloverEnabled: false,
+      }).id;
+    });
+    act(() => {
+      result.current.assignments.setAssignedAmount({ budgetId: id, period: NOW, amountCents: 20000 });
+      result.current.ledger.addTransaction(
+        spend({ description: "Shop", amount: "300", budgetId: id, date: `${NOW}-15` })
+      );
+    });
+    // Forgiven once, on the way into NEXT.
+    expect(envelopeFor(result.current.next, id).carriedInCents).toBe(0);
+
+    act(() => {
+      result.current.budgets.updateBudget({ id, rolloverEnabled: true });
+    });
+
+    // Flipping the toggle back on reads the same history through the flat
+    // closed-form sum again — nothing about a past forgiveness is stored, so
+    // there is nothing left for the toggle to have committed irreversibly.
+    expect(envelopeFor(result.current.after, id).carriedInCents).toBe(-10000);
+    expect(result.current.after.forgivenOverspendCents).toBe(0);
+    expectBalanced(result.current.after);
+  });
+});
+
 describe("accounts hold the money the ledger moves", () => {
   const useBooks = () => ({
     accounts: useAccounts(),

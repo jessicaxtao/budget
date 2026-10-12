@@ -42,6 +42,20 @@ import useEmergencyFund from "./useEmergencyFund";
  * if both sides use the same period filter. Filtering what the grid displays
  * is fine; filtering what these sums cover is not.
  *
+ * **A category may opt out of rollover** (`budget.rolloverEnabled === false`):
+ * its overspending is not carried into the next month as a debt against it.
+ * `available(b, P)` for such a category is not the flat closed-form sum above
+ * but a walk, period by period, that floors the running total at zero at every
+ * boundary it crosses *before* P — so a month it ends negative starts the next
+ * one clean, and a month it is negative *within* still shows that, the app's
+ * one definition of trouble. What is floored away is real spending that really
+ * happened, so it cannot just vanish from the identity: every cent forgiven
+ * this way is summed into `forgivenOverspendCents` and subtracted from
+ * `toBeAssignedCents` exactly as `assignedAheadCents` is — the deficit is
+ * covered from the pool automatically, instead of following the category into
+ * next month. A category that never states the field rolls over exactly as it
+ * always did, and this term is zero whenever none does.
+ *
  * **A savings goal draws from this same pool.** Money diverted to a goal is
  * money that cannot also fund a category — it is the same paycheck — so a
  * goal's cumulative assignment subtracts from `toBeAssigned` exactly as a
@@ -147,6 +161,35 @@ export default function useEnvelopes(period) {
     // a transfer's effect here depends on. Built once for the whole ledger.
     const inside = insideBudget(accounts);
 
+    // Categories that opted out of rollover. Empty on every household that
+    // never touched the toggle, which is what keeps every sum below identical
+    // to what it always computed for them.
+    const noRolloverIds = new Set(
+      budgets.filter((budget) => budget.rolloverEnabled === false).map((budget) => budget.id)
+    );
+
+    // For a no-rollover category only: what it did in each *dated* period
+    // strictly before P (assigned + refunded − spent, net), and what it did
+    // with no date at all — the two pieces `carriedInFor` below walks forward
+    // through, floor-at-zero at every boundary, to arrive at a carry-in that
+    // forgives an overspent month instead of handing it to the next one.
+    const periodTally = new Map(); // budgetId -> Map(period -> netCents)
+    const undatedNetCents = new Map(); // budgetId -> netCents, no period at all
+
+    function addNoRolloverDelta(budgetId, transactionPeriod, delta) {
+      if (!noRolloverIds.has(budgetId)) return;
+      if (transactionPeriod == null) {
+        undatedNetCents.set(budgetId, (undatedNetCents.get(budgetId) ?? 0) + delta);
+        return;
+      }
+      let byPeriod = periodTally.get(budgetId);
+      if (!byPeriod) {
+        byPeriod = new Map();
+        periodTally.set(budgetId, byPeriod);
+      }
+      byPeriod.set(transactionPeriod, (byPeriod.get(transactionPeriod) ?? 0) + delta);
+    }
+
     for (const transaction of transactions) {
       // When it happened is a fact about the record, not about any one of its
       // parts: a split lands whole, in one month, however many envelopes it
@@ -170,13 +213,18 @@ export default function useEnvelopes(period) {
           continue;
         }
 
-        const entry = bucket(leg.budgetId ?? UNCATEGORIZED_BUDGET_ID);
+        const budgetId = leg.budgetId ?? UNCATEGORIZED_BUDGET_ID;
+        const entry = bucket(budgetId);
         const field = inflow ? "refund" : "spent";
         if (transactionPeriod === period) entry[`${field}Now`] += leg.amountCents;
         // Undated movement already happened, so it belongs behind us rather than
         // in this month's column.
         else if (counted) {
           entry[`${field}Before`] += leg.amountCents;
+          // Strictly before P, since we are in the branch where it is not P's
+          // own period — a no-rollover walk must never forgive the month on
+          // screen, only what came before it.
+          addNoRolloverDelta(budgetId, transactionPeriod, inflow ? leg.amountCents : -leg.amountCents);
         }
       }
     }
@@ -204,6 +252,7 @@ export default function useEnvelopes(period) {
         bucket(assignment.budgetId).assignedNow += assignment.assignedCents;
       } else if (periodLTE(at, period)) {
         bucket(assignment.budgetId).assignedBefore += assignment.assignedCents;
+        addNoRolloverDelta(assignment.budgetId, at, assignment.assignedCents);
       } else if (at != null) {
         // Ahead of the month on screen. Deliberately not bucketed: the row set
         // is what the sums cover, and a category whose only assignment is for a
@@ -265,6 +314,30 @@ export default function useEnvelopes(period) {
       ...tally.keys(),
     ]);
 
+    // The walk for a no-rollover category: its dated history strictly before
+    // P, chronologically, folding in whatever it did with no date at all as
+    // the starting point — undated movement already happened, so it has no
+    // boundary of its own to be forgiven at, only whatever boundary comes
+    // after it. Floored at zero at every boundary crossed, which is the
+    // forgiveness itself; what that floor discards is summed and handed back
+    // so the pool can be charged for it.
+    let forgivenOverspendCents = 0;
+    function carriedInFor(budgetId, fallbackCents) {
+      if (!noRolloverIds.has(budgetId)) return fallbackCents;
+
+      const byPeriod = periodTally.get(budgetId);
+      const periods = byPeriod ? [...byPeriod.keys()].sort() : [];
+      let running = undatedNetCents.get(budgetId) ?? 0;
+      for (const p of periods) {
+        running += byPeriod.get(p);
+        if (running < 0) {
+          forgivenOverspendCents += -running;
+          running = 0;
+        }
+      }
+      return running;
+    }
+
     const rows = [...ids].map((budgetId) => {
       const entry = tally.get(budgetId) ?? {
         spentBefore: 0,
@@ -277,7 +350,10 @@ export default function useEnvelopes(period) {
       // Signed: what the month did to the envelope, which is what came back
       // less what went out.
       const activityCents = entry.refundNow - entry.spentNow;
-      const carriedInCents = entry.assignedBefore + entry.refundBefore - entry.spentBefore;
+      const carriedInCents = carriedInFor(
+        budgetId,
+        entry.assignedBefore + entry.refundBefore - entry.spentBefore
+      );
       const budget = budgetsById.get(budgetId);
       const kind = budget
         ? "category"
@@ -307,6 +383,10 @@ export default function useEnvelopes(period) {
         // catch-all rows never are. Null rather than zero all the way through:
         // "no goal" has to stay tellable from "a goal already met".
         goalCents: budget?.goalCents ?? null,
+        // Display-only, like `hidden` below — the sums above never read
+        // either, only the screens filtering what they show.
+        rolloverEnabled: budget?.rolloverEnabled !== false,
+        hidden: budget?.hidden === true,
       };
     });
 
@@ -364,7 +444,12 @@ export default function useEnvelopes(period) {
         assignedThroughCents -
         goalAssignedThroughCents -
         emergencyReservedCents -
-        assignedAheadCents,
+        assignedAheadCents -
+        forgivenOverspendCents,
+      // What a no-rollover category's overspending cost the pool instead of
+      // the category — see the doc comment above. Zero whenever no category
+      // has opted out, which is every household that never found the toggle.
+      forgivenOverspendCents,
       // Held back for the emergency fund, out of `toBeAssignedCents`. A term of
       // the identity in its own right: the money is still there, just not
       // free to assign.

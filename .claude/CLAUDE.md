@@ -117,16 +117,20 @@ A deleted category's funding **moves** to `UNCATEGORIZED_BUDGET_ID` (`src/contex
 
 ```
 activity(b, p)   = refunded(b,p) − spent(b,p)          ← signed
-available(b, P)  = Σ over p ≤ P of [ assigned(b,p) + activity(b,p) ]
+available(b, P)  = Σ over p ≤ P of [ assigned(b,p) + activity(b,p) ]     ← rollover on, the default
+available(b, P)  = a walk over p ≤ P, floored at zero at every boundary strictly before P   ← rollover off
 available(g, P)  = Σ over p ≤ P of assigned(g,p)       ← a goal, and nothing else
 assignedAhead(P) = max(0, Σ over p > P of [ Σ_b assigned(b,p) + Σ_g assigned(g,p) ])
 toBeAssigned(P)  = opening(P)
                  + Σ over p ≤ P of [ poolIncome(p) − Σ over b of assigned(b,p)
                                                    − Σ over g of assigned(g,p) ]
                  − assignedAhead(P)
+                 − forgivenOverspend(P)
 ```
 
 **A savings goal draws on the same pool a category does** — a dollar diverted to the wedding fund cannot also fund groceries. There is no second pool anywhere. A goal may also *name* off-budget accounts holding its money (an invested house deposit), and that figure is on **neither** side of the identity — it was never the budget's to assign — so it is reported beside the assignment by `useSavingsGoalEnvelopes` and never folded into `goalRows`.
+
+**A category may opt out of rollover** (`budgets[].rolloverEnabled === false`, stored only once stated — every category rolls over until told otherwise). Its overspending is not carried into next month as a debt against it: `available(b, P)` is not the flat closed-form sum but a walk, month by month, that forgives a negative running total at every boundary it crosses before P. What is forgiven is real spending that really happened, so it cannot just vanish from the identity — `forgivenOverspend(P)` is the running total of everything floored away this way, summed across every opted-out category, and it comes off the pool exactly as `assignedAhead` does: the deficit is covered automatically from "to be assigned" rather than following the category into the next month. Zero whenever no category has opted out.
 
 **The invariant**, asserted after every mutation by the tripwire in `dataModel.test.js`:
 
@@ -134,9 +138,9 @@ toBeAssigned(P)  = opening(P)
 toBeAssigned + reserved + assignedAhead + Σ available + Σ goal available === opening + cumulative inflow − cumulative gross spend
 ```
 
-**Two terms are money that is still there and no longer free**, each subtracted from the pool and reported back so the identity closes over it: **`reserved`**, the emergency fund held back, and **`assignedAhead`**, a month funded before it arrived — because **an assignment, unlike a transaction, may be dated ahead on purpose**, and a pool that offered that money again would let one dollar fund two months. Both are floored at zero.
+**Three terms are money that is still there and no longer free**, each subtracted from the pool and reported back so the identity closes over it: **`reserved`**, the emergency fund held back; **`assignedAhead`**, a month funded before it arrived — because **an assignment, unlike a transaction, may be dated ahead on purpose**, and a pool that offered that money again would let one dollar fund two months; and **`forgivenOverspend`**, above. All three are floored at zero (or, for the last, a sum of already-non-negative corrections).
 
-The assignment terms cancel algebraically, so this checks **coverage, not arithmetic**. **`DERIVATIONS.md` carries the five conditions that keep it true**, and the two terms in full — read them before touching any sum on either side.
+The assignment terms cancel algebraically, so this checks **coverage, not arithmetic**. **`DERIVATIONS.md` carries the five conditions that keep it true**, and the terms in full — read them before touching any sum on either side.
 
 **The balance sheet is the other cut of the same ledger**: `balance(a, P) = opening(a) + Σ inflows − Σ outflows, through P` (`useAccountBalances`, derived and never stored). Envelopes say what money is *for*, this says where it *is*. `accountBalancesAt` **stays the only definition of what an account holds.**
 

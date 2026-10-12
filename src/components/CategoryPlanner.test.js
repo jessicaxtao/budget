@@ -21,6 +21,8 @@ function renderPlanner({ groups = [], budgets = [], ...handlers } = {}) {
     onEstimateChange: ok,
     onGoalChange: ok,
     onBucketChange: () => {},
+    onRolloverChange: () => {},
+    onHideChange: () => {},
     onAddCategory: () => {},
     onEditGroup: () => {},
     onDeleteGroup: () => {},
@@ -171,4 +173,48 @@ test("with no groups and no categories the list keeps its empty state", () => {
   renderPlanner();
   expect(screen.getByRole("heading", { name: "Categories" })).toBeInTheDocument();
   expect(screen.getByText("No categories yet.")).toBeInTheDocument();
+});
+
+test("the rollover box commits on change, since there is nothing to type", () => {
+  const onRolloverChange = jest.fn();
+  renderPlanner({ budgets: [budget({ name: "Car fund" })], onRolloverChange });
+
+  const box = screen.getByLabelText("Roll over Car fund's overspending into next month");
+  expect(box).toBeChecked();
+
+  fireEvent.click(box);
+
+  expect(onRolloverChange).toHaveBeenCalledTimes(1);
+  const [calledBudget, enabled] = onRolloverChange.mock.calls[0];
+  expect(calledBudget.name).toBe("Car fund");
+  expect(enabled).toBe(false);
+});
+
+test("a category already opted out shows the box unchecked", () => {
+  renderPlanner({ budgets: [budget({ name: "Car fund", rolloverEnabled: false })] });
+  expect(screen.getByLabelText("Roll over Car fund's overspending into next month")).not.toBeChecked();
+});
+
+test("Hide takes a category out of the list without deleting it, and Show hidden brings it back", () => {
+  const onHideChange = jest.fn();
+  renderPlanner({ budgets: [budget({ name: "Car fund" })], onHideChange });
+
+  fireEvent.click(screen.getByRole("button", { name: "Hide category: Car fund" }));
+  expect(onHideChange).toHaveBeenCalledWith(expect.objectContaining({ name: "Car fund" }), true);
+});
+
+test("a hidden category stays out of the list until Show hidden is clicked, then Unhide brings it back", () => {
+  const onHideChange = jest.fn();
+  renderPlanner({
+    budgets: [budget({ name: "Car fund", hidden: true })],
+    onHideChange,
+  });
+
+  expect(screen.queryByLabelText("Name of Car fund")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Show 1 hidden" }));
+  expect(screen.getByLabelText("Name of Car fund")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Unhide category: Car fund" }));
+  expect(onHideChange).toHaveBeenCalledWith(expect.objectContaining({ name: "Car fund" }), false);
 });

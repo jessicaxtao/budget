@@ -208,6 +208,39 @@ describe("the dashboard's category table", () => {
     expect(result.current.otherRows).toEqual([]);
     expect(result.current.totals.availableCents).toBe(0);
   });
+
+  test("a hidden category with nothing in it drops out of the list, but still counts in the totals", () => {
+    seed({
+      groups: [{ id: "g1", name: "Bills", bucket: "essentials" }],
+      budgets: [
+        budget("b1", "Rent", "g1", 150000),
+        { ...budget("b2", "Old gym", "g1", 4000), hidden: true },
+      ],
+    });
+
+    const { result } = renderHook(() => useDashboard(PERIOD), { wrapper });
+    const section = result.current.sections[0];
+
+    expect(section.rows.map((row) => row.name)).toEqual(["Rent"]);
+    // The sums never filter on `hidden` — only the list does — so a hidden
+    // category's own standing estimate still shows up in the section's
+    // footing, same as `totalPlannedCents` already counts it.
+    expect(section.totals.targetCents).toBe(154000);
+  });
+
+  test("a hidden category still shows while it holds real money", () => {
+    seed({
+      budgets: [{ ...budget("b1", "Old gym", null, 4000), hidden: true }],
+      assignments: [{ id: "a1", budgetId: "b1", period: PERIOD, assignedCents: 4000 }],
+    });
+
+    const { result } = renderHook(() => useDashboard(PERIOD), { wrapper });
+
+    // A balance sitting in a hidden category is still money the household has
+    // to see, the same "editable" rule AssignIncomeModal keeps for an orphan
+    // or a zeroed-out row.
+    expect(result.current.sections[0].rows.map((row) => row.name)).toEqual(["Old gym"]);
+  });
 });
 
 describe("the next paycheck", () => {

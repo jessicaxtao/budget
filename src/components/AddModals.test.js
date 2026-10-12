@@ -135,11 +135,61 @@ describe("assigning income to categories", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("$1,000");
 
-    fireEvent.click(screen.getByRole("button", { name: "Fill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill Groceries to its estimate" }));
 
     // Money at rest, like every figure on the row it sits in.
     expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$400");
     expect(screen.getByRole("status")).toHaveTextContent("$600");
+  });
+
+  test("Last month fills to exactly what was assigned the period before", () => {
+    localStorage.setItem(
+      "assignments",
+      JSON.stringify([
+        { id: "p1", budgetId: "a", period: addMonths(currentPeriod(), -1), assignedCents: 35000 },
+      ])
+    );
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fill Groceries to what was assigned last month" })
+    );
+
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$350");
+  });
+
+  test("Avg. 3mo averages the three months behind the one on screen, zero for any one missing", () => {
+    localStorage.setItem(
+      "assignments",
+      JSON.stringify([
+        { id: "p1", budgetId: "a", period: addMonths(currentPeriod(), -1), assignedCents: 30000 },
+        // Two months back has nothing — "never assigned" and "assigned
+        // nothing" count the same way everywhere else assignments are read.
+        { id: "p3", budgetId: "a", period: addMonths(currentPeriod(), -3), assignedCents: 60000 },
+      ])
+    );
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fill Groceries to the average of the last 3 months" })
+    );
+
+    // (300 + 0 + 600) / 3 = $300.
+    expect(screen.getByLabelText("Assign to Groceries")).toHaveValue("$300");
+  });
+
+  test("a category with no goal offers no Goal fill", () => {
+    openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
+    expect(
+      screen.queryByRole("button", { name: "Fill Groceries to its goal" })
+    ).not.toBeInTheDocument();
+  });
+
+  test("Goal tops a category up to the balance it is saving towards", () => {
+    openWith([{ id: "a", name: "Car fund", goalCents: 500000 }], 1000);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fill Car fund to its goal" }));
+    expect(screen.getByLabelText("Assign to Car fund")).toHaveValue("$5,000");
   });
 
   test("the remaining figure tracks typing, and goes negative past the pool", () => {
@@ -225,7 +275,7 @@ describe("assigning income to categories", () => {
     // moves where the money is filed, never how much there is.
     expect(screen.getByRole("status")).toHaveTextContent("$1,000");
 
-    fireEvent.click(screen.getByRole("button", { name: "Fill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill Groceries to its estimate" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     const [stored] = JSON.parse(localStorage.getItem("assignments"));
@@ -236,7 +286,7 @@ describe("assigning income to categories", () => {
   test("a month funded ahead comes out of the pool, and the form says so", () => {
     openWith([{ id: "a", name: "Groceries", max: 400 }], 1000);
     fireEvent.click(screen.getByRole("button", { name: "Next month" }));
-    fireEvent.click(screen.getByRole("button", { name: "Fill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill Groceries to its estimate" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     // Reopened on this month: the $400 promised to next month was promised out
@@ -295,7 +345,7 @@ describe("assigning income to categories", () => {
   test("a category with no estimate cannot be filled", () => {
     openWith([{ id: "a", name: "Groceries" }], 1000);
 
-    expect(screen.getByRole("button", { name: "Fill" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Fill Groceries to its estimate" })).toBeDisabled();
   });
 });
 
@@ -342,6 +392,24 @@ describe("one form for both directions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Money out" }));
     expect(screen.getByLabelText(/^category$/i)).not.toHaveValue("");
+  });
+
+  test("an archived account is not offered to a new entry", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts([
+      { id: "acc1", name: "Everyday", openingBalanceCents: 100000 },
+      { id: "acc2", name: "Old checking", openingBalanceCents: 0, archived: true },
+    ]);
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    const field = screen.getByLabelText("Paid from");
+    expect(within(field).getByRole("option", { name: /^Everyday/ })).toBeInTheDocument();
+    expect(within(field).queryByRole("option", { name: /Old checking/ })).not.toBeInTheDocument();
   });
 
   test("an expense is stored against its account, category and payee", () => {

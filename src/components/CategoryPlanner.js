@@ -123,6 +123,11 @@ const PLACE = {
   bucket: "col-span-2 col-start-1 row-start-2",
   estimate: "col-start-3 row-start-2",
   goal: "col-start-4 row-start-2",
+  // A third line below, spanning every column on a phone — `sm:contents`
+  // dissolves the wrapper above `sm`, so its two children fall back into the
+  // row's own flex sequence in the order they appear here, right where they
+  // sit in the desktop line.
+  extras: "col-span-4 col-start-1 row-start-3",
 };
 
 const rowClass = (index) => `${lineClass} px-3 py-2 ${rowBg(index)}`;
@@ -168,6 +173,12 @@ function ColumnHeadings() {
       <span className={`${bucketClass} ${PLACE.bucket}`}>What it&rsquo;s for</span>
       <span className={`${figureClass} ${PLACE.estimate}`}>Estimate</span>
       <span className={`${figureClass} ${PLACE.goal}`}>Goal</span>
+      <div className={`${PLACE.extras} flex items-center justify-between gap-2 pt-1 sm:contents`}>
+        <span>Rollover</span>
+        <Button aria-hidden="true" tabIndex={-1} variant="row" size="sm" className="invisible">
+          Hide
+        </Button>
+      </div>
       <Button
         aria-hidden="true"
         tabIndex={-1}
@@ -245,6 +256,8 @@ function CategoryRow({
   onEstimateChange,
   onGoalChange,
   onBucketChange,
+  onRolloverChange,
+  onHideChange,
   onDelete,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -358,6 +371,31 @@ function CategoryRow({
         className={`${figureInputClass} ${PLACE.goal}`}
       />
 
+      <div
+        className={`${PLACE.extras} flex items-center justify-between gap-2 pt-1 sm:contents`}
+      >
+        {/* Controlled, `BucketSelect`'s reason: there is nothing to type, so
+            the box has to show what the store now holds rather than what was
+            last clicked. No text beside it — the column heading above already
+            says what it is, the way Estimate and Goal say theirs without a
+            row repeating the word beside every figure. */}
+        <input
+          type="checkbox"
+          checked={budget.rolloverEnabled !== false}
+          onChange={(e) => onRolloverChange(budget, e.target.checked)}
+          aria-label={`Roll over ${budget.name}'s overspending into next month`}
+          className="h-3.5 w-3.5 accent-azure"
+        />
+        <Button
+          variant="row"
+          size="sm"
+          aria-label={budget.hidden ? `Unhide category: ${budget.name}` : `Hide category: ${budget.name}`}
+          onClick={() => onHideChange(budget, !budget.hidden)}
+        >
+          {budget.hidden ? "Unhide" : "Hide"}
+        </Button>
+      </div>
+
       <Button
         variant="row"
         size="sm"
@@ -408,10 +446,13 @@ function DraggedRow({ budget }) {
 function Section({
   section,
   hasGroups,
+  showHidden,
   onNameChange,
   onEstimateChange,
   onGoalChange,
   onBucketChange,
+  onRolloverChange,
+  onHideChange,
   onDeleteCategory,
   onAddCategory,
   onEditGroup,
@@ -422,6 +463,17 @@ function Section({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: sectionId(section.groupId) });
   const ungrouped = section.groupId == null;
+
+  // Hidden rows stay out of the list — and out of `SortableContext`'s own
+  // items, or a row nobody can see would still be a drag target — but never
+  // out of `section.budgets` itself: `locate` and `moveBetweenSections` keep
+  // reading the full array, so a hidden category keeps the place it held the
+  // moment it is shown again, rather than drifting to the end of the list the
+  // way an id this component never mentioned to `setCategoryLayout` would.
+  const visibleBudgets = showHidden
+    ? section.budgets
+    : section.budgets.filter((budget) => !budget.hidden);
+  const hiddenCount = section.budgets.length - visibleBudgets.length;
 
   // "Ungrouped" only means something once there is a group to be outside of.
   // Before that it is the whole list, and heading it with the name of an
@@ -448,6 +500,7 @@ function Section({
             {section.budgets.length === 1 ? "category" : "categories"} ·{" "}
             <span className="text-chalk">{formatCents(section.plannedCents)}</span>
             {!ungrouped && <> · {PLAN_BUCKET_LABELS[section.bucket]} by default</>}
+            {hiddenCount > 0 && <> · {hiddenCount} hidden</>}
           </span>
         </div>
 
@@ -493,12 +546,16 @@ function Section({
 
       <div ref={setNodeRef}>
         <SortableContext
-          items={section.budgets.map((budget) => budget.id)}
+          items={visibleBudgets.map((budget) => budget.id)}
           strategy={verticalListSortingStrategy}
         >
-          {section.budgets.length === 0 ? (
+          {visibleBudgets.length === 0 ? (
             <p className="px-4 py-5 font-sans text-row text-chalk-soft">
-              {!ungrouped
+              {hiddenCount > 0
+                ? `Every category here is hidden. “Show hidden” above brings ${
+                    hiddenCount === 1 ? "it" : "them"
+                  } back.`
+                : !ungrouped
                 ? "Nothing here yet. Add a category, or drag one in."
                 : hasGroups
                 ? "Drop a category here to take it out of its group."
@@ -507,7 +564,7 @@ function Section({
           ) : (
             <>
               <ColumnHeadings />
-              {section.budgets.map((budget, index) => (
+              {visibleBudgets.map((budget, index) => (
                 <CategoryRow
                   key={budget.id}
                   budget={budget}
@@ -516,6 +573,8 @@ function Section({
                   onEstimateChange={onEstimateChange}
                   onGoalChange={onGoalChange}
                   onBucketChange={onBucketChange}
+                  onRolloverChange={onRolloverChange}
+                  onHideChange={onHideChange}
                   onDelete={onDeleteCategory}
                 />
               ))}
@@ -534,6 +593,8 @@ export default function CategoryPlanner({
   onEstimateChange,
   onGoalChange,
   onBucketChange,
+  onRolloverChange,
+  onHideChange,
   onAddCategory,
   onEditGroup,
   onDeleteGroup,
@@ -546,6 +607,14 @@ export default function CategoryPlanner({
   // have where it currently sits, not the one it had when the drag began.
   const [preview, setPreview] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
+  // A view preference, not a store field — nothing here persists it, so a
+  // hidden category comes back out of sight on the next visit, the same way
+  // every other page's filters do.
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenTotal = sections.reduce(
+    (sum, section) => sum + section.budgets.filter((budget) => budget.hidden).length,
+    0
+  );
 
   const sensors = useSensors(
     // A few pixels of slop, so a click on the handle stays a click and the
@@ -652,6 +721,13 @@ export default function CategoryPlanner({
           is deliberately *outside* this box: paint containment would make it
           the containing block for the fixed-position copy that follows the
           pointer. */}
+      {hiddenTotal > 0 && (
+        <div className="mb-3 flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowHidden((shown) => !shown)}>
+            {showHidden ? "Hide hidden categories" : `Show ${hiddenTotal} hidden`}
+          </Button>
+        </div>
+      )}
       <div className="scroll-x">
         <div className="space-y-3 sm:min-w-[29rem]">
           {view.filter(isShown).map((section, index) => (
@@ -659,10 +735,13 @@ export default function CategoryPlanner({
               key={sectionId(section.groupId)}
               section={section}
               hasGroups={groupCount > 0}
+              showHidden={showHidden}
               onNameChange={onNameChange}
               onEstimateChange={onEstimateChange}
               onGoalChange={onGoalChange}
               onBucketChange={onBucketChange}
+              onRolloverChange={onRolloverChange}
+              onHideChange={onHideChange}
               onDeleteCategory={onDeleteCategory}
               onAddCategory={onAddCategory}
               onEditGroup={onEditGroup}

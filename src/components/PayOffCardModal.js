@@ -38,7 +38,8 @@ export default function PayOffCardModal({ show, row, handleClose }) {
   const card = row?.account;
   const owedCents = Math.max(0, -(row?.balanceCents ?? 0));
   const sources = accounts.filter(
-    (account) => account.scope === ACCOUNT_SCOPES.ON_BUDGET && account.id !== card?.id
+    (account) =>
+      account.scope === ACCOUNT_SCOPES.ON_BUDGET && account.id !== card?.id && !account.archived
   );
   const storedDefault = sources.some((account) => account.id === card?.payFromAccountId)
     ? card.payFromAccountId

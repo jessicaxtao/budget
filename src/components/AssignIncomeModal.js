@@ -7,6 +7,7 @@ import useSavingsGoalEnvelopes from "../hooks/useSavingsGoalEnvelopes";
 import { useAssignments } from "../contexts/AssignmentsContext";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
 import {
+  addMonths,
   amountAtRest,
   amountField,
   currentPeriod,
@@ -61,7 +62,7 @@ export default function AssignIncomeModal({
   // underneath an open dialog.
   const [month, setMonth] = useState(period);
 
-  const { setPeriodAssignments } = useAssignments();
+  const { assignments, setPeriodAssignments } = useAssignments();
   const { setPeriodAssignments: setGoalPeriodAssignments } = useSavingsGoalAssignments();
   const { rows, toBeAssignedCents, assignedAheadCents } = useEnvelopes(month);
   const goalRows = useSavingsGoalEnvelopes(month);
@@ -89,9 +90,14 @@ export default function AssignIncomeModal({
   // saw activity. Keyed on the balance and not only on this month's activity:
   // an uncovered overspend carried in from an earlier month is precisely the
   // row the user has come here to settle.
+  //
+  // A hidden category is left out on the same terms an orphan or a zeroed-out
+  // one already was: it still has to appear wherever it holds real money or
+  // is due something this month, and only disappears from the fill list once
+  // there is truly nothing to fund.
   const editable = rows.filter(
     (row) =>
-      row.kind === "category" ||
+      (row.kind === "category" && !row.hidden) ||
       row.availableCents !== 0 ||
       row.assignedCents !== 0 ||
       row.activityCents !== 0
@@ -170,6 +176,48 @@ export default function AssignIncomeModal({
     for (const row of editable) {
       if (row.plannedCents > 0) setRowValue(row.budgetId, row.plannedCents);
     }
+    recompute();
+  }
+
+  /** What was actually assigned to a category in one past period — zero for a
+   *  month nothing was put in, which is what "assigned nothing" and "never
+   *  assigned" already mean the same thing as everywhere else assignments are
+   *  read. */
+  function assignedIn(budgetId, atPeriod) {
+    const entry = assignments.find(
+      (assignment) => assignment.budgetId === budgetId && assignment.period === atPeriod
+    );
+    return entry?.assignedCents ?? 0;
+  }
+
+  // Last month's own figure, templated forward — the commonest request once a
+  // category has settled into a rhythm, and cheaper than reading the number
+  // off last month's row and retyping it here.
+  function handleFillLastMonth(row) {
+    setRowValue(row.budgetId, assignedIn(row.budgetId, addMonths(month, -1)));
+    recompute();
+  }
+
+  // The last three months, averaged — steadier than any one of them for a
+  // category that swings (the quarterly-ish grocery run, a utility bill that
+  // rides the weather), and the three months behind the one on screen rather
+  // than including it, since that one is still being decided.
+  function handleFillAverage3(row) {
+    const sum = [1, 2, 3].reduce(
+      (total, n) => total + assignedIn(row.budgetId, addMonths(month, -n)),
+      0
+    );
+    setRowValue(row.budgetId, Math.round(sum / 3));
+    recompute();
+  }
+
+  // A category's own goal — a balance, not a monthly rate — tops up to it
+  // outright on the same terms a savings goal's Fill does: whatever is
+  // already carried in and whatever this month already moved stay exactly as
+  // they are, and only the gap to the goal is asked for.
+  function handleFillToGoal(row) {
+    const shortfall = row.goalCents - (row.availableCents - row.assignedCents);
+    setRowValue(row.budgetId, Math.max(0, shortfall));
     recompute();
   }
 
@@ -291,8 +339,8 @@ export default function AssignIncomeModal({
                   <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
                     Assign
                   </th>
-                  <th className="w-12 px-3 py-2">
-                    <span className="sr-only">Fill to estimate</span>
+                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                    Quick fill
                   </th>
                 </tr>
               </thead>
@@ -320,16 +368,55 @@ export default function AssignIncomeModal({
                         className="w-24 border-0 border-b-2 border-rule bg-transparent px-0 py-1 text-right font-mono text-row text-ink outline-none transition-colors placeholder:text-ink-soft/60 focus:border-azure"
                       />
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        variant="row"
-                        size="sm"
-                        type="button"
-                        disabled={!row.plannedCents}
-                        onClick={() => handleFill(row)}
-                      >
-                        Fill
-                      </Button>
+                    <td className="px-3 py-2">
+                      {/* Four one-shot templates rather than a menu: each is a
+                          button because each is an ordinary action — nothing
+                          here is a standing choice the way a bucket or a
+                          source is — and there are few enough of them that a
+                          row of short labels costs less than a control that
+                          hides three of the four behind a click to find out
+                          what they do. */}
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button
+                          variant="row"
+                          size="sm"
+                          type="button"
+                          disabled={!row.plannedCents}
+                          aria-label={`Fill ${row.name} to its estimate`}
+                          onClick={() => handleFill(row)}
+                        >
+                          Est.
+                        </Button>
+                        <Button
+                          variant="row"
+                          size="sm"
+                          type="button"
+                          aria-label={`Fill ${row.name} to what was assigned last month`}
+                          onClick={() => handleFillLastMonth(row)}
+                        >
+                          Last mo.
+                        </Button>
+                        <Button
+                          variant="row"
+                          size="sm"
+                          type="button"
+                          aria-label={`Fill ${row.name} to the average of the last 3 months`}
+                          onClick={() => handleFillAverage3(row)}
+                        >
+                          Avg. 3mo
+                        </Button>
+                        {row.goalCents != null && (
+                          <Button
+                            variant="row"
+                            size="sm"
+                            type="button"
+                            aria-label={`Fill ${row.name} to its goal`}
+                            onClick={() => handleFillToGoal(row)}
+                          >
+                            Goal
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

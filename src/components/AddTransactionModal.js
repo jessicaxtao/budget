@@ -272,15 +272,21 @@ export default function AddTransactionModal({
     );
   }
 
-  const spendable = accounts.filter(spendsThroughBudget);
+  // An archived account is retired rather than deleted — it is left out of
+  // every picker a *new* entry chooses from, the same terms an off-budget
+  // account is already kept off the two directions that cannot use one.
+  // Nothing here reads an existing transaction's account back, so there is no
+  // "current value" to keep showing the way `TransactionRegister` has to.
+  const active = accounts.filter((account) => !account.archived);
+  const spendable = active.filter(spendsThroughBudget);
   const balanceById = new Map(balanceRows.map((row) => [row.account.id, row.balanceCents]));
 
   const isTransfer = kind === TRANSACTION_KINDS.TRANSFER;
   const isInflow = kind === TRANSACTION_KINDS.INFLOW;
   const isOutflow = kind === TRANSACTION_KINDS.OUTFLOW;
   // Every account for a transfer, on-budget only for the other two.
-  const sources = isTransfer ? accounts : spendable;
-  const destinations = accounts.filter((account) => account.id !== fromAccountId);
+  const sources = isTransfer ? active : spendable;
+  const destinations = active.filter((account) => account.id !== fromAccountId);
 
   const inside = insideBudget(accounts);
   // Money leaving the budget for a holding is real spending and comes out of a
@@ -297,7 +303,7 @@ export default function AddTransactionModal({
   // Nothing to book against. Said plainly, with the way out, rather than
   // presenting a form whose submit can only fail.
   const blocked =
-    (isTransfer ? accounts.length < 2 : spendable.length === 0) ||
+    (isTransfer ? active.length < 2 : spendable.length === 0) ||
     (isOutflow && budgets.length === 0);
 
   /**
@@ -309,9 +315,9 @@ export default function AddTransactionModal({
    */
   function recentAccounts(forKind) {
     const offered = new Set(
-      (forKind === TRANSACTION_KINDS.TRANSFER ? accounts : spendable).map((account) => account.id)
+      (forKind === TRANSACTION_KINDS.TRANSFER ? active : spendable).map((account) => account.id)
     );
-    const known = new Set(accounts.map((account) => account.id));
+    const known = new Set(active.map((account) => account.id));
     for (let i = transactions.length - 1; i >= 0; i -= 1) {
       const entry = transactions[i];
       if (!offered.has(entry.accountId)) continue;
@@ -353,16 +359,16 @@ export default function AddTransactionModal({
     // transfer almost always starts. The destination is whatever else exists,
     // since a transfer to the account it came from is no movement at all. A
     // draft's accounts win where it names one this direction offers.
-    const offered = defaultKind === TRANSACTION_KINDS.TRANSFER ? accounts : spendable;
+    const offered = defaultKind === TRANSACTION_KINDS.TRANSFER ? active : spendable;
     const drafted = (id) => (offered.some((account) => account.id === id) ? id : null);
     const [recentFrom, recentTo] = recentAccounts(defaultKind);
-    const from = drafted(draft?.accountId) ?? recentFrom ?? spendable[0]?.id ?? accounts[0]?.id ?? "";
+    const from = drafted(draft?.accountId) ?? recentFrom ?? spendable[0]?.id ?? active[0]?.id ?? "";
     setFromAccountId(from);
     const draftedTo = draft?.toAccountId !== from ? drafted(draft?.toAccountId) : null;
     setToAccountId(
       draftedTo ??
         (recentTo !== from ? recentTo : null) ??
-        accounts.find((account) => account.id !== from)?.id ??
+        active.find((account) => account.id !== from)?.id ??
         ""
     );
     // Absent while the modal is showing the "nothing to book against" message,
@@ -388,9 +394,10 @@ export default function AddTransactionModal({
         ? budgets[0]?.id ?? ""
         : "";
     }
-    // `spendable`, `accounts` and `budgets` are rebuilt every render; depending on
-    // them would re-seed the form out from under the user as they type elsewhere
-    // in the app. Their contents are read at open, which is when this runs.
+    // `spendable`, `active`, `accounts` and `budgets` are rebuilt every render;
+    // depending on them would re-seed the form out from under the user as they
+    // type elsewhere in the app. Their contents are read at open, which is when
+    // this runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, defaultKind, defaultBudgetId, draft]);
 
@@ -439,7 +446,7 @@ export default function AddTransactionModal({
     // they are. Moving the destination out of the way is the only answer that
     // does not silently discard the choice just made.
     if (next === toAccountId) {
-      setToAccountId(accounts.find((account) => account.id !== next)?.id ?? "");
+      setToAccountId(active.find((account) => account.id !== next)?.id ?? "");
     }
   }
 
@@ -925,7 +932,7 @@ export default function AddTransactionModal({
       {blocked ? (
         <div className="flex items-start gap-4 font-sans text-row text-chalk-soft">
           <Elder mood={ELDER_MOODS.PONDERING} className="h-14 w-16" />
-          {isTransfer && accounts.length < 2 ? (
+          {isTransfer && active.length < 2 ? (
             <p>
               A transfer moves money between two accounts, and there is only one so far —{" "}
               <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">

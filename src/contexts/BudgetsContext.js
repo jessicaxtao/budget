@@ -226,6 +226,12 @@ function migrateBudgets(stored) {
       // string, a negative, a zero from storage edited by hand — reads the same
       // way, since a goal nobody can act on is no goal.
       goalCents: isGoal(budget.goalCents) ? budget.goalCents : null,
+      // Stored only once stated, both of them — carried through rather than
+      // reconstructed from a fixed field list the way everything above it is,
+      // or a round trip through storage would silently drop a category back
+      // into rolling over and showing, undoing a choice nobody made.
+      ...(budget.rolloverEnabled === false && { rolloverEnabled: false }),
+      ...(budget.hidden === true && { hidden: true }),
     }));
 }
 
@@ -264,6 +270,15 @@ function migrateGroups(stored) {
  * to drift out of step with the array it describes, and reordering is one
  * mutator — `setCategoryLayout` — that rewrites both lists at once, because a
  * drag can change a category's group and its position in the same gesture.
+ *
+ * Two booleans, stored only once stated so an untouched category keeps the
+ * shape it always had. `rolloverEnabled: false` says this category's
+ * overspending is not carried into the next month as a debt against it — see
+ * `useEnvelopes`' `forgivenOverspendCents` for what that costs the pool.
+ * `hidden: true` takes a category out of the planner and the fill lists
+ * without touching its money or its history, the way `hidden` already works
+ * nowhere else in this app but exactly the way "inert but kept" works
+ * everywhere else: the sums never filter on it, only the screens do.
  */
 export const BudgetsProvider = ({ children }) => {
   const [groups, setGroups] = useSyncedState("budgetGroups", [], migrateGroups);
@@ -285,7 +300,19 @@ export const BudgetsProvider = ({ children }) => {
   // to decide what to tell the user, and closing the modal as though a duplicate
   // had been saved is the one option that cannot be right.
   const addBudget = useCallback(
-    ({ name, planned, plannedCents, goal, goalCents, groupId = UNGROUPED_ID, bucket }) => {
+    (
+      {
+        name,
+        planned,
+        plannedCents,
+        goal,
+        goalCents,
+        groupId = UNGROUPED_ID,
+        bucket,
+        rolloverEnabled,
+        hidden,
+      }
+    ) => {
       const trimmed = (name ?? "").trim();
       if (!trimmed) return { ok: false, error: "Give the category a name." };
 
@@ -313,6 +340,14 @@ export const BudgetsProvider = ({ children }) => {
         return { ok: false, error: "Choose what this category is for." };
       }
 
+      if (rolloverEnabled !== undefined && typeof rolloverEnabled !== "boolean") {
+        return { ok: false, error: "Rollover is either on or off." };
+      }
+
+      if (hidden !== undefined && typeof hidden !== "boolean") {
+        return { ok: false, error: "Hidden is either on or off." };
+      }
+
       // A group that has since been deleted must not strand the category in a
       // heading nothing renders.
       const group = groups.some((entry) => entry.id === groupId) ? groupId : UNGROUPED_ID;
@@ -334,6 +369,13 @@ export const BudgetsProvider = ({ children }) => {
           goalCents: goalRead.cents,
           groupId: group,
           bucket: filed,
+          // Stored only once stated — true (rolls over) is the default every
+          // existing category already behaves as, so a category that never
+          // named this keeps the shape it always had.
+          ...(rolloverEnabled === false && { rolloverEnabled: false }),
+          // Same discipline: a category starts visible, so only hiding one
+          // writes anything.
+          ...(hidden === true && { hidden: true }),
         },
       ]);
       return { ok: true, id };
@@ -354,7 +396,7 @@ export const BudgetsProvider = ({ children }) => {
    * are different instructions and only the field with a null state has both.
    */
   const updateBudget = useCallback(
-    ({ id, name, planned, plannedCents, goal, goalCents, bucket }) => {
+    ({ id, name, planned, plannedCents, goal, goalCents, bucket, rolloverEnabled, hidden }) => {
       const existing = budgets.find((budget) => budget.id === id);
       if (!existing) return { ok: false, error: "That category no longer exists." };
 
@@ -393,6 +435,23 @@ export const BudgetsProvider = ({ children }) => {
         patch.bucket = bucket;
       }
 
+      // Both booleans the same way: left alone when the caller says nothing,
+      // restated — on or off — when they do. There is nothing left for `null`
+      // to mean on either, unlike the goal above.
+      if (rolloverEnabled !== undefined) {
+        if (typeof rolloverEnabled !== "boolean") {
+          return { ok: false, error: "Rollover is either on or off." };
+        }
+        patch.rolloverEnabled = rolloverEnabled;
+      }
+
+      if (hidden !== undefined) {
+        if (typeof hidden !== "boolean") {
+          return { ok: false, error: "Hidden is either on or off." };
+        }
+        patch.hidden = hidden;
+      }
+
       setBudgets((prevBudgets) =>
         prevBudgets.map((budget) => (budget.id === id ? { ...budget, ...patch } : budget))
       );
@@ -402,25 +461,36 @@ export const BudgetsProvider = ({ children }) => {
   );
 
   // Spend outlives its category — it is what actually happened — so it is
-  // reassigned rather than deleted. Its *funding* follows it onto Uncategorized,
-  // because that money was already set aside and dropping it would ask the user
-  // to fund the same spend twice. The estimate goes with the record, since there
-  // is nothing left for it to describe.
+  // reassigned rather than deleted. Its *funding* follows it the same way,
+  // because that money was already set aside and dropping it would ask the
+  // user to fund the same spend twice. The estimate goes with the record,
+  // since there is nothing left for it to describe.
+  //
+  // `reassignToId` is the household's own choice of where that reassigned
+  // spend and funding should land — the delete confirmation asks, defaulting
+  // to Uncategorized exactly as this always did. An id naming a category that
+  // does not exist (deleted out from under an open dialog, or never passed at
+  // all) falls back to Uncategorized rather than stranding the money under an
+  // id nothing renders.
   //
   // One consequence worth knowing: because every envelope figure is derived
   // from current state, deleting a category also changes what past periods
   // read. There is no history to preserve it in.
   const deleteBudget = useCallback(
-    ({ id }) => {
+    ({ id, reassignToId }) => {
+      const target =
+        reassignToId != null && (reassignToId === UNCATEGORIZED_BUDGET_ID || budgets.some((budget) => budget.id === reassignToId))
+          ? reassignToId
+          : UNCATEGORIZED_BUDGET_ID;
       setBudgets((prevBudgets) => prevBudgets.filter((budget) => budget.id !== id));
-      reassignBudgetTransactions({ fromBudgetId: id, toBudgetId: UNCATEGORIZED_BUDGET_ID });
+      reassignBudgetTransactions({ fromBudgetId: id, toBudgetId: target });
       reassignBudgetAssignments({
         fromBudgetId: id,
-        toBudgetId: UNCATEGORIZED_BUDGET_ID,
+        toBudgetId: target,
         period: currentPeriod(),
       });
     },
-    [setBudgets, reassignBudgetTransactions, reassignBudgetAssignments]
+    [budgets, setBudgets, reassignBudgetTransactions, reassignBudgetAssignments]
   );
 
   const addGroup = useCallback(

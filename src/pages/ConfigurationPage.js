@@ -9,6 +9,7 @@ import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
 import BooksFilePanel from "../components/BooksFilePanel";
 import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
+import DeleteCategoryModal from "../components/DeleteCategoryModal";
 import EmergencyFundPanel from "../components/EmergencyFundPanel";
 import ExpectedIncomeTable from "../components/ExpectedIncomeTable";
 import PageHeader from "../components/PageHeader";
@@ -100,10 +101,14 @@ export default function ConfigurationPage() {
   // And again: the fund's two fields are at the foot of the page, and a message
   // about a month count belongs beside the month count.
   const [fundError, setFundError] = useState(null);
+  // The category a Remove click is asking to delete, so its own confirmation
+  // can ask where that category's money goes — null whenever the dialog is
+  // not open, the same "which row" shape `editingAccount` keeps above.
+  const [deletingBudget, setDeletingBudget] = useState(null);
 
-  const { updateBudget, deleteBudget, deleteGroup, setCategoryLayout } = useBudgets();
+  const { budgets, updateBudget, deleteGroup, setCategoryLayout } = useBudgets();
   const { deleteIncomeSource, reorderIncomeSources } = useIncomePlan();
-  const { accounts, deleteAccount, reorderAccounts } = useAccounts();
+  const { accounts, updateAccount, deleteAccount, reorderAccounts } = useAccounts();
   const { schedule, setPaySchedule } = usePaySchedule();
   const { plan, setRetirementPlan } = useRetirement();
   const { setEmergencyFund, toggleFundAccount, setFundAccountAmount } = useEmergencyFundPlan();
@@ -166,6 +171,16 @@ export default function ConfigurationPage() {
     const result = updateBudget({ id: budget.id, bucket });
     setError(result.ok ? null : result.error);
     return result;
+  }
+
+  // Both booleans, commit on change like the bucket select above — there is
+  // nothing to type, so nothing to put back on a refusal either.
+  function handleRolloverChange(budget, rolloverEnabled) {
+    updateBudget({ id: budget.id, rolloverEnabled });
+  }
+
+  function handleHideChange(budget, hidden) {
+    updateBudget({ id: budget.id, hidden });
   }
 
   function handleAddCategory(groupId) {
@@ -337,10 +352,12 @@ export default function ConfigurationPage() {
               onEstimateChange={handleEstimateChange}
               onGoalChange={handleGoalChange}
               onBucketChange={handleBucketChange}
+              onRolloverChange={handleRolloverChange}
+              onHideChange={handleHideChange}
               onAddCategory={handleAddCategory}
               onEditGroup={handleEditGroup}
               onDeleteGroup={(section) => deleteGroup({ id: section.groupId })}
-              onDeleteCategory={deleteBudget}
+              onDeleteCategory={setDeletingBudget}
             />
           )}
 
@@ -361,6 +378,7 @@ export default function ConfigurationPage() {
             balanceById={balanceById}
             onAdd={handleAddAccount}
             onEdit={handleEditAccount}
+            onArchive={(account, archived) => updateAccount({ id: account.id, archived })}
             onDelete={deleteAccount}
             onReorder={reorderAccounts}
           />
@@ -431,6 +449,12 @@ export default function ConfigurationPage() {
         show={showAddGroupModal}
         group={editingGroup}
         handleClose={() => setShowAddGroupModal(false)}
+      />
+      <DeleteCategoryModal
+        show={deletingBudget != null}
+        budget={deletingBudget}
+        categories={budgets}
+        handleClose={() => setDeletingBudget(null)}
       />
       <AddIncomeSourceModal
         show={showAddIncomeSourceModal}

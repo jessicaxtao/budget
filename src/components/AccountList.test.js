@@ -24,6 +24,7 @@ function renderList(accounts, balanceById, handlers = {}) {
       balanceById={balanceById}
       onAdd={() => {}}
       onEdit={() => {}}
+      onArchive={() => {}}
       onDelete={() => {}}
       {...handlers}
     />
@@ -150,4 +151,33 @@ test("each panel offers its own add button", () => {
   expect(screen.getByRole("button", { name: "Add an on-budget account" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Add a credit card" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Add an off-budget account" })).toBeInTheDocument();
+});
+
+test("an archived account is out of its scope section until Show archived is clicked", () => {
+  const onArchive = jest.fn();
+  renderList(
+    [account({ name: "Everyday" }), account({ name: "Old checking", archived: true })],
+    undefined,
+    { onArchive }
+  );
+
+  expect(within(section("On budget")).queryByText("Old checking")).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Archived" })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Show 1 archived" }));
+
+  const archivedSection = within(section("Archived"));
+  expect(archivedSection.getByText("Old checking")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Unarchive account: Old checking" }));
+  expect(onArchive).toHaveBeenCalledWith(expect.objectContaining({ name: "Old checking" }), false);
+});
+
+test("Archive retires an account without deleting it", () => {
+  const onArchive = jest.fn();
+  renderList([account({ name: "Everyday" })], undefined, { onArchive });
+
+  fireEvent.click(screen.getByRole("button", { name: "Archive account: Everyday" }));
+
+  expect(onArchive).toHaveBeenCalledWith(expect.objectContaining({ name: "Everyday" }), true);
 });

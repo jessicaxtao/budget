@@ -382,11 +382,17 @@ function RegisterRow({
   // select would show its first option instead and the row would appear to have
   // been refiled by simply being looked at.
   const knownBudget = budgets.some((budget) => budget.id === transaction.budgetId);
+  // An archived account is retired rather than deleted — it keeps every
+  // transaction that already names it — so it is left out of what a row is
+  // *offered* on the same terms an off-budget account already is, while
+  // `AccountSelect`'s own "the current value always has an option" rule is
+  // what keeps a row already filed against one showing it correctly.
+  const active = accounts.filter((account) => !account.archived);
   // A transfer may name a holding on either end — it is the one record that may,
   // for the reason `AddTransactionModal` gives. Every other row spends through the
   // budget or it is a legacy record, and neither wants the holdings on offer.
-  const spendable = accounts.filter(spendsThroughBudget);
-  const offered = transfer ? accounts : spendable;
+  const spendable = active.filter(spendsThroughBudget);
+  const offered = transfer ? active : spendable;
   // Only a transfer that leaves the budget comes out of a category; the rest move
   // no plan money and have nothing to file. Same rule as the form, read off the
   // same predicate, so the two screens cannot ask different questions of one row.
@@ -611,7 +617,7 @@ function RegisterRow({
               <AccountSelect
                 value={transaction.toAccountId}
                 label={`Transferred to, for ${label}`}
-                offered={accounts.filter((account) => account.id !== transaction.accountId)}
+                offered={active.filter((account) => account.id !== transaction.accountId)}
                 accounts={accounts}
                 index={index}
                 onChange={(toAccountId) => onCommit(transaction, { toAccountId })}

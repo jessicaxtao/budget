@@ -39,6 +39,10 @@ import useEnvelopes from "./useEnvelopes";
 /** Nothing carried, nothing assigned, nothing moved: nothing to show. */
 const isEmpty = (row) => !row.availableCents && !row.assignedCents && !row.activityCents;
 
+/** The same emptiness, read off a `toRow`-shaped row instead of a raw one —
+ *  `assignedCents` becomes `budgetedCents` on the way through `toRow`. */
+const isQuiet = (row) => !row.availableCents && !row.budgetedCents && !row.activityCents;
+
 function toRow(row, extra) {
   return {
     budgetId: row.budgetId,
@@ -108,10 +112,21 @@ export default function useDashboard(period) {
           .filter((budget) => byId.has(budget.id))
           .map((budget) => {
             claimed.add(budget.id);
-            return toRow(byId.get(budget.id), { bucket: budget.effectiveBucket });
+            return { hidden: budget.hidden === true, row: toRow(byId.get(budget.id), { bucket: budget.effectiveBucket }) };
           });
 
-        return { groupId: section.groupId, name: section.name, rows, totals: sumRows(rows) };
+        // Hidden categories still count in the section's own totals — the sums
+        // never filter on it, only the list below does — but drop out of the
+        // list itself unless there is real money sitting in them, the same
+        // "editable" rule `AssignIncomeModal` keeps for an orphaned or zeroed
+        // row: a hidden category is still visible wherever it still holds or
+        // moved money.
+        const sectionRows = rows.map((entry) => entry.row);
+        const visibleRows = rows
+          .filter((entry) => !entry.hidden || !isQuiet(entry.row))
+          .map((entry) => entry.row);
+
+        return { groupId: section.groupId, name: section.name, rows: visibleRows, totals: sumRows(sectionRows) };
       })
       // An empty heading is worth showing on the page that arranges headings.
       // Here it is a row of dashes.

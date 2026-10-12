@@ -60,6 +60,7 @@ const PAY = {
 function renderRegister({
   transactions = [SPEND, PAY],
   payees = PAYEES,
+  accounts = ACCOUNTS,
   onChange,
   onPayeeChange = () => ({ ok: true }),
   onDelete = () => {},
@@ -71,7 +72,7 @@ function renderRegister({
       period={PERIOD}
       transactions={transactions}
       budgets={BUDGETS}
-      accounts={ACCOUNTS}
+      accounts={accounts}
       payees={payees}
       payeeById={PAYEE_BY_ID}
       onChange={change}
@@ -355,6 +356,21 @@ test("a value the form would not offer keeps an option of its own", () => {
   expect(screen.getByRole("option", { name: "401(k)" })).toBeInTheDocument();
   // Off-budget accounts are still not on offer to a row that does not hold one.
   expect(screen.queryByRole("option", { name: "Uncategorized", selected: false })).toBeNull();
+});
+
+test("an archived account keeps its own rows showing it, but is not offered to any other", () => {
+  renderRegister({
+    transactions: [{ ...SPEND, accountId: "acc1" }],
+    accounts: [
+      { id: "acc1", name: "Old checking", scope: "on-budget", archived: true },
+      { id: "acc2", name: "Everyday", scope: "on-budget" },
+    ],
+  });
+
+  // The row already filed against it keeps showing it — retiring an account
+  // is not deleting it, and the transaction still happened through it.
+  expect(screen.getByLabelText("Account of Trader Joe's")).toHaveValue("acc1");
+  expect(screen.getByRole("option", { name: "Old checking" })).toBeInTheDocument();
 });
 
 test("undated rows get a band of their own and stay out of the month's total", () => {
