@@ -9,7 +9,7 @@ import ToBeAssignedBar from "../components/ToBeAssignedBar";
 import SplitTransactionModal from "../components/SplitTransactionModal";
 import TransactionFilterBar from "../components/TransactionFilterBar";
 import TransactionRegister from "../components/TransactionRegister";
-import { useAccounts } from "../contexts/AccountsContext";
+import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { useSavedFilters } from "../contexts/SavedFiltersContext";
@@ -432,7 +432,10 @@ export default function TransactionsPage() {
           count={selected.size}
           shownCount={rows.length}
           budgets={budgets}
-          accounts={accounts}
+          // The accounts a row's own cell would offer, which is not the list the
+          // filter bar above gets: filtering *to* a holding is a real thing to
+          // want, and moving an ordinary expense onto one is not.
+          accounts={accounts.filter(spendsThroughBudget)}
           onRefile={(budgetId) => report(refile(budgetId))}
           onMove={(accountId) => report(moveTo(accountId))}
           onTag={(typed) => report(tagWith(withTag, typed, "is now on"))}

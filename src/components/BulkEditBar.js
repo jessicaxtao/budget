@@ -17,6 +17,11 @@ import Button from "./Button";
  * corrections, and doing either to a selection is far more likely to be a
  * mistake than an intention.
  *
+ * **The accounts it offers are the ones the budget spends through**, which is
+ * the same list a single row's Account cell offers and for the same reason:
+ * nobody logs each tick of a 401(k), and the one record that may name a holding
+ * is a transfer, whose two ends are a pair that has to be answered together.
+ *
  * **The two selects commit on change** and go straight back to their prompt,
  * which is the app's rule for a control with nothing to half-type — and the right
  * one here for a second reason: the select is not reporting a state of the
@@ -72,13 +77,11 @@ export default function BulkEditBar({
         <span className="font-mono text-label uppercase text-chalk">
           {count} of {shownCount} selected
         </span>
-        {/* The two selects and the Remove button name the count in their own
-            accessible names, so the number is said where the action is rather
-            than only once at the start of the row. */}
-
         {/* Named by `aria-label` and not by a `<label>`: the prompt inside the
             select already says what it does on screen, and a visible label
-            beside it would be the same words twice. */}
+            beside it would be the same words twice. Each names the count too,
+            so how many rows an action is about is said where the action is
+            rather than only once at the start of the row. */}
         <select
           value=""
           aria-label={`Refile ${chosen} into a category`}
