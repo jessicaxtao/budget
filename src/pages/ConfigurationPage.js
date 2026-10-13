@@ -6,6 +6,7 @@ import AddGroupModal from "../components/AddGroupModal";
 import AddIncomeSourceModal from "../components/AddIncomeSourceModal";
 import AssignIncomeModal from "../components/AssignIncomeModal";
 import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
+import BooksEncryptionPanel from "../components/BooksEncryptionPanel";
 import BooksFilePanel from "../components/BooksFilePanel";
 import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
@@ -438,6 +439,14 @@ export default function ConfigurationPage() {
           dies", and that question has to be answerable from inside the app. */}
       <div className="mt-4">
         <BooksFilePanel />
+      </div>
+
+      {/* Beside the panel above and closed the same way. It renders nothing
+          on a build with no account server to seal anything for — see the
+          panel's own doc comment — so it costs nothing to mount
+          unconditionally here. */}
+      <div className="mt-4">
+        <BooksEncryptionPanel />
       </div>
 
       <AddBudgetModal

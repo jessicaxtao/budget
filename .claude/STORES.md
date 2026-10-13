@@ -213,7 +213,9 @@ Giving, in four keys and **no money**: `donationRecipients` (the organizations),
 
 ### Receipts
 
-**A gift can carry the charity's letter as a file**: `receipt` on the donation is `null` or a description `{ id, name, type, sizeBytes, addedOn, storedIn }` — never the bytes, since every store is one JSON document pushed whole on each write.
+**A gift can carry the charity's letter as a file**: `receipt` on the donation is `null` or a description `{ id, name, type, sizeBytes, addedOn, storedIn, sealed }` — never the bytes, since every store is one JSON document pushed whole on each write.
+
+- **`sealed`** is `true` only for a receipt encrypted under the account's master key before it was uploaded — `storedIn: "account"` and attached after the household's books turned encryption on. It is **absent**, not `false`, on a receipt attached before encryption existed (the server still holds that file in the clear until it is re-attached) and on the `computer` / `browser` media, which are never sealed because those bytes never leave the household's own machine in the first place. `readReceipt` decrypts when `sealed` is true and takes an unsealed file as-is, the same stance `SyncContext`'s hydrate takes on a plaintext `app_state` row.
 
 `src/receipts.js` holds the files, **where the books are**: signed in, the private `receipts` Supabase Storage bucket under `<uid>/<id>.<ext>` (the first path segment is the bucket's whole RLS policy, in `supabase/schema.sql` — rerun it); local in the shell, `receipts/` beside the books file through the bridge; local in a browser, IndexedDB (memory where there is none, as in jsdom). `storedIn` names which, because a receipt does **not** travel when the household changes mode (signing in after a trial, stopping sync) or in a books export, and reading one kept elsewhere says where it is instead of failing blank.
 

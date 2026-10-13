@@ -119,6 +119,25 @@ export const LEGACY_KEYS = ["expenses", "income", "budgetPlans", "retirementAssu
 export const PENDING_SYNC_KEY = "pendingSync";
 
 /**
+ * Where this device's unlocked books key is cached between page loads.
+ *
+ * It exists so that unlocking is a once-per-device thing rather than a
+ * once-per-page-load thing: without it, every reload would ask the books
+ * password again, which is exactly the friction a cache is for.
+ *
+ * **Absent from `STORE_KEYS` for `PENDING_SYNC_KEY`'s exact reason, and added
+ * to `clearScope`'s loop beside it**: this is not one of the books, but it is
+ * what opens them, so it leaves with the session the same way the outbox
+ * does. It is also kept out of `hasStoredBooks`, `snapshotScope` and
+ * `replaceScope` on purpose — it is not a document, it must never travel in
+ * an export or a restore, and it must never reach the server. Caching the raw
+ * key bytes here costs nothing beyond what is already true: this scope
+ * already holds a plaintext cache of the very books the key opens, so the key
+ * adds no exposure a reader of this browser's storage did not already have.
+ */
+export const BOOKS_KEY_CACHE_KEY = "booksKey";
+
+/**
  * The scope a trial runs in — someone using the app without an account.
  *
  * A scope of its own, and **not** the unscoped bare keys, which is the whole
@@ -496,9 +515,11 @@ export function replaceScope(userId, snapshot) {
  * Never touches the unscoped keys — those are the browser's own local books and
  * do not belong to any session.
  *
- * **The outbox goes too.** It is not one of the books, but it holds a copy of
- * them — see `PENDING_SYNC_KEY`. The rule this function enforces is "no book
- * content survives the session", which is not the same list as `STORE_KEYS`.
+ * **The outbox goes too, and so does the cached books key.** Neither is one
+ * of the books, but the outbox holds a copy of them — see `PENDING_SYNC_KEY`
+ * — and the key is what opens them — see `BOOKS_KEY_CACHE_KEY`. The rule this
+ * function enforces is "no book content, and nothing that unlocks it,
+ * survives the session", which is not the same list as `STORE_KEYS`.
  * `importDecision` is deliberately *not* cleared: it holds a timestamp and no
  * content, and dropping it would re-offer the import to someone who already
  * answered "start fresh" on an account that is still empty.
@@ -508,7 +529,9 @@ export function clearScope(userId) {
   const previous = scope;
   setStorageScope(userId);
   try {
-    for (const key of [...STORE_KEYS, ...LEGACY_KEYS, PENDING_SYNC_KEY]) removeKey(key);
+    for (const key of [...STORE_KEYS, ...LEGACY_KEYS, PENDING_SYNC_KEY, BOOKS_KEY_CACHE_KEY]) {
+      removeKey(key);
+    }
   } finally {
     setStorageScope(previous);
   }

@@ -156,9 +156,14 @@ export function booksFilename({ at = new Date(), suffix = "" } = {}) {
  * The object URL is revoked, because this can run several times in a session —
  * an archive and then an export — and each one otherwise pins its whole blob in
  * memory for the life of the document.
+ *
+ * `type` defaults to the books' own, since every caller but one is handing over
+ * books. The exception is the recovery code, which is a line of text and would
+ * be a lie as `application/json` — the extension is what decides where the file
+ * lands, but the type is what the browser believes it is holding.
  */
-export function downloadFile(filename, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+export function downloadFile(filename, text, type = "application/json") {
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -171,12 +176,18 @@ export function downloadFile(filename, text) {
 /**
  * Hand the user a file, by whichever door this build has.
  *
- * Two doors, one function, because three places need to write a file and all
- * three have to behave the same: the export, the archive taken before a
- * restore, and the archive taken before "stop syncing" replaces the local
- * books. In the shell it is a real save dialog, so the household picks where
- * their books land; in a browser it is a download, which is the only door
- * there is.
+ * Two doors, one function, because four places need to write a file and all
+ * four have to behave the same: the export, the archive taken before a
+ * restore, the archive taken before "stop syncing" replaces the local books,
+ * and the recovery code offered once at set-up. In the shell it is a real save
+ * dialog, so the household picks where their books land; in a browser it is a
+ * download, which is the only door there is.
+ *
+ * **The recovery code goes through here rather than its own `<a download>`
+ * precisely because of the shell**: the packaged app is served over `app://`,
+ * where a browser download is the weaker path and a save dialog is the one the
+ * household can actually act on. It is also the one file here that is not the
+ * books, which is why `type` is a parameter now.
  *
  * **Cancelling is reported apart from failing**, and the distinction is the
  * whole reason this returns a shape rather than a boolean. Dismissing a save
@@ -185,7 +196,7 @@ export function downloadFile(filename, text) {
  * the operation it was protecting: a restore whose archive was cancelled must
  * not go on to overwrite the books it just failed to copy.
  */
-export async function offerFile(filename, text) {
+export async function offerFile(filename, text, type = "application/json") {
   const saved = await saveFile(filename, text);
 
   if (saved.ok) return { ok: true, path: saved.path };
@@ -194,7 +205,7 @@ export async function offerFile(filename, text) {
 
   // No shell: the browser's own download is the only way to hand over a file.
   try {
-    downloadFile(filename, text);
+    downloadFile(filename, text, type);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: String(error?.message ?? error) };

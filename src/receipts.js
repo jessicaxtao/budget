@@ -8,6 +8,8 @@ import {
   removeReceiptFile,
 } from "./desktop";
 import { todayISO } from "./utils";
+import { getBooksKey } from "./booksKey";
+import { encryptBytes, decryptBytes } from "./booksCrypto";
 
 /**
  * Receipts — the charity's written acknowledgment of a gift — as files.
@@ -36,6 +38,17 @@ import { todayISO } from "./utils";
  * — sign in after a trial, or stop syncing on the desktop — and a receipt does
  * not travel with the books when it does. Asked for one that lives elsewhere,
  * this says where it is rather than failing with nothing to say.
+ *
+ * **This is a second, independent door to the server, and it is sealed the
+ * same way the first one is.** A receipt filed under `ACCOUNT` carries the
+ * charity's name, the amount, the date and usually the household's own name
+ * and address — exactly what `SyncContext`'s envelope encryption exists to
+ * keep off the server. `saveReceipt` encrypts the bytes under the books key
+ * (`booksKey.js`) before upload and marks the record `sealed: true`;
+ * `readReceipt` decrypts after download when the record says so. A receipt
+ * filed under `COMPUTER` or `BROWSER` is never sealed — those bytes never
+ * leave the device, so there is nothing to protect and sealing them would
+ * only break opening the file locally.
  */
 
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
@@ -83,7 +96,12 @@ export function checkReceiptFile(file) {
   return null;
 }
 
-/** A description of a stored receipt is well formed. Used by the store's migration. */
+/**
+ * A description of a stored receipt is well formed. Used by the store's
+ * migration. Deliberately does not require `sealed` — it is new and
+ * optional, so a receipt attached before encryption existed still passes
+ * this check unchanged.
+ */
 export function isReceipt(value) {
   return (
     value != null &&
@@ -108,8 +126,37 @@ function elsewhere(receipt) {
   };
 }
 
+// Unchanged even for a sealed receipt, deliberately: the real extension on a
+// file of ciphertext is a small lie, and the right trade. Changing it would
+// strand every receipt already uploaded under the honest one, to hide a
+// media type the server can infer anyway from the record's own `sizeBytes`.
+// Neither path segment is a filename — the first is the user id Storage's
+// own policy already checks, the second a UUID — so nothing here names what
+// the bytes are regardless of the extension on the end.
 function accountPath(receipt) {
   return `${getStorageScope()}/${receipt.id}.${RECEIPT_TYPES[receipt.type]}`;
+}
+
+/**
+ * A `File` or `Blob`'s bytes, for the account medium's encrypt-before-upload
+ * and decrypt-after-download. Not `blob.arrayBuffer()` directly: that method
+ * is on every real browser's and Electron's `Blob`, but jsdom 16 (bundled
+ * with react-scripts 5, and the only environment the test suite has) does
+ * not implement it on the `File`/`Blob` it polyfills, so this falls back to
+ * `FileReader`, which jsdom does implement and which real browsers have kept
+ * around for exactly this reason. Both paths read the same bytes; this only
+ * picks whichever one the environment actually has.
+ */
+function readBytes(blob) {
+  if (typeof blob.arrayBuffer === "function") {
+    return blob.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("The file could not be read."));
+    reader.readAsArrayBuffer(blob);
+  });
 }
 
 function failure(error) {
@@ -189,15 +236,38 @@ export async function saveReceipt(file) {
 
   try {
     if (receipt.storedIn === RECEIPT_MEDIA.ACCOUNT) {
+      // This is the second door to the server (see the module comment at
+      // the top of the file): a donation receipt carries the charity's
+      // name, the amount, the date and usually the household's own name and
+      // address, so it is sealed exactly as a document going through
+      // SyncContext is. Sealing is not best-effort — with no key on this
+      // device there is no fallback upload in the clear, only a refusal.
+      const key = getBooksKey();
+      if (!key) return failure("your books are locked — unlock them before attaching a receipt");
+
+      const plainBytes = await readBytes(file);
+      const sealed = await encryptBytes(key.mk, key.kid, plainBytes);
+      if (!sealed.ok) return failure(sealed.error);
+
       const { error } = await getSupabase()
         .storage.from(BUCKET)
-        .upload(accountPath(receipt), file, { contentType: file.type, upsert: false });
+        .upload(accountPath(receipt), sealed.bytes, {
+          contentType: "application/octet-stream",
+          upsert: false,
+        });
       if (error) return failure(error);
+      receipt.sealed = true;
     } else if (receipt.storedIn === RECEIPT_MEDIA.COMPUTER) {
+      // Unsealed, on purpose: these bytes are already on the household's
+      // own machine, so encrypting them buys nothing, and it would break
+      // `openReceiptFile`, which hands the file straight to whatever the
+      // household opens a PDF or a photo with.
       const bytes = new Uint8Array(await file.arrayBuffer());
       const result = await putReceiptFile(receipt.id, RECEIPT_TYPES[file.type], bytes);
       if (!result.ok) return failure(result.error ?? "the file could not be written");
     } else {
+      // Unsealed for the same reason as COMPUTER above: this browser's own
+      // IndexedDB never leaves the device either.
       await browserStore.put(receipt.id, file);
     }
   } catch (error) {
@@ -213,7 +283,20 @@ export async function readReceipt(receipt) {
     if (receipt.storedIn === RECEIPT_MEDIA.ACCOUNT) {
       const { data, error } = await getSupabase().storage.from(BUCKET).download(accountPath(receipt));
       if (error || !data) return { ok: false, error: "The receipt could not be found." };
-      return { ok: true, blob: data };
+      // Take an unsealed receipt — one uploaded before this change existed
+      // — as-is, the same stance `SyncContext`'s hydrate takes on a
+      // plaintext row: one rule for "the server's copy predates
+      // encryption", in both doors.
+      if (!receipt.sealed) return { ok: true, blob: data };
+
+      const key = getBooksKey();
+      if (!key) {
+        return { ok: false, error: "This receipt is sealed — unlock your books to open it." };
+      }
+      const cipherBytes = await readBytes(data);
+      const opened = await decryptBytes(key.mk, cipherBytes);
+      if (!opened.ok) return { ok: false, error: opened.error };
+      return { ok: true, blob: new Blob([opened.bytes], { type: receipt.type }) };
     }
     if (receipt.storedIn === RECEIPT_MEDIA.BROWSER) {
       const blob = await browserStore.get(receipt.id);
