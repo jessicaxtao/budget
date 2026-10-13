@@ -42,8 +42,31 @@ test("adding a balance stores it and values it at the catalog's figure", () => {
     { id: expect.any(String), programId: "united", holder: "Alex", points: 80000, asOf: expect.any(String) },
   ]);
   // 80,000 × 1.30¢.
-  expect(tile("All points and miles")).toHaveTextContent("$1,040");
+  expect(tile("All rewards")).toHaveTextContent("$1,040");
   expect(tile("Airline miles")).toHaveTextContent("$1,040");
+});
+
+test("a cash-back balance is typed as money, not points, and is never asked for a valuation", () => {
+  renderPage();
+
+  fireEvent.click(screen.getByRole("button", { name: "Add balance" }));
+  fireEvent.change(screen.getByLabelText("Program"), { target: { value: "cashback" } });
+  fireEvent.change(screen.getByLabelText("Balance"), { target: { value: "$42.17" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+  expect(stored("rewardsBalances")).toEqual([
+    { id: expect.any(String), programId: "cashback", holder: null, points: 4217, asOf: expect.any(String) },
+  ]);
+  expect(tile("All rewards")).toHaveTextContent("$42.17");
+  expect(tile("Cash back")).toHaveTextContent("$42.17");
+  // Not a judgement call, so it never gets a row in "what a point is worth".
+  expect(screen.queryByRole("textbox", { name: /your value for cash back/i })).toBeNull();
+
+  const field = screen.getByRole("textbox", { name: "Cash back balance" });
+  fireEvent.change(field, { target: { value: "$50" } });
+  fireEvent.blur(field);
+  expect(stored("rewardsBalances")[0].points).toBe(5000);
+  expect(tile("Cash back")).toHaveTextContent("$50");
 });
 
 test("a typed valuation moves every figure that reads it, and blank puts the catalog's back", () => {
@@ -52,20 +75,20 @@ test("a typed valuation moves every figure that reads it, and blank puts the cat
     JSON.stringify([{ id: "b1", programId: "united", holder: null, points: 100000, asOf: null }])
   );
   renderPage();
-  expect(tile("All points and miles")).toHaveTextContent("$1,300");
+  expect(tile("All rewards")).toHaveTextContent("$1,300");
 
   const field = screen.getByRole("textbox", { name: /your value for united/i });
   fireEvent.change(field, { target: { value: "1.1" } });
   fireEvent.blur(field);
 
   expect(stored("rewardsValuations")).toEqual({ united: 110 });
-  expect(tile("All points and miles")).toHaveTextContent("$1,100");
+  expect(tile("All rewards")).toHaveTextContent("$1,100");
 
   const again = screen.getByRole("textbox", { name: /your value for united/i });
   fireEvent.change(again, { target: { value: "" } });
   fireEvent.blur(again);
   expect(stored("rewardsValuations")).toEqual({});
-  expect(tile("All points and miles")).toHaveTextContent("$1,300");
+  expect(tile("All rewards")).toHaveTextContent("$1,300");
 });
 
 test("a refused valuation is said out loud and changes nothing", () => {

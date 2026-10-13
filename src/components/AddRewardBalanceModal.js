@@ -4,8 +4,8 @@ import Field, { SelectField } from "./Field";
 import Button from "./Button";
 import ProgramOptions from "./ProgramOptions";
 import { useRewards } from "../contexts/RewardsContext";
-import { CATALOG } from "../rewards";
-import { todayISO } from "../utils";
+import { CATALOG, isCashProgram } from "../rewards";
+import { amountEditing, todayISO } from "../utils";
 
 /**
  * A points or miles balance — one program, one person — or an edit of one.
@@ -14,6 +14,12 @@ import { todayISO } from "../utils";
  * and re-seeded on open, the contract every add-modal in the app keeps. The
  * points field is text rather than a number input so "125,000" is taken as
  * written, the way a statement prints it.
+ *
+ * **"Cash back" is tracked in the same field, but it is money, not points** —
+ * an issuer's own unredeemed balance, read and written like every other
+ * money figure rather than a point count. `cash` mirrors which the selected
+ * program is, the way `AddOfferModal` mirrors its kind select, so the one
+ * field can swap what it asks for without becoming two fields.
  */
 export default function AddRewardBalanceModal({ show, balance, handleClose }) {
   const formRef = useRef();
@@ -21,6 +27,7 @@ export default function AddRewardBalanceModal({ show, balance, handleClose }) {
   const holderRef = useRef();
   const pointsRef = useRef();
   const asOfRef = useRef();
+  const [cash, setCash] = useState(false);
   const [error, setError] = useState(null);
 
   const { addBalance, updateBalance } = useRewards();
@@ -30,9 +37,15 @@ export default function AddRewardBalanceModal({ show, balance, handleClose }) {
     if (!show) return;
     formRef.current.reset();
     setError(null);
-    programRef.current.value = balance?.programId ?? CATALOG[0].id;
+    const programId = balance?.programId ?? CATALOG[0].id;
+    programRef.current.value = programId;
+    setCash(isCashProgram(programId));
     holderRef.current.value = balance?.holder ?? "";
-    pointsRef.current.value = balance ? String(balance.points) : "";
+    pointsRef.current.value = balance
+      ? isCashProgram(programId)
+        ? amountEditing(balance.points)
+        : String(balance.points)
+      : "";
     asOfRef.current.value = balance ? balance.asOf ?? "" : todayISO();
   }, [show, balance]);
 
@@ -56,13 +69,29 @@ export default function AddRewardBalanceModal({ show, balance, handleClose }) {
     <Dialog
       show={show}
       handleClose={handleClose}
-      title={editing ? "Edit points balance" : "New points balance"}
+      title={editing ? "Edit balance" : "New balance"}
     >
       <form ref={formRef} onSubmit={handleSubmit}>
-        <SelectField label="Program" selectRef={programRef} defaultValue={CATALOG[0].id}>
+        <SelectField
+          label="Program"
+          selectRef={programRef}
+          defaultValue={CATALOG[0].id}
+          onChange={(event) => setCash(isCashProgram(event.target.value))}
+        >
           <ProgramOptions />
         </SelectField>
-        <Field label="Points or miles" inputRef={pointsRef} type="text" inputMode="numeric" required />
+        {cash ? (
+          <Field
+            label="Balance"
+            inputRef={pointsRef}
+            type="text"
+            inputMode="decimal"
+            placeholder="$0.00"
+            required
+          />
+        ) : (
+          <Field label="Points or miles" inputRef={pointsRef} type="text" inputMode="numeric" required />
+        )}
         <Field label="Whose (optional)" inputRef={holderRef} type="text" placeholder="e.g. Alex" />
         <Field label="Balance as of" inputRef={asOfRef} type="date" />
         {error && (

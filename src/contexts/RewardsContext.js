@@ -7,6 +7,7 @@ import {
   OFFER_KINDS,
   OFFER_KINDS_NEEDING_END,
   PROGRESS_SOURCES,
+  isCashProgram,
   programById,
   toPoints,
   toPointsPer100Dollars,
@@ -24,11 +25,19 @@ import {
  *
  *   - `rewardsBalances` — `{ id, programId, holder, points, asOf }`, one per
  *     program per person, since two cardholders in one household each have an
- *     account with the same airline. `holder` is optional free text.
+ *     account with the same airline. `holder` is optional free text. One
+ *     program in the catalog, `"cashback"`, is not points at all — an
+ *     issuer's own unredeemed cash-back balance, kept here for the same
+ *     reason a mileage balance is (not yet money) and read by `points` the
+ *     same way everywhere else, holding cents rather than a point count.
+ *     **Not** the same figure as a card's `cashbackBps`, which has already
+ *     posted as a refund in the ledger (`src/cashback.js`) — this is what the
+ *     issuer still owes, that is what the household already has.
  *   - `rewardsValuations` — `{ [programId]: valuePer100Cents }`, the household's
  *     own figure where it disagrees with the catalog. Absent is the catalog's
  *     figure, so a blank field puts it back rather than storing a copy that
- *     would stop following the catalog.
+ *     would stop following the catalog. Refused outright for `"cashback"`,
+ *     the one program whose value is not a judgement call.
  *   - `rewardsTrips` — `{ id, name, date, programId, points, taxesCents,
  *     cashPriceCents }`, a redemption being planned: what it costs in points and
  *     cash, and what the same trip would cost paid outright.
@@ -104,7 +113,11 @@ function migrateValuations(stored) {
   const valuations = {};
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return valuations;
   for (const [programId, value] of Object.entries(stored)) {
-    if (known(programId) && Number.isInteger(value) && value >= 0) valuations[programId] = value;
+    // Cash is never overridden — a dollar is always a dollar — so a stored
+    // one here is from a build that let it slip through, and is dropped.
+    if (known(programId) && !isCashProgram(programId) && Number.isInteger(value) && value >= 0) {
+      valuations[programId] = value;
+    }
   }
   return valuations;
 }
@@ -219,8 +232,18 @@ function readMoney(value, { blank, label }) {
 
 function parseBalance({ programId, holder, points, asOf }) {
   if (!known(programId)) return { ok: false, error: "Choose a program from the list." };
-  const parsed = toPoints(points);
-  if (parsed == null) return { ok: false, error: "Enter the balance as a whole number of points." };
+  // Cash's "points" are cents — the one program whose balance is money
+  // already, typed and read back the way every other money field is.
+  const cash = isCashProgram(programId);
+  const parsed = cash ? toCents(points) : toPoints(points);
+  if (parsed == null) {
+    return {
+      ok: false,
+      error: cash
+        ? "Enter the balance as an amount, like $42.50."
+        : "Enter the balance as a whole number of points.",
+    };
+  }
   const date = asOf || null;
   if (date !== null && !isValidISODate(date)) {
     return { ok: false, error: "Enter a valid date, or leave it blank." };
@@ -497,6 +520,9 @@ export const RewardsProvider = ({ children }) => {
   const setValuation = useCallback(
     ({ programId, value }) => {
       if (!known(programId)) return { ok: false, error: "That program is not in the catalog." };
+      if (isCashProgram(programId)) {
+        return { ok: false, error: "Cash back is always worth its face value." };
+      }
       if (isBlank(value)) {
         setValuations((previous) => {
           const { [programId]: _dropped, ...rest } = previous;

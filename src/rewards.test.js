@@ -8,6 +8,7 @@ import {
   earnBps,
   feeYearWindow,
   formatMultiplier,
+  isCashProgram,
   offerOverlaps,
   PROGRESS_SOURCES,
   rankCardsFor,
@@ -155,7 +156,23 @@ describe("redemptions", () => {
       ["hilton", 100000, 50000],
     ]);
     expect(summary.totalValueCents).toBe(155000);
-    expect(summary.valueByKind).toEqual({ bank: 0, airline: 105000, hotel: 50000, rail: 0 });
+    expect(summary.valueByKind).toEqual({ bank: 0, airline: 105000, hotel: 50000, rail: 0, cash: 0 });
+  });
+
+  test("a cash-back balance is dollars already, not points waiting on a valuation", () => {
+    expect(isCashProgram("cashback")).toBe(true);
+    expect(isCashProgram("united")).toBe(false);
+    // $42.17, stored as cents in the same `points` field everything else reads.
+    expect(resolvedValuePer100Cents("cashback", { cashback: 9999 })).toBe(100);
+
+    const summary = summariseRewards({
+      balances: [balance("b1", "cashback", 4217), balance("b2", "united", 50000)],
+      valuations: { cashback: 9999 },
+    });
+    expect(summary.valueByKind.cash).toBe(4217);
+    expect(summary.totalValueCents).toBe(4217 + 65000);
+    // The point count is real points only — cash's cents are not added in.
+    expect(summary.totalPoints).toBe(50000);
   });
 });
 

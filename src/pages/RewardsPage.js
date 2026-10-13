@@ -15,14 +15,16 @@ import {
   PROGRAM_KIND_LABELS,
   PROGRAM_KIND_ORDER,
   OFFER_STATUS,
+  VALUATION_KIND_ORDER,
   formatPointValue,
+  isCashProgram,
   nextOfferWindow,
   programById,
   summariseRewards,
   toPoints,
   valueOfPointsCents,
 } from "../rewards";
-import { formatBps, formatCents, formatDateMedium, todayISO } from "../utils";
+import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium, todayISO } from "../utils";
 
 /**
  * Credit card rewards and the trips they are for.
@@ -37,7 +39,11 @@ import { formatBps, formatCents, formatDateMedium, todayISO } from "../utils";
  * **Nothing here touches the books.** Points are not money until they are
  * redeemed, and a valuation is a judgement — so this page has no month on it,
  * no envelope reads it, and net worth does not count it. The `RetirementContext`
- * split: a store of guesses, read by one page.
+ * split: a store of guesses, read by one page. A balance can also be plain
+ * cash back an issuer has not paid out yet — the one program (`"cashback"`)
+ * exempt from valuation, since a dollar held is already worth exactly a
+ * dollar and asking the household to say so again would be asking a
+ * question with one answer.
  *
  * **What the cards do leads the page, ahead of what the points are worth**,
  * because that is the part of it that changes what the household does this
@@ -147,6 +153,7 @@ function BalancesTable({ balances, valuations, resolve, onPoints, onEdit, onDele
               ...inKind.map(({ balance, program }, index) => {
                 const per100 = resolve(program.id);
                 const label = balance.holder ? `${program.name} (${balance.holder})` : program.name;
+                const cash = isCashProgram(program.id);
                 return (
                   <tr key={balance.id} className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
                     <th scope="row" className="px-3 py-2 text-left font-sans text-row font-normal text-ink">
@@ -157,28 +164,53 @@ function BalancesTable({ balances, valuations, resolve, onPoints, onEdit, onDele
                           .join(" · ")}
                       </div>
                     </th>
-                    <td data-label="Points" className={numberCell}>
-                      <input
-                        key={`points-${balance.id}-${balance.points}`}
-                        type="text"
-                        inputMode="numeric"
-                        aria-label={`${label} points`}
-                        defaultValue={formatPoints(balance.points)}
-                        className={inlineInput}
-                        onFocus={(event) => event.target.select()}
-                        onBlur={(event) => {
-                          const typed = event.target.value;
-                          if (toPoints(typed) === balance.points) {
-                            event.target.value = formatPoints(balance.points);
-                            return;
-                          }
-                          onPoints(balance, typed);
-                        }}
-                      />
+                    <td data-label={cash ? "Balance" : "Points"} className={numberCell}>
+                      {cash ? (
+                        <input
+                          key={`points-${balance.id}-${balance.points}`}
+                          type="text"
+                          inputMode="decimal"
+                          aria-label={`${label} balance`}
+                          defaultValue={amountAtRest(balance.points)}
+                          className={inlineInput}
+                          onFocus={(event) => {
+                            event.target.value = amountEditing(balance.points);
+                            event.target.select();
+                          }}
+                          onBlur={(event) => {
+                            const typed = event.target.value;
+                            if (typed.trim() === amountEditing(balance.points)) {
+                              event.target.value = amountAtRest(balance.points);
+                              return;
+                            }
+                            onPoints(balance, typed);
+                          }}
+                        />
+                      ) : (
+                        <input
+                          key={`points-${balance.id}-${balance.points}`}
+                          type="text"
+                          inputMode="numeric"
+                          aria-label={`${label} points`}
+                          defaultValue={formatPoints(balance.points)}
+                          className={inlineInput}
+                          onFocus={(event) => event.target.select()}
+                          onBlur={(event) => {
+                            const typed = event.target.value;
+                            if (toPoints(typed) === balance.points) {
+                              event.target.value = formatPoints(balance.points);
+                              return;
+                            }
+                            onPoints(balance, typed);
+                          }}
+                        />
+                      )}
                     </td>
                     <td data-label="Per point" className={`${numberCell} text-ink-soft`}>
-                      {formatPointValue(per100)}
-                      {valuations[program.id] != null && (
+                      {/* A dollar's "per point" is always exactly a cent — not
+                          an interesting figure, so it is not said twice. */}
+                      {cash ? "—" : formatPointValue(per100)}
+                      {!cash && valuations[program.id] != null && (
                         <span className="sr-only"> (your value)</span>
                       )}
                     </td>
@@ -216,7 +248,11 @@ function BalancesTable({ balances, valuations, resolve, onPoints, onEdit, onDele
   );
 }
 
-/** Every program in the catalog, its starting value, and the household's own. */
+/**
+ * Every program in the catalog, its starting value, and the household's own —
+ * except cash back, which has nothing to say here: `VALUATION_KIND_ORDER`
+ * leaves it out, since a dollar's value is not a question this table asks.
+ */
 function ValuationsTable({ valuations, heldPoints, onValue }) {
   return (
     <div className="relative scroll-x">
@@ -241,7 +277,7 @@ function ValuationsTable({ valuations, heldPoints, onValue }) {
           </tr>
         </thead>
         <tbody>
-          {PROGRAM_KIND_ORDER.flatMap((kind) => [
+          {VALUATION_KIND_ORDER.flatMap((kind) => [
             <tr key={`kind-${kind}`} className="bg-band">
               <th
                 scope="rowgroup"
@@ -608,12 +644,12 @@ export default function RewardsPage() {
       />
 
       <div className="space-y-6">
-        <section aria-label="What your points are worth" className="overflow-hidden border border-edge">
-          {/* The total takes two columns so the four kinds divide the rest
-              evenly — a fifth kind arriving must not leave a ragged row. */}
-          <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-6">
+        <section aria-label="What your rewards are worth" className="overflow-hidden border border-edge">
+          {/* The total takes two columns so the five kinds divide the rest
+              evenly — a sixth kind arriving must not leave a ragged row. */}
+          <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-7">
             <Tile
-              label="All points and miles"
+              label="All rewards"
               span="sm:col-span-2"
               cents={summary.totalValueCents}
               note={`${formatPoints(summary.totalPoints)} across ${summary.programs.length} ${
@@ -733,8 +769,9 @@ export default function RewardsPage() {
         <Panel id="rewards-balances" title="Balances">
           {balances.length === 0 ? (
             <p className="px-4 py-5 font-sans text-row text-chalk-soft">
-              No balances yet. Add each card, airline and hotel program you hold — one per person
-              if two of you earn separately.
+              No balances yet. Add each card, airline and hotel program you hold, or a cash-back
+              balance your issuer hasn't paid out yet — one per person if two of you earn
+              separately.
             </p>
           ) : (
             <BalancesTable

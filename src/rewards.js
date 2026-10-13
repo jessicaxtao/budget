@@ -31,6 +31,14 @@ export const PROGRAM_KINDS = {
   AIRLINE: "airline",
   HOTEL: "hotel",
   RAIL: "rail",
+  // Not a points program at all — an issuer's own redeemable cash-back
+  // balance, sitting with them until the household cashes it in. It is
+  // tracked the same way a mileage balance is (held, not yet money) and for
+  // the same reason: a balance here is a judgement call away from a dollar,
+  // while a card's `cashbackBps` posts the dollar itself, immediately, as a
+  // refund beside the purchase (`src/cashback.js`). The two are never the
+  // same figure twice over.
+  CASH: "cash",
 };
 
 export const PROGRAM_KIND_ORDER = [
@@ -38,13 +46,18 @@ export const PROGRAM_KIND_ORDER = [
   PROGRAM_KINDS.AIRLINE,
   PROGRAM_KINDS.HOTEL,
   PROGRAM_KINDS.RAIL,
+  PROGRAM_KINDS.CASH,
 ];
+
+/** Every kind but the one whose value is not a judgement call — see `VALUATION_KIND_ORDER`. */
+export const VALUATION_KIND_ORDER = PROGRAM_KIND_ORDER.filter((kind) => kind !== PROGRAM_KINDS.CASH);
 
 export const PROGRAM_KIND_LABELS = {
   [PROGRAM_KINDS.BANK]: "Card points",
   [PROGRAM_KINDS.AIRLINE]: "Airline miles",
   [PROGRAM_KINDS.HOTEL]: "Hotel points",
   [PROGRAM_KINDS.RAIL]: "Rail points",
+  [PROGRAM_KINDS.CASH]: "Cash back",
 };
 
 const one = (to) => ({ to, ratio: [1, 1] });
@@ -85,7 +98,24 @@ const bank = (id, name, valuePer100Cents, transfers) => ({
   transfers,
 });
 
+/**
+ * A dollar is always a dollar — `valuePer100Cents` is fixed at 100 (one point
+ * is one cent) rather than a figure the household could override, the one
+ * entry in the catalog that is not a judgement call. `setValuation` refuses
+ * any attempt to override it, and `VALUATION_KIND_ORDER` leaves it off "what a
+ * point is worth" entirely, so nothing invites typing one.
+ */
+const cash = (id, name) => ({
+  id,
+  name,
+  kind: PROGRAM_KINDS.CASH,
+  unit: "dollars",
+  valuePer100Cents: 100,
+  transfers: [],
+});
+
 export const CATALOG = [
+  cash("cashback", "Cash back"),
   bank("chase-ur", "Chase Ultimate Rewards", 170, [
     one("united"),
     one("southwest"),
@@ -181,11 +211,24 @@ export function programById(id) {
   return BY_ID.get(id) ?? null;
 }
 
-/** What one point of `programId` is worth: the household's figure, else the catalog's. */
+/** Whether a balance in this program is a dollar figure rather than points. */
+export function isCashProgram(programId) {
+  return programById(programId)?.kind === PROGRAM_KINDS.CASH;
+}
+
+/**
+ * What one point of `programId` is worth: the household's figure, else the
+ * catalog's. Cash back is never overridden, even by a stray value that
+ * reached storage some other way — a dollar's worth is not a question
+ * `rewardsValuations` gets to answer, so this is the one place that holds
+ * whether or not the store upstream already refused to write one.
+ */
 export function resolvedValuePer100Cents(programId, valuations = {}) {
+  const catalogValue = programById(programId)?.valuePer100Cents ?? 0;
+  if (isCashProgram(programId)) return catalogValue;
   const override = valuations[programId];
   if (Number.isInteger(override) && override >= 0) return override;
-  return programById(programId)?.valuePer100Cents ?? 0;
+  return catalogValue;
 }
 
 /** A balance in dollars, rounded once at the end rather than per point. */
@@ -346,7 +389,12 @@ export function summariseRewards({ balances = [], valuations = {}, trips = [] })
     programs,
     totalValueCents,
     valueByKind,
-    totalPoints: programs.reduce((sum, row) => sum + row.points, 0),
+    // Cash's "points" are cents, not points — summed into `totalValueCents`
+    // above like everything else, but kept out of this count so it is never
+    // a number of points and a number of cents added together.
+    totalPoints: programs
+      .filter((row) => row.program.kind !== PROGRAM_KINDS.CASH)
+      .reduce((sum, row) => sum + row.points, 0),
     // Back in the order the household entered them.
     trips: trips.map((trip) => planned.get(trip.id)),
   };
