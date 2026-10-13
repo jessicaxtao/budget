@@ -64,7 +64,7 @@ export default function BooksEncryptionPanel() {
   const setUpDay = formatSetUpDay(createdAt);
 
   return (
-    <section className="border border-edge bg-panel">
+    <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
       <details>
         <summary className="cursor-pointer px-4 py-3 marker:text-chalk-soft">
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">

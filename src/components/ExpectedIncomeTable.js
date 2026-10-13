@@ -86,7 +86,7 @@ export default function ExpectedIncomeTable({
   actions,
 }) {
   return (
-    <section className="border border-edge bg-panel">
+    <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
       {/* Centred rather than baseline-aligned: the actions are buttons with a
           border of their own, and a border sitting on a text baseline reads as
           a misalignment. */}

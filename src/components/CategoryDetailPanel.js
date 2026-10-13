@@ -86,7 +86,7 @@ export default function CategoryDetailPanel({
   onClose,
 }) {
   return (
-    <section className="border border-azure/60 bg-panel">
+    <section className="overflow-hidden rounded-2xl border border-azure/60 bg-panel">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <div>
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">

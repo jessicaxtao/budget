@@ -430,7 +430,9 @@ function Section({
   const heading = ungrouped && !hasGroups ? "Categories" : section.name;
 
   return (
-    <section className={`border ${isOver ? "border-azure" : "border-edge"} bg-panel`}>
+    <section
+      className={`overflow-hidden rounded-2xl border ${isOver ? "border-azure" : "border-edge"} bg-panel`}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <h3

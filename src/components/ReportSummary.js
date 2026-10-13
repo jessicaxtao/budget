@@ -102,7 +102,10 @@ export default function ReportSummary({ report }) {
   const amortised = averagedOverMonths > 1;
 
   return (
-    <section aria-label="Report summary" className="border border-edge bg-panel">
+    <section
+      aria-label="Report summary"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         {/* A window of one month is named by that month, not by both of its
             ends: "October 2026 – October 2026" reads as two months a reader has

@@ -93,7 +93,10 @@ export default function OrganizationList({ year, rows, onAdd, onEdit, onRemove }
   const named = rows.filter((row) => row.recipientId != null);
 
   return (
-    <section aria-label="Organizations" className="border border-edge bg-panel">
+    <section
+      aria-label="Organizations"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <div className="min-w-0">
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">

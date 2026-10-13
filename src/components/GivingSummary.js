@@ -122,7 +122,10 @@ export default function GivingSummary({ giving }) {
   const ratio = goal.targetCents > 0 ? totalCents / goal.targetCents : null;
 
   return (
-    <section aria-label="Giving summary" className="border border-edge bg-panel">
+    <section
+      aria-label="Giving summary"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">{year}</h2>
         <span className="font-mono text-label uppercase text-chalk-soft">

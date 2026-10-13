@@ -109,7 +109,10 @@ export default function EmergencyFundPanel({
   const met = fund.targetCents > 0 && fund.remainingCents === 0;
 
   return (
-    <section className="border border-edge bg-panel" aria-labelledby="emergency-fund-heading">
+    <section
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+      aria-labelledby="emergency-fund-heading"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2
           id="emergency-fund-heading"

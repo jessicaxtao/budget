@@ -103,7 +103,7 @@ export default function PlanHealthSummary({
     : null;
 
   return (
-    <section className={`mb-4 border ${tone.border} bg-panel`}>
+    <section className={`mb-4 overflow-hidden rounded-2xl border ${tone.border} bg-panel`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Plan health</h2>
         <span className="font-mono text-label uppercase text-chalk-soft">Per month</span>

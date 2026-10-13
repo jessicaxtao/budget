@@ -270,7 +270,10 @@ export default function SavingsGoalList({ rows, period, onAssign, onEdit, onDele
   }
 
   return (
-    <section aria-label="Savings goals" className="border border-edge bg-panel">
+    <section
+      aria-label="Savings goals"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Goals</h2>
       </div>
