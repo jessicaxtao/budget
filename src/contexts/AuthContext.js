@@ -12,6 +12,7 @@ import {
 } from "../storage";
 import { booksFilename, offerFile, serializeBooks } from "../booksFile";
 import { flushWrites } from "../desktop";
+import { clearBooksKey } from "../booksKey";
 
 /**
  * Who is signed in, and what they can do about it.
@@ -228,6 +229,9 @@ function isUnknownAccountError(error) {
  */
 async function clearAfterSignOut(userId) {
   clearScope(userId);
+  // The books key does not outlive the session either, for `clearScope`'s own
+  // reason — it is what opens the books that just left this device.
+  clearBooksKey();
   await flushWrites();
 }
 
@@ -511,6 +515,7 @@ export const AuthProvider = ({ children }) => {
     if (!supabase) return { ok: true };
 
     clearScope(user?.id);
+    clearBooksKey();
 
     // The deletes above are asynchronous in the desktop shell — the renderer
     // posts them across and the main process coalesces them. Ending the session
@@ -615,6 +620,7 @@ export const AuthProvider = ({ children }) => {
     // unmounts the store providers the moment the session goes, and a clear
     // racing that unmount can be beaten by a provider's final persist effect.
     clearScope(id);
+    clearBooksKey();
 
     // Both halves have to be on disk before the session ends — the books that
     // just moved down into local mode, and the account's copy that was cleared.

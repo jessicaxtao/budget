@@ -83,6 +83,8 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 
 Add stores there, not in `index.js`. IDs are generated with `uuid` v4 **in the context**, never in form components. Each context memoises its value. **Cross-store maths belongs in a hook, never in a provider.**
 
+`BooksKeyProvider` (`src/contexts/BooksKeyContext.js`) does not join this count: it wraps `AppProviders` from outside, in `index.js`, alongside `AuthProvider` and `SyncProvider` rather than among the sixteen stores. It holds the account's key record and the unwrapped master key, never a store's own data. **`ACCOUNTS.md` is the detail** — the key design (why envelope encryption, why two passwords, why the local cache stays plaintext, why receipts are in scope), the five layers in `index.js`, and the storage-key inventory.
+
 The stores: `Transactions`, `Payees`, `Schedules`, `EmergencyFund`, `Assignments`, `Budgets`, `Accounts`, `IncomePlan`, `PaySchedule`, `Retirement`, `Donations`, `LifeEvents`, `Scenarios`, `Rewards`, `SavingsGoals`, `SavingsGoalAssignments`. **`STORES.md` is the field-by-field detail.**
 
 **Provider order is a cascade order** — a store that cleans up after another's delete sits *outside* it:
@@ -148,6 +150,6 @@ The assignment terms cancel algebraically, so this checks **coverage, not arithm
 
 ## Testing
 
-**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what, and the five tripwires.
+**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`, the guarded WebCrypto and `TextEncoder`/`TextDecoder` polyfills jsdom 16 ships without), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what — including `booksCrypto.test.js`, `BooksKeyContext.test.js` and `SyncContext.test.js`, the three the key design added — and the five tripwires.
 
 **The five tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `storage.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.

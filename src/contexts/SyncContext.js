@@ -9,38 +9,69 @@ import {
   removeKey,
   restoreScope,
   setStorageScope,
+  STORE_KEYS,
   writeKey,
 } from "../storage";
+import { decryptDocument, encryptDocument, envelopeKid, isEncryptedDocument } from "../booksCrypto";
+import { getBooksKey } from "../booksKey";
 
 /**
- * The seam between the books and the wire.
+ * The seam between the books and the wire — and the only file that touches
+ * document ciphertext. `src/booksCrypto.js` knows the shape of an envelope;
+ * this is the one place that calls it against a live key.
  *
- * One provider, above every store, doing three things:
+ * One provider, above every store, doing four things:
  *
- *   1. **Hydrate.** On sign-in it fetches every document for the account in one
- *      query, writes them into the local cache, and only *then* renders the
- *      stores. That ordering is the load-bearing part of this whole migration:
- *      three provider initialisers (`foldLegacyLedger`, `readStoredLedger`,
- *      `legacyPlannedCentsById`) read storage **synchronously** to build their
- *      lazy defaults, and no amount of async plumbing changes that they run
- *      before the first paint. Gating the render is what lets those keep
- *      working untouched — and what lets every migration, every `{ ok, error }`
- *      mutator and every invariant tripwire survive the move to Postgres
- *      unchanged.
+ *   1. **Hydrate.** On sign-in it fetches every document for the account in
+ *      one query, decrypts each envelope under this device's key — or takes a
+ *      row **as-is** when it predates encryption, which is a supported state
+ *      and not an error — and writes the result into the local cache before
+ *      the stores ever mount. That ordering is the load-bearing part of this
+ *      whole migration: four provider initialisers (`foldLegacyLedger`,
+ *      `readStoredLedger`, `legacyPlannedCentsById`, `storedGroupBuckets`)
+ *      read storage **synchronously** to build their lazy defaults, and no
+ *      amount of async plumbing changes that they run before the first paint.
+ *      Gating the render is what lets those keep working untouched — and what
+ *      lets every migration, every `{ ok, error }` mutator and every
+ *      invariant tripwire survive the move to Postgres unchanged. An envelope
+ *      that will not decrypt, or whose `kid` does not match this device's
+ *      key, refuses the render rather than falling through to an empty or
+ *      stale set of books.
  *
- *   2. **Push.** Writes are coalesced per key and flushed after a moment's
- *      quiet, so a run of blur-committing cells in the register is one round
- *      trip rather than one per column. A failed push is *kept* and retried
- *      rather than dropped — the local cache already holds the value, so the
- *      cost of being offline is delay, not loss.
+ *   2. **Push and seal.** Writes are coalesced per key and flushed after a
+ *      moment's quiet, so a run of blur-committing cells in the register is
+ *      one round trip rather than one per column. `flush` is the **only**
+ *      place a document is encrypted — `pending`, the outbox and `known` stay
+ *      plaintext throughout, which is what keeps the echo-suppression below
+ *      working, since a fresh IV means the same document seals to different
+ *      bytes on every call. It reads the key through `getBooksKey()` fresh on
+ *      every call rather than a closure, because it also runs from
+ *      `beforeunload` and `visibilitychange` listeners outside any
+ *      component's lifetime. A flush with no key available sends nothing, and
+ *      neither does one where any document in the batch fails to seal — the
+ *      whole batch is encrypted before any of it goes out. Either way the
+ *      push is treated as failed and *kept* rather than dropped: the local
+ *      cache already holds the plaintext, so the cost is delay, never a
+ *      document sent in the clear.
  *
  *   3. **Receive.** A realtime subscription replaces the `storage` event that
  *      used to keep two tabs in step. Same problem, one device wider: every
  *      write replaces a whole document, so without it the last device to save
- *      silently destroys what the other logged.
+ *      silently destroys what the other logged. Decrypted before any listener
+ *      sees it; a row that will not decrypt is ignored, keeping what the
+ *      store already has rather than blanking it.
  *
- * When there is no project configured, or nobody signed in, all three are inert
- * and the app runs on this browser's own books exactly as it always did.
+ *   4. **Migrate.** `resync()` clears `known` and re-queues every cached
+ *      document so the next flush reseals it. Hydrate calls it once, after
+ *      the render is already showing, for an account where at least one row
+ *      came back plaintext — an account that predates this file's
+ *      encryption. The ordinary debounce/outbox/retry machinery carries the
+ *      rest, so a migration a closed laptop interrupts finishes on the next
+ *      load.
+ *
+ * When there is no project configured, or nobody signed in, all four are
+ * inert and the app runs on this browser's own books exactly as it always
+ * did.
  */
 // Exported so a test can stage a sync layer without a network — `useSyncedState`
 // is the only consumer in the app, and it reads through `useSync` below.
@@ -156,15 +187,27 @@ export const SyncProvider = ({ children }) => {
   // a reorder, so the two do not have to be tangled into one effect.
   const flushRef = useRef(null);
 
+  // Same reason as `flushRef`: hydrate has to be able to kick off the
+  // self-migration below, and `resync` is defined after it.
+  const resyncRef = useRef(null);
+
   /**
    * key -> the JSON we last sent or received for it.
    *
-   * Two jobs. It stops a mount from re-pushing fourteen documents that came
+   * Two jobs. It stops a mount from re-pushing every document that came
    * down from the server unchanged a moment earlier, and it stops the realtime
    * subscription from echoing our own write back into the store as though a
    * second device had made it — which, because every store's setter replaces
    * the whole value, would cost a render of the entire app per keystroke-ish
    * commit.
+   *
+   * **Always plaintext, even once the wire is sealed.** `encryptDocument`
+   * draws a fresh IV every call, so the same document seals to different
+   * bytes each time — a `known` holding ciphertext would match nothing, ever,
+   * and both jobs above would fail silently: every hydrate would re-push
+   * every store, and every echo of our own write would read as a change from
+   * another device, get applied, and get re-pushed again. Comparing
+   * plaintext is what keeps both loops closed.
    */
   const known = useRef(new Map());
 
@@ -210,12 +253,49 @@ export const SyncProvider = ({ children }) => {
         return;
       }
 
+      const rows = data ?? [];
+      // Read once per hydrate rather than per row: the key does not change
+      // mid-pass, and this is not `flush`, which has to read it fresh on
+      // every call because it can run long after this effect has finished.
+      const booksKey = getBooksKey();
+
       const snapshot = {};
-      known.current.clear();
-      for (const row of data ?? []) {
-        snapshot[row.key] = row.value;
-        known.current.set(row.key, canonicalJSON(row.value));
+      let sawPlaintext = false;
+
+      for (const row of rows) {
+        if (isEncryptedDocument(row.value)) {
+          // A cached document that crossed a scope switch, or a row that
+          // crossed accounts, names a `kid` that is not this device's — and
+          // handing that to GCM would fail obscurely instead of saying why.
+          if (!booksKey || envelopeKid(row.value) !== booksKey.kid) {
+            setHydrationError("This device's key does not match this account's books.");
+            return;
+          }
+          const decrypted = await decryptDocument(booksKey.mk, row.value);
+          if (!active) return;
+          if (!decrypted.ok) {
+            // Same stance as a failed fetch, and the same reason: falling
+            // through would show empty books and then push them up over the
+            // real ones.
+            setHydrationError(decrypted.error ?? "Could not load your books.");
+            return;
+          }
+          snapshot[row.key] = decrypted.value;
+        } else {
+          // A row from before encryption existed — a supported state, not an
+          // error, and taken as-is.
+          snapshot[row.key] = row.value;
+          sawPlaintext = true;
+        }
       }
+
+      if (!active) return;
+
+      // `known` holds plaintext even though the rows that produced it were
+      // ciphertext — see the comment on `known`'s declaration for why a
+      // cache of ciphertext could never match anything again.
+      known.current.clear();
+      for (const key of Object.keys(snapshot)) known.current.set(key, canonicalJSON(snapshot[key]));
       restoreScope(userId, snapshot);
 
       // Anything this browser wrote but never managed to send outranks what
@@ -236,7 +316,16 @@ export const SyncProvider = ({ children }) => {
 
       setHydrated(true);
 
-      if (pending.current.size > 0) {
+      // The self-migration: at least one row came back plaintext, so the
+      // account predates this file's encryption and needs every row
+      // rewritten sealed. `resync` re-queues every cached document — which,
+      // thanks to the outbox merge just above, already includes anything
+      // this browser had queued — so there is nothing left to additionally
+      // schedule here. An account with no rows at all is not a migration;
+      // there is nothing to reseal.
+      if (rows.length > 0 && sawPlaintext) {
+        resyncRef.current();
+      } else if (pending.current.size > 0) {
         setSyncState(SYNC_STATE.SAVING);
         flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
       } else {
@@ -289,11 +378,39 @@ export const SyncProvider = ({ children }) => {
         .in("key", drops));
     }
 
+    // Sealed here and only here — `pending`, the outbox and `known` all stay
+    // plaintext (see `known`'s comment), so this is the one place "the
+    // server never sees plaintext" is a property of the code rather than a
+    // claim about it. Read fresh rather than closed over: this function is
+    // also called from `beforeunload` and `visibilitychange` listeners,
+    // long after whatever render captured a key could have gone stale.
+    let sealed = null;
     if (!error && batch.length > 0) {
-      ({ error } = await getSupabase().from("app_state").upsert(
-        batch.map(([key, value]) => ({ user_id: userId, key, value })),
-        { onConflict: "user_id,key" }
-      ));
+      const booksKey = getBooksKey();
+      if (!booksKey) {
+        // No key, no send — the alternative is a document in the clear,
+        // which is the one thing this file exists to prevent. Treated
+        // exactly like a failed push below: queued, retried, reported.
+        error = { message: "The books are locked on this device." };
+      } else {
+        // The whole batch is sealed before any of it is sent, the project's
+        // batch-mutator rule — one bad document must not leave a
+        // partially-sealed write sitting on the server.
+        sealed = [];
+        for (const [key, value] of batch) {
+          const envelope = await encryptDocument(booksKey.mk, booksKey.kid, value);
+          if (!envelope.ok) {
+            error = { message: envelope.error };
+            sealed = null;
+            break;
+          }
+          sealed.push({ user_id: userId, key, value: envelope.envelope });
+        }
+      }
+    }
+
+    if (!error && sealed) {
+      ({ error } = await getSupabase().from("app_state").upsert(sealed, { onConflict: "user_id,key" }));
     }
 
     flushing.current = false;
@@ -360,6 +477,10 @@ export const SyncProvider = ({ children }) => {
   /**
    * Queue the outright removal of documents from the account.
    *
+   * Needs no change for encryption, and is worth a line saying so rather than
+   * leaving the next reader to re-derive it: a delete sends only the key,
+   * never the value, so there is nothing here to seal.
+   *
    * `known` is cleared for each, or a later push of the value that was just
    * dropped would be suppressed as unchanged and the account would be left
    * missing a document the store still holds.
@@ -382,6 +503,45 @@ export const SyncProvider = ({ children }) => {
     },
     [remote, persistOutbox]
   );
+
+  /**
+   * Re-seal every cached document for this account.
+   *
+   * The honest primitive for "the server's copy needs rewriting for a reason
+   * that has nothing to do with its contents" — which is a different claim
+   * from "this document changed", and conflating the two would leave no way
+   * to ask for the first without faking the second. Used once today, by
+   * hydrate's self-migration above, and exported as a verb in its own right
+   * for the same reason `flush` is.
+   *
+   * Clearing `known` is what makes every document look changed to `push`'s
+   * guard; re-reading the cache rather than diffing it is what makes this
+   * correct even for a document this device never had queued.
+   */
+  const resync = useCallback(() => {
+    if (!remote) return;
+
+    known.current.clear();
+
+    const previousScope = getStorageScope();
+    setStorageScope(userId);
+    try {
+      for (const key of STORE_KEYS) {
+        const value = readKey(key);
+        if (value !== undefined) pending.current.set(key, value);
+      }
+    } finally {
+      setStorageScope(previousScope);
+    }
+
+    persistOutbox();
+    setSyncState(SYNC_STATE.SAVING);
+
+    clearTimeout(flushTimer.current);
+    flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
+  }, [remote, userId, persistOutbox]);
+
+  resyncRef.current = resync;
 
   // A queued edit must not be lost to a closing tab. `visibilitychange` rather
   // than `beforeunload` alone, because mobile browsers frequently never fire
@@ -434,7 +594,7 @@ export const SyncProvider = ({ children }) => {
           table: "app_state",
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
+        async (payload) => {
           const row = payload.new ?? payload.old;
           if (!row?.key) return;
 
@@ -449,7 +609,43 @@ export const SyncProvider = ({ children }) => {
           // the user can already see on screen.
           if (pending.current.has(row.key)) return;
 
-          const value = payload.eventType === "DELETE" ? undefined : row.value;
+          let value = payload.eventType === "DELETE" ? undefined : row.value;
+
+          // Decrypted before anything below ever sees it. A row that will not
+          // decrypt is ignored outright — `useSyncedState`'s existing stance
+          // for a document it cannot read, kept rather than blanked, and there
+          // is no render left here to refuse the way hydrate's does.
+          if (payload.eventType !== "DELETE" && isEncryptedDocument(value)) {
+            const booksKey = getBooksKey();
+            const decrypted =
+              booksKey && envelopeKid(value) === booksKey.kid
+                ? await decryptDocument(booksKey.mk, value)
+                : { ok: false };
+            if (!decrypted.ok) return;
+            value = decrypted.value;
+
+            // **Both guards above are re-asked after the decrypt, and that is
+            // not belt-and-braces.** They were written when this handler was
+            // synchronous, where checking once was checking at the moment of
+            // the write; a decrypt is an `await`, so there is now a gap
+            // between them and the `restoreScope` below, and each guard
+            // protects against something that really can land in it:
+            //
+            //   - the session can end mid-decrypt, moving the cache to
+            //     another scope, and this row would then be written back
+            //     under an account whose books sign-out has just cleared off
+            //     this device;
+            //   - a local edit can land in `pending` mid-decrypt, and the
+            //     server's older copy would overwrite an edit the user can
+            //     already see on screen.
+            //
+            // Returning is right for both: the row is the server's and the
+            // next hydrate fetches it again, while what we would be throwing
+            // away here is either nothing or somebody's own typing.
+            if (getStorageScope() !== userId) return;
+            if (pending.current.has(row.key)) return;
+          }
+
           const serialized = canonicalJSON(value);
           // Our own write, echoed back.
           if (known.current.get(row.key) === serialized) return;
@@ -468,8 +664,8 @@ export const SyncProvider = ({ children }) => {
   }, [remote, hydrated, userId]);
 
   const value = useMemo(
-    () => ({ remote, hydrated, syncState, push, dropRemote, subscribeRemote, flush }),
-    [remote, hydrated, syncState, push, dropRemote, subscribeRemote, flush]
+    () => ({ remote, hydrated, syncState, push, dropRemote, subscribeRemote, flush, resync }),
+    [remote, hydrated, syncState, push, dropRemote, subscribeRemote, flush, resync]
   );
 
   if (hydrationError) {

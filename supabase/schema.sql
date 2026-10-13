@@ -3,9 +3,9 @@
 -- Run this once, whole, in the SQL editor of a new project. It is idempotent:
 -- every statement guards itself, so re-running after a change is safe.
 --
--- ONE TABLE, because the app has one shape of data: fourteen independent
--- documents, each the whole value of one store. Every derivation in this app
--- (envelopes, net worth, the retirement projection, the spending report) loads
+-- ONE TABLE, because the app has one shape of data: one row per store, each
+-- the whole value of that store. Every derivation in this app (envelopes,
+-- net worth, the retirement projection, the spending report) loads
 -- a whole array and computes over it in JavaScript, so there is nothing for a
 -- relational split to buy — and a great deal for it to cost, since every
 -- mutator here returns `{ ok, error }` synchronously and ~40 call sites plus
@@ -52,9 +52,9 @@ create table if not exists public.app_state (
   user_id    uuid        not null references auth.users (id) on delete cascade,
 
   -- The store's own key — "budgets", "transactions", "accountBalances". Bounded
-  -- rather than enumerated: a CHECK listing today's fourteen would mean a
-  -- schema migration every time a store is added, and the client is the thing
-  -- that knows what a key means.
+  -- rather than enumerated: a CHECK listing every key the app ships today would
+  -- mean a schema migration every time a store is added, and the client is the
+  -- thing that knows what a key means.
   key        text        not null check (char_length(key) between 1 and 64),
 
   -- The whole value of that store, exactly as it sat in localStorage. Migrations
@@ -113,6 +113,112 @@ create trigger app_state_touch_updated_at
   for each row execute function public.touch_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- Encryption key material
+-- ---------------------------------------------------------------------------
+-- The central invariant this whole file now has to keep true:
+-- **`app_state.value` is always ciphertext; `app_crypto` is always plaintext
+-- metadata.** It is a second table rather than a reserved key inside
+-- `app_state` precisely so that invariant is structural rather than
+-- remembered — a plaintext row sitting inside `app_state` would be one
+-- forgotten branch away from either leaking a document (a reader that
+-- forgets to check before decrypting) or encrypting the very metadata needed
+-- to decrypt (a writer that seals indiscriminately). Two tables means the
+-- column list alone tells you which rule applies.
+--
+-- One row per account, holding everything needed to get at the master key
+-- (MK) except the two secrets that unlock it — the books password and the
+-- recovery code never reach the server, so this row alone is useless without
+-- one of them.
+
+create table if not exists public.app_crypto (
+  -- On delete cascade for the same reason as app_state: closing an account
+  -- takes its key material with it, and there is no other copy on the server.
+  user_id        uuid        primary key references auth.users (id) on delete cascade,
+
+  -- Names the key every envelope in app_state claims to be sealed with. MK
+  -- never rotates on this design — a password change rewraps it rather than
+  -- replacing it — so this column does not change either; it exists so a
+  -- client can refuse an envelope that names the wrong account's key outright
+  -- rather than handing it to AES-GCM to fail obscurely.
+  kid            uuid        not null,
+
+  -- { alg, hash, iterations } for the PBKDF2 derivation, stored rather than
+  -- hard-coded so the iteration count can be raised later without stranding
+  -- accounts set up under the old one.
+  kdf            jsonb       not null,
+
+  -- Salt and wrap for the KEK derived from the books password. password_wrap
+  -- is base64 of iv‖ciphertext for MK — 32 bytes of key material, so rewrapping
+  -- it on a password change is one small write, never a re-encryption of every
+  -- document or receipt.
+  password_salt  text        not null,
+  password_wrap  text        not null,
+
+  -- Salt and wrap for the KEK derived from the printed recovery code, through
+  -- the same derivation as the password. Nullable because a household can
+  -- decline a recovery code at set-up or regenerate it later — a gap between
+  -- regenerating and confirming the new one is saved should not leave the row
+  -- unwritable. Like password_wrap, this wrap is useless on its own: without
+  -- the code itself, which the server never receives, it unwraps nothing.
+  recovery_salt  text,
+  recovery_wrap  text,
+
+  created_at     timestamptz not null default now()
+);
+
+alter table public.app_crypto enable row level security;
+
+drop policy if exists "app_crypto owner access" on public.app_crypto;
+create policy "app_crypto owner access"
+  on public.app_crypto
+  for all
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- Deliberately **not** added to the realtime publication, unlike app_state
+-- below. A key change does not need pushing: a device that already holds MK
+-- in memory is unaffected when another device rewraps it under a new
+-- password, and the next time this device needs to unwrap anything, it reads
+-- this row fresh rather than waiting on a subscription to tell it to.
+
+-- ---------------------------------------------------------------------------
+-- Encrypted envelopes only
+-- ---------------------------------------------------------------------------
+-- This exists for one failure: a stale bundle — an old browser tab left open,
+-- an older packaged desktop build that has not been updated — reads an
+-- encrypted envelope as if it were a plaintext document, finds none of the
+-- fields it expects, falls back to empty defaults, and pushes those empty
+-- books up over the real ones. Without this constraint that is silent,
+-- server-side data loss. With it, the old client's write is simply refused
+-- and the header says "Not saved" — loud and recoverable instead of quiet and
+-- not.
+--
+-- `not valid` is what makes this deployable against a live account: existing
+-- plaintext rows are left exactly as they are and only new writes are
+-- checked, so an account mid-migration (see the client plan) is never locked
+-- out of saving its own old documents. Wrapped in the same
+-- `do $$ ... pg_constraint ... $$` guard the Realtime block below uses for
+-- `pg_publication_tables`, so re-running this file after the constraint
+-- already exists is a no-op rather than an error.
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'app_state_value_is_envelope'
+      and conrelid = 'public.app_state'::regclass
+  ) then
+    alter table public.app_state
+      add constraint app_state_value_is_envelope
+      check (value ? 'kid' and value ? 'iv' and value ? 'ct')
+      not valid;
+  end if;
+end
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------
 -- What replaces the `storage` event that kept two browser tabs in step. Without
@@ -165,14 +271,30 @@ alter table public.app_state replica identity full;
 --
 -- Closing an account does not reach in here: Storage keeps objects apart from
 -- auth.users, so a deleted user's receipts stay until removed by hand.
+--
+-- `application/octet-stream` is added to the type list rather than replacing
+-- it: a sealed receipt is ciphertext with no media type of its own and must
+-- not claim one, but an unsealed upload from an older build — one that
+-- predates encryption, or one still running beside this schema during a
+-- rollout — still needs its real content type bounded.
+--
+-- The size cap rises by 1024 bytes: `10485760` (`MAX_RECEIPT_BYTES`, 10 MB) is
+-- the limit `checkReceiptFile` enforces client-side before anything is sent,
+-- but the bucket enforces against the bytes actually uploaded, and sealing
+-- adds a 29-byte header (a version byte, the key id, and the IV) plus
+-- AES-GCM's 16-byte authentication tag on top of the file's own bytes. A file
+-- of exactly `MAX_RECEIPT_BYTES` therefore passes the client's own check and
+-- is then refused by the bucket, 45 bytes over the old cap. The new cap gives
+-- a kilobyte of headroom rather than the 45 bytes actually needed, so it does
+-- not have to move again if the envelope format grows a field.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'receipts',
   'receipts',
   false,
-  10485760,
-  array['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']
+  10486784,
+  array['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif', 'application/octet-stream']
 )
 on conflict (id) do update
   set public = excluded.public,

@@ -25,3 +25,31 @@ if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.sho
     this.dispatchEvent(new Event('close'));
   };
 }
+
+// jsdom 16 (bundled with react-scripts 5) ships no `crypto` at all — not
+// `getRandomValues`, not `subtle` — so nothing in `booksCrypto.js` runs
+// without a polyfill. Node's own `crypto.webcrypto` is the real
+// implementation jsdom is missing, not a stand-in for it, so a test
+// exercises the same AES-GCM and PBKDF2 a browser would. Guarded so a
+// future jsdom that implements WebCrypto natively wins instead, and defined
+// through `Object.defineProperty` because a plain assignment to a jsdom
+// global that already has a (empty) `crypto` getter is refused.
+if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle) {
+  const { webcrypto } = require('node:crypto');
+  Object.defineProperty(globalThis, 'crypto', {
+    value: webcrypto,
+    configurable: true,
+  });
+}
+
+// jsdom 16 also ships no `TextEncoder` / `TextDecoder`, which every document
+// `booksCrypto.js` seals or opens goes through on its way to and from
+// `crypto.subtle` — without this the WebCrypto polyfill above has nothing
+// to encrypt. Node's `util` module is the same global class every browser
+// exposes, not a shim of it. Guarded the same way, for a future jsdom that
+// adds them itself.
+if (typeof globalThis.TextEncoder === 'undefined' || typeof globalThis.TextDecoder === 'undefined') {
+  const { TextEncoder, TextDecoder } = require('node:util');
+  globalThis.TextEncoder = TextEncoder;
+  globalThis.TextDecoder = TextDecoder;
+}

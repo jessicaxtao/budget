@@ -1,4 +1,5 @@
 import {
+  BOOKS_KEY_CACHE_KEY,
   clearScope,
   getStorageScope,
   GUEST_SCOPE,
@@ -268,6 +269,20 @@ describe("clearScope", () => {
     expect(readKey(PENDING_SYNC_KEY)).toBeUndefined();
   });
 
+  // Not one of the books, but it is what opens them — see BOOKS_KEY_CACHE_KEY's
+  // own comment. Leaving it behind would mean the next person to open this
+  // browser finds the previous household's books still unlockable.
+  test("sign-out takes the cached books key too", () => {
+    setStorageScope("user-1");
+    writeKey(BOOKS_KEY_CACHE_KEY, { raw: "c29tZSBiYXNlNjQ=", kid: "k1" });
+    setStorageScope(null);
+
+    clearScope("user-1");
+
+    setStorageScope("user-1");
+    expect(readKey(BOOKS_KEY_CACHE_KEY)).toBeUndefined();
+  });
+
   // Not content, and dropping it would re-offer the import to someone who
   // already answered "start fresh" on an account that is still empty.
   test("it keeps the import decision, which holds no book content", () => {
@@ -315,6 +330,13 @@ describe("the key list", () => {
 
   test("no key is both current and legacy", () => {
     expect(STORE_KEYS.filter((key) => LEGACY_KEYS.includes(key))).toEqual([]);
+  });
+
+  // It is not one of the books, it must never reach the server or an export,
+  // and `BooksKeyContext` keeping it out of `useSyncedState` is what keeps the
+  // test above this one green.
+  test("the cached books key is not a store", () => {
+    expect(STORE_KEYS).not.toContain(BOOKS_KEY_CACHE_KEY);
   });
 
   /**

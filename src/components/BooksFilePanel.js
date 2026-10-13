@@ -183,10 +183,10 @@ export default function BooksFilePanel() {
         <div className="border-t border-edge">
           <p className="px-4 py-3 font-sans text-row leading-relaxed text-chalk-soft">
             {remote
-              ? "Your books are on your account, so this is a spare copy rather than the only one — useful before a big change, or to keep a record of a year you have closed."
+              ? "Your books are on your account, so this is a spare copy rather than the only one — useful before a big change, or to keep a record of a year you have closed. The file itself is plain text, readable by anyone who gets hold of it, which is also the one way back if you ever lose both your books password and your recovery code — so keep it somewhere as careful as the books themselves."
               : isDesktop()
-              ? "Your books are in a file on this computer and nowhere else. Nothing here is sent anywhere, and nothing else is keeping a copy, so an export is the only way back from a lost machine or a file that goes missing."
-              : "Your books are in this browser and nowhere else. Nothing here is sent anywhere, and nothing else is keeping a copy, so an export is the only way back from a cleared browser or a lost machine."}
+              ? "Your books are in a file on this computer and nowhere else. Nothing here is sent anywhere, and nothing else is keeping a copy, so an export is the only way back from a lost machine or a file that goes missing. The file is plain text, readable by anyone who gets hold of it, so keep it somewhere as careful as the books themselves."
+              : "Your books are in this browser and nowhere else. Nothing here is sent anywhere, and nothing else is keeping a copy, so an export is the only way back from a cleared browser or a lost machine. The file is plain text, readable by anyone who gets hold of it, so keep it somewhere as careful as the books themselves."}
           </p>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-edge px-4 py-3">

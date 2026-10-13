@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Field from "../components/Field";
 import Button from "../components/Button";
+import GateShell, { Message, Switcher } from "../components/GateShell";
 import { MAGIC_CODE_LENGTH, MIN_PASSWORD_LENGTH, useAuth } from "../contexts/AuthContext";
 import { isDesktop } from "../storage";
 
@@ -132,7 +133,10 @@ export default function AuthPage() {
   // ---------------------------------------------------------------------
   if (recovering) {
     return (
-      <Shell title="Choose a new password" blurb="You followed a reset link, so you are signed in — set a password and you are done.">
+      <GateShell
+        title="Choose a new password"
+        blurb="You followed a reset link, so you are signed in — set a password and you are done. This is your account password; your books password, if you have one, is untouched."
+      >
         <form onSubmit={handleRecovery} noValidate>
           {/* Read-only, and present for two reasons. It says which account is
               being changed, which matters on a form reached from an email that
@@ -171,7 +175,7 @@ export default function AuthPage() {
             {busy ? "Saving…" : "Save password"}
           </Button>
         </form>
-      </Shell>
+      </GateShell>
     );
   }
 
@@ -180,7 +184,7 @@ export default function AuthPage() {
   // ---------------------------------------------------------------------
   if (pendingConfirmation) {
     return (
-      <Shell title="Confirm your email" blurb={`We sent a confirmation link to ${pendingConfirmation}. Follow it, then sign in.`}>
+      <GateShell title="Confirm your email" blurb={`We sent a confirmation link to ${pendingConfirmation}. Follow it, then sign in.`}>
         <p className="mb-6 font-sans text-sm leading-relaxed text-chalk-soft">
           Nothing is saved to your account until it is confirmed. If the message has not arrived in
           a few minutes, check the spam folder.
@@ -196,7 +200,7 @@ export default function AuthPage() {
         >
           Back to sign in
         </Button>
-      </Shell>
+      </GateShell>
     );
   }
 
@@ -209,7 +213,7 @@ export default function AuthPage() {
   if (pendingSignInEmail) {
     const desktop = isDesktop();
     return (
-      <Shell
+      <GateShell
         title={desktop ? "Enter your sign-in code" : "Check your inbox"}
         // Hedged in both builds, for the reason the reset notice is hedged: a
         // screen that appeared only for addresses that exist would answer "does
@@ -271,7 +275,7 @@ export default function AuthPage() {
             </Switcher>
           </div>
         </div>
-      </Shell>
+      </GateShell>
     );
   }
 
@@ -296,7 +300,7 @@ export default function AuthPage() {
   };
 
   return (
-    <Shell
+    <GateShell
       title={titles[mode]}
       blurb={blurbs[mode]}
       // Not on the reset form: somebody midway through recovering an account has
@@ -392,7 +396,7 @@ export default function AuthPage() {
         )}
         {mode !== "signIn" && <Switcher onClick={() => switchTo("signIn")}>Back to sign in</Switcher>}
       </div>
-    </Shell>
+    </GateShell>
   );
 }
 
@@ -457,33 +461,6 @@ function LocalDoor({ onChoose }) {
 }
 
 /**
- * The page's frame. Carries the app's only `<h1>`, as every page does — the
- * wordmark above it is the same one `AppShell` shows, so arriving and signing in
- * do not look like two different products.
- */
-function Shell({ title, blurb, children, footer }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-ledger px-6 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 font-sans text-xl font-bold tracking-tight text-chalk">
-          Canopy Budget
-        </div>
-
-        <div className="border border-edge bg-panel p-7">
-          <h1 className="font-sans text-lg font-bold tracking-tight text-chalk">{title}</h1>
-          <p className="mb-7 mt-2 font-sans text-sm leading-relaxed text-chalk-soft">{blurb}</p>
-          {children}
-        </div>
-
-        {/* Outside the card on purpose: what goes here is an alternative to the
-            whole form above, not another control inside it. */}
-        {footer}
-      </div>
-    </div>
-  );
-}
-
-/**
  * Outside the `<label>` and tied to the input with `aria-describedby`, the rule
  * `RetirementAssumptionsPanel`'s `Field` keeps: nesting it would fold the
  * sentence into the field's accessible name, so nothing could find the field by
@@ -497,33 +474,3 @@ function PasswordHint() {
   );
 }
 
-function Message({ error, notice }) {
-  if (error) {
-    return (
-      <p role="alert" className="mb-5 font-sans text-row text-vermilion">
-        {error}
-      </p>
-    );
-  }
-  if (notice) {
-    return (
-      <p role="status" className="mb-5 font-sans text-row text-verdant">
-        {notice}
-      </p>
-    );
-  }
-  return null;
-}
-
-/** A link in behaviour, a button in fact — it changes what is on screen. */
-function Switcher({ onClick, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="font-sans text-row text-azure underline-offset-4 transition-colors hover:text-chalk hover:underline"
-    >
-      {children}
-    </button>
-  );
-}
