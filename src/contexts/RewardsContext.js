@@ -6,6 +6,7 @@ import {
   EARN_MODES,
   OFFER_KINDS,
   OFFER_KINDS_NEEDING_END,
+  PROGRESS_SOURCES,
   programById,
   toPoints,
   toPointsPer100Dollars,
@@ -33,15 +34,20 @@ import {
  *     cash, and what the same trip would cost paid outright.
  *   - `rewardsOffers` — `{ id, name, kind, accountId, startDate, endDate,
  *     limitCents, allSpending, budgetIds, payeeIds, rateBps, bonusPoints,
- *     programId }`, a card offer being tracked: a capped bonus or a spending
- *     target (`OFFER_KINDS`), on one card, over a window, mapped onto the
- *     household's own categories and payees. **It holds no money either** — it
- *     is a question asked of the ledger, and `useCardOffers` is what answers it.
- *     Its references to an account, categories and payees are **inert but
- *     kept**, the payee-default rule: this store reads no other, so a deleted
- *     category simply stops matching anything. The fields one kind does not
- *     read (a rate on a target, a bonus on a cap) are kept, not cleared, and so
- *     are the lists while `allSpending` is on — switching back is the point.
+ *     programId, progressSource, usedCents }`, a card offer being tracked: a
+ *     capped bonus or a spending target (`OFFER_KINDS`), on one card, over a
+ *     window, mapped onto the household's own categories and payees. **It
+ *     holds no money either** — it is a question asked of the ledger, and
+ *     `useCardOffers` is what answers it. Its references to an account,
+ *     categories and payees are **inert but kept**, the payee-default rule:
+ *     this store reads no other, so a deleted category simply stops matching
+ *     anything. The fields one kind does not read (a rate on a target, a bonus
+ *     on a cap) are kept, not cleared, and so are the lists while `allSpending`
+ *     is on — switching back is the point. A `CREDIT` only may instead be
+ *     marked off by hand (`progressSource: "manual"`, `PROGRESS_SOURCES` in
+ *     `src/rewards.js`): `usedCents` is the household's own typed figure, kept
+ *     — not cleared — if it switches back to matching the ledger, the same
+ *     both-answers-kept rule as everything else here.
  *   - `rewardsCards` — `{ accountId, annualFeeCents, renewsOn }`, what a card
  *     *costs*: the fee and the day it falls, so the credits it gives back can
  *     be weighed against it over the right year. **Its identity is the
@@ -148,6 +154,10 @@ function migrateOffers(stored) {
       rateBps: Number.isInteger(offer.rateBps) && offer.rateBps >= 0 ? offer.rateBps : null,
       bonusPoints: isPoints(offer.bonusPoints) ? offer.bonusPoints : null,
       programId: known(offer.programId) ? offer.programId : null,
+      progressSource: Object.values(PROGRESS_SOURCES).includes(offer.progressSource)
+        ? offer.progressSource
+        : PROGRESS_SOURCES.LEDGER,
+      usedCents: isMoney(offer.usedCents) ? offer.usedCents : null,
     }));
 }
 
@@ -289,10 +299,27 @@ function parseOffer(fields) {
     };
   }
 
+  // Only a credit can be marked off by hand — a cap and a target are promises
+  // *about* spending, and the ledger is the only way to answer those at all.
+  const progressSource =
+    fields.kind === OFFER_KINDS.CREDIT && fields.progressSource === PROGRESS_SOURCES.MANUAL
+      ? PROGRESS_SOURCES.MANUAL
+      : PROGRESS_SOURCES.LEDGER;
+  const usedRead = readMoney(fields.used, { blank: null, label: "how much you've used" });
+  if (!usedRead.ok) return usedRead;
+
   const allSpending = fields.allSpending === true;
   const budgetIds = idList(fields.budgetIds);
   const payeeIds = idList(fields.payeeIds);
-  if (!allSpending && budgetIds.length === 0 && payeeIds.length === 0) {
+  // A manual credit answers the ledger question itself, so it does not need a
+  // mapping to be coherent — unlike every other offer, which has nothing else
+  // to go on.
+  if (
+    progressSource !== PROGRESS_SOURCES.MANUAL &&
+    !allSpending &&
+    budgetIds.length === 0 &&
+    payeeIds.length === 0
+  ) {
     return {
       ok: false,
       error: "Choose at least one category or payee the offer applies to, or count all spending.",
@@ -334,6 +361,8 @@ function parseOffer(fields) {
       rateBps,
       bonusPoints,
       programId,
+      progressSource,
+      usedCents: usedRead.cents,
     },
   };
 }

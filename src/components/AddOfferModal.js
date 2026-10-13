@@ -6,7 +6,7 @@ import ProgramOptions from "./ProgramOptions";
 import SpendingMapFields, { toggleId } from "./SpendingMapFields";
 import { ACCOUNT_SCOPES, spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useRewards } from "../contexts/RewardsContext";
-import { OFFER_KINDS, OFFER_KIND_LABELS } from "../rewards";
+import { OFFER_KINDS, OFFER_KIND_LABELS, PROGRESS_SOURCES } from "../rewards";
 import { amountEditing, formatBps, todayISO } from "../utils";
 
 /**
@@ -36,7 +36,9 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
   const rateRef = useRef();
   const bonusPointsRef = useRef();
   const programRef = useRef();
+  const usedRef = useRef();
   const [kind, setKind] = useState(OFFER_KINDS.CAP);
+  const [progressSource, setProgressSource] = useState(PROGRESS_SOURCES.LEDGER);
   const [allSpending, setAllSpending] = useState(false);
   // The spending map is the form's one controlled answer — `SpendingMapFields`
   // says why — so the two id lists are seeded on open like any other field.
@@ -64,6 +66,7 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
     setError(null);
     const nextKind = source?.kind ?? OFFER_KINDS.CAP;
     setKind(nextKind);
+    setProgressSource(source?.progressSource ?? PROGRESS_SOURCES.LEDGER);
     setAllSpending(source?.allSpending ?? false);
     setBudgetIds(source?.budgetIds ?? []);
     setPayeeIds(source?.payeeIds ?? []);
@@ -76,6 +79,10 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
     rateRef.current.value = source?.rateBps != null ? formatBps(source.rateBps) : "";
     bonusPointsRef.current.value = source?.bonusPoints != null ? String(source.bonusPoints) : "";
     programRef.current.value = source?.programId ?? "";
+    // `source.usedCents` is read even for a `seed` that carried none — "Next
+    // round" drops it on purpose, a new period starting with nothing used
+    // stated rather than the last one's figure.
+    usedRef.current.value = source?.usedCents != null ? amountEditing(source.usedCents) : "";
     // `cards` is read for the default only; a sync landing mid-edit must not reset the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, source]);
@@ -95,6 +102,8 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
       rate: rateRef.current.value,
       bonusPoints: bonusPointsRef.current.value,
       programId: programRef.current.value || null,
+      progressSource,
+      used: usedRef.current.value,
     };
     const result = editing ? updateOffer({ id: offer.id, ...fields }) : addOffer(fields);
     if (!result.ok) {
@@ -141,7 +150,7 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
                 [OFFER_KINDS.TARGET]:
                   "Spend a set amount by a date to earn a bonus — a sign-up bonus, or a retention offer. You'll see how far there is to go and how much a week that takes.",
                 [OFFER_KINDS.CREDIT]:
-                  "The card pays some spending back, up to an amount, by a date — a travel credit, a monthly ride-hailing credit. You'll see what is left to use, and it counts against the card's annual fee.",
+                  "The card pays some spending back, up to an amount, by a date — a travel credit, a monthly ride-hailing credit. You'll see what is left to use, and it counts against the card's annual fee. Match it to your spending below, or mark it off yourself if it doesn't run through a category you track.",
               }[kind]
             }
           </p>
@@ -208,18 +217,58 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
             </div>
           </div>
 
-          <SpendingMapFields
-            allLabel="Count all spending on this card"
-            allSpending={allSpending}
-            onAllSpendingChange={setAllSpending}
-            budgetIds={budgetIds}
-            payeeIds={payeeIds}
-            onToggleBudget={(id) => setBudgetIds(toggleId(budgetIds, id))}
-            onTogglePayee={(id) => setPayeeIds(toggleId(payeeIds, id))}
-            note={
-              'The card decides what qualifies by the kind of shop, not by your categories, so this is your best match. A rotating category like "Amazon" or "wholesale clubs" is usually easiest to name as a payee.'
-            }
-          />
+          {/* Only a credit can be marked off by hand — a cap and a target are
+              promises about spending, and the ledger is the only way to
+              answer those. */}
+          <div hidden={kind !== OFFER_KINDS.CREDIT} className="mb-5">
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={progressSource === PROGRESS_SOURCES.MANUAL}
+                onChange={(event) =>
+                  setProgressSource(
+                    event.target.checked ? PROGRESS_SOURCES.MANUAL : PROGRESS_SOURCES.LEDGER
+                  )
+                }
+                className="h-3.5 w-3.5 shrink-0 accent-azure"
+              />
+              <span className="font-sans text-row text-chalk">
+                Mark it off myself, rather than matching it to spending
+              </span>
+            </label>
+          </div>
+
+          {/* Hidden, not unmounted, like the fields a kind or `allSpending`
+              turns off — switching back must not lose what was typed either
+              side. */}
+          <div hidden={kind === OFFER_KINDS.CREDIT && progressSource === PROGRESS_SOURCES.MANUAL}>
+            <SpendingMapFields
+              allLabel="Count all spending on this card"
+              allSpending={allSpending}
+              onAllSpendingChange={setAllSpending}
+              budgetIds={budgetIds}
+              payeeIds={payeeIds}
+              onToggleBudget={(id) => setBudgetIds(toggleId(budgetIds, id))}
+              onTogglePayee={(id) => setPayeeIds(toggleId(payeeIds, id))}
+              note={
+                'The card decides what qualifies by the kind of shop, not by your categories, so this is your best match. A rotating category like "Amazon" or "wholesale clubs" is usually easiest to name as a payee.'
+              }
+            />
+          </div>
+          <div hidden={!(kind === OFFER_KINDS.CREDIT && progressSource === PROGRESS_SOURCES.MANUAL)}>
+            <Field
+              label="Used so far (optional)"
+              inputRef={usedRef}
+              type="text"
+              inputMode="decimal"
+              placeholder="$0.00"
+            />
+            <p className="-mt-3 mb-5 font-sans text-row text-chalk-soft">
+              Leave it blank until you've used some of it. A credit that resets each month or half
+              year is "Next round" on its row once this period is done — the figure here starts
+              over blank for the next one.
+            </p>
+          </div>
 
           {error && (
             <p role="alert" className="-mt-2 mb-5 font-sans text-row text-vermilion">

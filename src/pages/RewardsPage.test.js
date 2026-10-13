@@ -201,6 +201,8 @@ describe("card offers", () => {
         rateBps: 900,
         bonusPoints: null,
         programId: null,
+        progressSource: "ledger",
+        usedCents: null,
       },
     ]);
 
@@ -326,6 +328,8 @@ describe("card offers", () => {
       rateBps: 500,
       bonusPoints: null,
       programId: null,
+      progressSource: "ledger",
+      usedCents: null,
     };
     localStorage.setItem("rewardsOffers", JSON.stringify([quarter]));
     renderPage();
@@ -355,6 +359,62 @@ describe("card offers", () => {
       budgetIds: ["dining"],
     });
     expect(offers[1].id).not.toBe("q3");
+  });
+
+  test("a credit marked off by hand ignores spending, is edited inline, and resets on its next round", () => {
+    seedBooks([out("hotel-booking", 20000, "travel")]);
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Track an offer" }));
+    const offerForm = form("Track a card offer");
+    fireEvent.change(offerForm.getByLabelText("Offer"), { target: { value: "$300 hotel credit" } });
+    fireEvent.change(offerForm.getByLabelText("What kind of offer"), { target: { value: "credit" } });
+    fireEvent.change(offerForm.getByLabelText("On card"), { target: { value: "card" } });
+    fireEvent.change(offerForm.getByLabelText("Starts"), { target: { value: monthStart } });
+    fireEvent.change(offerForm.getByLabelText("Use by"), { target: { value: "2026-12-31" } });
+    fireEvent.change(offerForm.getByLabelText("Credit is worth"), { target: { value: "$300" } });
+    fireEvent.click(
+      offerForm.getByRole("checkbox", {
+        name: "Mark it off myself, rather than matching it to spending",
+        hidden: true,
+      })
+    );
+    // No category or payee is named — the point of marking it off by hand —
+    // and the whole-spending checkbox is off too, so nothing is required here.
+    fireEvent.change(offerForm.getByLabelText("Used so far (optional)"), { target: { value: "$100" } });
+    fireEvent.click(offerForm.getByRole("button", { name: "Track offer", hidden: true }));
+
+    const stored1 = stored("rewardsOffers");
+    expect(stored1).toHaveLength(1);
+    expect(stored1[0]).toMatchObject({
+      progressSource: "manual",
+      usedCents: 10000,
+      allSpending: false,
+      budgetIds: [],
+      payeeIds: [],
+    });
+
+    // Spending on the mapped category does not move it — only the typed figure does.
+    const offer = screen.getByRole("heading", { name: "$300 hotel credit" }).closest("li");
+    expect(offer).toHaveTextContent("$200 still to use");
+    expect(offer).toHaveTextContent("Marked off by hand, not matched to spending");
+
+    const usedField = within(offer).getByRole("textbox", { name: "$300 hotel credit used so far" });
+    fireEvent.change(usedField, { target: { value: "$300" } });
+    fireEvent.blur(usedField);
+
+    expect(stored("rewardsOffers")[0]).toMatchObject({ usedCents: 30000 });
+    expect(offer).toHaveTextContent("Credit used in full");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next round of $300 hotel credit" }));
+    const nextForm = form("Next round of an offer");
+    // A fresh period starts with nothing used stated, not the last one's figure.
+    expect(nextForm.getByLabelText("Used so far (optional)")).toHaveValue("");
+    fireEvent.click(nextForm.getByRole("button", { name: "Track offer", hidden: true }));
+
+    const stored2 = stored("rewardsOffers");
+    expect(stored2).toHaveLength(2);
+    expect(stored2[1]).toMatchObject({ progressSource: "manual", usedCents: null });
   });
 
   describe("what each card earns", () => {

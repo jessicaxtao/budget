@@ -1,8 +1,14 @@
 import Button from "./Button";
-import { OFFER_KINDS, OFFER_STATUS, nextOfferWindow } from "../rewards";
-import { formatBps, formatCents, formatDateMedium, formatDayDelta } from "../utils";
+import { OFFER_KINDS, OFFER_STATUS, PROGRESS_SOURCES, nextOfferWindow } from "../rewards";
+import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium, formatDayDelta } from "../utils";
 
 const formatPoints = (points) => points.toLocaleString("en-US");
+
+const isManual = (offer) =>
+  offer.kind === OFFER_KINDS.CREDIT && offer.progressSource === PROGRESS_SOURCES.MANUAL;
+
+const inlineInput =
+  "w-24 border-0 border-b border-transparent bg-transparent px-0 py-0.5 font-mono text-row tabular-nums text-ink outline-none placeholder:text-ink-soft/50 hover:border-rule focus:border-azure";
 
 /**
  * How far through an offer the spending is, as a bar.
@@ -112,6 +118,7 @@ function rewardText(row) {
 }
 
 function countsText(row) {
+  if (isManual(row.offer)) return "Marked off by hand, not matched to spending";
   if (row.offer.allSpending) return "All spending on the card";
   const named = [...row.categories, ...row.payees];
   return named.length > 0 ? named.join(", ") : "Nothing that still exists";
@@ -124,11 +131,12 @@ function countsText(row) {
  * Takes its rows as a prop and holds no state, `SavingsGoalList`'s split, so
  * what the page owns (the modal, the store) stays on the page.
  */
-export default function CardOfferList({ rows, onEdit, onRepeat, onDelete }) {
+export default function CardOfferList({ rows, onEdit, onRepeat, onDelete, onUse }) {
   return (
     <ul className="divide-y divide-rule">
       {rows.map((row) => {
         const { offer } = row;
+        const manual = isManual(offer);
         const { headline, tone } = describeOffer(row);
         const reward = rewardText(row);
         const ended = row.status === OFFER_STATUS.ENDED;
@@ -184,10 +192,37 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete }) {
 
             <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4">
               <p className="font-sans text-row font-medium text-ink">{headline}</p>
-              <p className="font-mono text-row tabular-nums text-ink">
-                {formatCents(counted)}
-                <span className="text-ink-soft"> of {formatCents(offer.limitCents)}</span>
-              </p>
+              {manual ? (
+                <p className="font-mono text-row tabular-nums text-ink">
+                  <input
+                    key={`used-${offer.id}-${offer.usedCents ?? ""}`}
+                    type="text"
+                    inputMode="decimal"
+                    aria-label={`${offer.name} used so far`}
+                    placeholder="$0.00"
+                    defaultValue={amountAtRest(offer.usedCents)}
+                    className={inlineInput}
+                    onFocus={(event) => {
+                      event.target.value = amountEditing(offer.usedCents);
+                      event.target.select();
+                    }}
+                    onBlur={(event) => {
+                      const typed = event.target.value;
+                      if (typed.trim() === amountEditing(offer.usedCents)) {
+                        event.target.value = amountAtRest(offer.usedCents);
+                        return;
+                      }
+                      onUse(offer, typed);
+                    }}
+                  />
+                  <span className="text-ink-soft"> of {formatCents(offer.limitCents)}</span>
+                </p>
+              ) : (
+                <p className="font-mono text-row tabular-nums text-ink">
+                  {formatCents(counted)}
+                  <span className="text-ink-soft"> of {formatCents(offer.limitCents)}</span>
+                </p>
+              )}
             </div>
             <div className="mt-1.5">
               <OfferMeter

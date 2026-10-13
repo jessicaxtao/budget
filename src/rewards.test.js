@@ -9,6 +9,7 @@ import {
   feeYearWindow,
   formatMultiplier,
   offerOverlaps,
+  PROGRESS_SOURCES,
   rankCardsFor,
   toPointsPer100Dollars,
   nextOfferWindow,
@@ -372,6 +373,54 @@ describe("credits to use up", () => {
     expect(offerOverlaps(travel, { from: "2027-01-01", through: "2027-03-01" })).toBe(false);
     const open = { startDate: "2026-01-01", endDate: null };
     expect(offerOverlaps(open, { from: "2030-01-01", through: "2030-02-01" })).toBe(true);
+  });
+
+  describe("marked off by hand", () => {
+    const hotel = {
+      ...travel,
+      id: "c2",
+      name: "$300 hotel credit",
+      progressSource: PROGRESS_SOURCES.MANUAL,
+      usedCents: null,
+    };
+
+    test("ignores the ledger entirely, even a purchase on the mapped category and card", () => {
+      const progress = offerProgress(
+        { ...hotel, usedCents: 20000 },
+        [spend("a", "2026-03-04", 11000, "travel")],
+        "2026-10-08"
+      );
+      expect(progress.qualifyingCents).toBe(20000);
+      expect(progress.remainingCents).toBe(10000);
+      expect(progress.earnedCents).toBe(20000);
+      expect(progress.elsewhereCents).toBe(0);
+      expect(progress.purchaseCount).toBe(0);
+    });
+
+    test("nothing stated reads as nothing used, not an error", () => {
+      const progress = offerProgress(hotel, [], "2026-10-08");
+      expect(progress.qualifyingCents).toBe(0);
+      expect(progress.remainingCents).toBe(30000);
+      expect(progress.reached).toBe(false);
+    });
+
+    test("typing the full amount reaches it, like a ledger match would", () => {
+      const progress = offerProgress({ ...hotel, usedCents: 30000 }, [], "2026-10-08");
+      expect(progress.status).toBe(OFFER_STATUS.DONE);
+      expect(progress.reached).toBe(true);
+      expect(progress.remainingCents).toBe(0);
+    });
+
+    test("a cap or a target cannot be marked off by hand — only a credit reads the flag", () => {
+      const cap = {
+        ...travel,
+        kind: OFFER_KINDS.CAP,
+        progressSource: PROGRESS_SOURCES.MANUAL,
+        usedCents: 99999999,
+      };
+      const progress = offerProgress(cap, [], "2026-10-08");
+      expect(progress.qualifyingCents).toBe(0);
+    });
   });
 });
 

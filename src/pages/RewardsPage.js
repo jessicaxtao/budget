@@ -491,6 +491,7 @@ export default function RewardsPage() {
     setValuation,
     deleteTrip,
     deleteOffer,
+    updateOffer,
     saveCard,
     deleteEarnRate,
   } = useRewards();
@@ -505,6 +506,7 @@ export default function RewardsPage() {
   const [balanceError, setBalanceError] = useState(null);
   const [valueError, setValueError] = useState(null);
   const [cardError, setCardError] = useState(null);
+  const [offerError, setOfferError] = useState(null);
 
   const summary = useMemo(
     () => summariseRewards({ balances, valuations, trips }),
@@ -549,8 +551,36 @@ export default function RewardsPage() {
   const liveOffers = offerRows.filter((row) => row.status === OFFER_STATUS.ACTIVE).length;
 
   function repeatOffer(offer) {
-    const { id: _id, ...rest } = offer;
+    // `usedCents` is dropped rather than carried over: a new round of a manual
+    // credit starts with nothing used stated, not the last round's figure.
+    const { id: _id, usedCents: _usedCents, ...rest } = offer;
     setOfferModal({ show: true, offer: null, seed: { ...rest, ...nextOfferWindow(offer) } });
+  }
+
+  /**
+   * A manual credit's "used so far", committed from the card's own row —
+   * `updateOffer` still wants the whole record, so the rest of it is restated
+   * from what is already stored.
+   */
+  function handleUsed(offer, typed) {
+    const result = updateOffer({
+      id: offer.id,
+      name: offer.name,
+      kind: offer.kind,
+      accountId: offer.accountId,
+      startDate: offer.startDate,
+      endDate: offer.endDate,
+      limit: offer.limitCents,
+      allSpending: offer.allSpending,
+      budgetIds: offer.budgetIds,
+      payeeIds: offer.payeeIds,
+      rate: offer.rateBps,
+      bonusPoints: offer.bonusPoints,
+      programId: offer.programId,
+      progressSource: offer.progressSource,
+      used: typed,
+    });
+    setOfferError(result.ok ? null : `${offer.name}: ${result.error}`);
   }
 
   return (
@@ -614,14 +644,17 @@ export default function RewardsPage() {
                 onEdit={(offer) => setOfferModal({ show: true, offer, seed: null })}
                 onRepeat={repeatOffer}
                 onDelete={(offer) => deleteOffer({ id: offer.id })}
+                onUse={handleUsed}
               />
               <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
                 Counted from your register: purchases on the card, in the offer's dates and the
                 categories or payees you mapped it to, less any refunds. Your card decides what
-                qualifies by the kind of shop, so treat these as close, not exact.
+                qualifies by the kind of shop, so treat these as close, not exact. A credit marked
+                off by hand instead counts only what you type.
               </p>
             </>
           )}
+          <ErrorLine message={offerError} />
         </Panel>
 
         {cardValue.choices.length > 0 && (

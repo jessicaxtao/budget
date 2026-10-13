@@ -402,6 +402,20 @@ export const OFFER_KIND_LABELS = {
 /** A credit is only worth tracking against the day it expires, like a target. */
 export const OFFER_KINDS_NEEDING_END = [OFFER_KINDS.TARGET, OFFER_KINDS.CREDIT];
 
+/**
+ * A credit's progress is a derived-vs-typed question, the store's recurring
+ * shape: by default it is read off the ledger like a cap is, but some credits
+ * never touch a mapped category at all — a hotel's own site, a lounge pass, a
+ * $15-a-month ride credit nobody bothers filing as "travel" — so a household
+ * can say instead, in its own words, how much of one it has used. Meaningful
+ * only on a `CREDIT`; a cap and a target are promises *about* spending, and
+ * matching the ledger is the only way to answer them at all.
+ */
+export const PROGRESS_SOURCES = {
+  LEDGER: "ledger",
+  MANUAL: "manual",
+};
+
 export const OFFER_STATUS = {
   UPCOMING: "upcoming",
   ACTIVE: "active",
@@ -492,27 +506,36 @@ export function offerProgress(offer, transactions, today) {
   else if (end != null && end < today) status = OFFER_STATUS.ENDED;
   else status = OFFER_STATUS.ACTIVE;
 
-  const inWindow = transactions
-    .filter((t) => t.date != null && t.date >= start && t.date <= through)
-    .map((t) => ({ t, cents: qualifyingCents(offer, t), onCard: t.accountId === offer.accountId }))
-    .filter((row) => row.cents !== 0)
-    .sort((a, b) => {
-      if (a.t.date !== b.t.date) return a.t.date < b.t.date ? -1 : 1;
-      return a.onCard === b.onCard ? 0 : a.onCard ? -1 : 1;
-    });
-
   const limit = offer.limitCents;
+  const manual = offer.kind === OFFER_KINDS.CREDIT && offer.progressSource === PROGRESS_SOURCES.MANUAL;
+
   let running = 0;
   let elsewhere = 0;
   let purchaseCount = 0;
-  for (const row of inWindow) {
-    if (row.onCard) {
-      running += row.cents;
-      if (row.cents > 0) purchaseCount += 1;
-    } else if (row.cents > 0 && Math.max(0, running) < limit) {
-      // Only as much as there was still a use for: $300 of dinners elsewhere
-      // with $100 of room left is $100 missed, not $300.
-      elsewhere += Math.min(row.cents, limit - Math.max(0, running));
+  if (manual) {
+    // The household's own word for it, typed on the card's row — nothing here
+    // reads the ledger at all, so a credit spent somewhere the books never see
+    // can still be marked used.
+    running = offer.usedCents ?? 0;
+  } else {
+    const inWindow = transactions
+      .filter((t) => t.date != null && t.date >= start && t.date <= through)
+      .map((t) => ({ t, cents: qualifyingCents(offer, t), onCard: t.accountId === offer.accountId }))
+      .filter((row) => row.cents !== 0)
+      .sort((a, b) => {
+        if (a.t.date !== b.t.date) return a.t.date < b.t.date ? -1 : 1;
+        return a.onCard === b.onCard ? 0 : a.onCard ? -1 : 1;
+      });
+
+    for (const row of inWindow) {
+      if (row.onCard) {
+        running += row.cents;
+        if (row.cents > 0) purchaseCount += 1;
+      } else if (row.cents > 0 && Math.max(0, running) < limit) {
+        // Only as much as there was still a use for: $300 of dinners elsewhere
+        // with $100 of room left is $100 missed, not $300.
+        elsewhere += Math.min(row.cents, limit - Math.max(0, running));
+      }
     }
   }
 
