@@ -102,7 +102,10 @@ function Guidance({ projection, inputs }) {
 export default function RetirementOutlook({ projection, inputs, retirementAge }) {
   if (!projection.ready) {
     return (
-      <section aria-label="Retirement outlook" className="border border-edge bg-panel">
+      <section
+        aria-label="Retirement outlook"
+        className="overflow-hidden rounded-2xl border border-edge bg-panel"
+      >
         <div className="border-b border-edge px-4 py-3">
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Outlook</h2>
         </div>
@@ -128,7 +131,10 @@ export default function RetirementOutlook({ projection, inputs, retirementAge })
   const short = gapCents < 0;
 
   return (
-    <section aria-label="Retirement outlook" className="border border-edge bg-panel">
+    <section
+      aria-label="Retirement outlook"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-edge px-4 py-4">
         <div>
           <div className="font-mono text-label uppercase text-chalk-soft">

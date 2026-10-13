@@ -59,7 +59,10 @@ export default function NetWorthSummary({ period, current, change }) {
     // rather than four numbers loose on the page — the chart's table twin below
     // repeats every one of them, and a reader needs to be able to tell which
     // copy they have landed on.
-    <section aria-label="Net worth summary" className="border border-edge bg-panel">
+    <section
+      aria-label="Net worth summary"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-edge px-4 py-4">
         <div>
           <div className="font-mono text-label uppercase text-chalk-soft">

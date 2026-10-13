@@ -4,7 +4,7 @@
  */
 export default function Placeholder({ title, items = [] }) {
   return (
-    <section className="border border-dashed border-edge bg-panel/60 p-5">
+    <section className="overflow-hidden rounded-2xl border border-dashed border-edge bg-panel/60 p-5">
       <div className="flex flex-wrap items-center gap-3">
         <span className="border border-sulfur/50 px-2 py-0.5 font-mono text-label uppercase text-sulfur">
           Not built

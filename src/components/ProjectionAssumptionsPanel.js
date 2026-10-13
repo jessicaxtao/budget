@@ -235,7 +235,7 @@ export default function ProjectionAssumptionsPanel({
   return (
     <section
       aria-labelledby="projection-assumptions-heading"
-      className="border border-edge bg-panel"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2

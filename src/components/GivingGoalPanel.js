@@ -40,7 +40,10 @@ export default function GivingGoalPanel({ year, goal, error, onChange }) {
   const byShare = goal.source === GOAL_SOURCES.INCOME_SHARE;
 
   return (
-    <section aria-label="Giving goal" className="border border-edge bg-panel">
+    <section
+      aria-label="Giving goal"
+      className="overflow-hidden rounded-2xl border border-edge bg-panel"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Goal for {year}
