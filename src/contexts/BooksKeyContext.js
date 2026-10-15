@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "../supabaseClient";
 import { AUTH_STATUS, useAuth } from "./AuthContext";
 import { BOOKS_KEY_CACHE_KEY, getStorageScope, readKey, setStorageScope, writeKey } from "../storage";
@@ -14,7 +14,7 @@ import {
   unwrapKey,
   wrapKey,
 } from "../booksCrypto";
-import { getBooksKey, setBooksKey } from "../booksKey";
+import { booksKeyGeneration, getBooksKey, setBooksKey } from "../booksKey";
 
 /**
  * The account's key record, and the unwrapped master key once something has
@@ -121,6 +121,8 @@ function writeCachedKey(userId, cached) {
   }
 }
 
+const cancelled = () => ({ ok: false, error: "Your session changed. Sign in and unlock your books again." });
+
 export const BooksKeyProvider = ({ children }) => {
   const { status: authStatus, userId } = useAuth();
 
@@ -129,6 +131,24 @@ export const BooksKeyProvider = ({ children }) => {
   const [status, setStatus] = useState(remote ? BOOKS_KEY_STATUS.CHECKING : BOOKS_KEY_STATUS.UNLOCKED);
   /** The account's `app_crypto` row — the salts and wraps, never the key itself. */
   const [row, setRow] = useState(null);
+  const lifetime = useRef(0);
+  const sessionEpoch = useRef(booksKeyGeneration());
+  const owner = useRef(null);
+  owner.current = remote ? userId : null;
+
+  // Both guards matter: the epoch changes immediately on logout, while the
+  // lifetime also catches unmounts and switches before a promise resumes.
+  const operation = useCallback(() => {
+    const epoch = sessionEpoch.current;
+    const started = lifetime.current;
+    return () => remote && owner.current === userId && lifetime.current === started && booksKeyGeneration() === epoch;
+  }, [remote, userId]);
+
+  useEffect(() => {
+    lifetime.current += 1;
+    sessionEpoch.current = booksKeyGeneration();
+    return () => { lifetime.current += 1; };
+  }, [remote, userId]);
 
   useEffect(() => {
     if (!remote) {
@@ -138,12 +158,14 @@ export const BooksKeyProvider = ({ children }) => {
     }
 
     let active = true;
+    const isCurrent = operation();
     setStatus(BOOKS_KEY_STATUS.CHECKING);
+    setRow(null);
 
     (async () => {
       const supabase = getSupabase();
       const { data, error } = await selectRow(supabase, userId);
-      if (!active) return;
+      if (!active || !isCurrent()) return;
 
       if (error || !data) {
         setRow(null);
@@ -160,7 +182,7 @@ export const BooksKeyProvider = ({ children }) => {
       const cached = readCachedKey(userId);
       if (cached && typeof cached === "object" && cached.kid === data.kid && typeof cached.raw === "string") {
         const imported = await importMasterKey(cached.raw);
-        if (!active) return;
+        if (!active || !isCurrent()) return;
         if (imported.ok) {
           setBooksKey(imported.key, data.kid);
           setStatus(BOOKS_KEY_STATUS.UNLOCKED);
@@ -177,13 +199,17 @@ export const BooksKeyProvider = ({ children }) => {
     return () => {
       active = false;
     };
-  }, [remote, userId]);
+  }, [remote, userId, operation]);
 
   /** Remember the unwrapped key on this device, keyed to the row it opens. */
   const cacheKey = useCallback(
-    async (mk, kid) => {
+    async (mk, kid, isCurrent) => {
       const exported = await exportMasterKey(mk);
+      if (!isCurrent()) return false;
       if (exported.ok) writeCachedKey(userId, { raw: exported.raw, kid });
+      setBooksKey(mk, kid);
+      setStatus(BOOKS_KEY_STATUS.UNLOCKED);
+      return true;
     },
     [userId]
   );
@@ -204,22 +230,26 @@ export const BooksKeyProvider = ({ children }) => {
   const setUp = useCallback(
     async (password) => {
       if (!remote) return { ok: false, error: "This build has no account server configured." };
+      const isCurrent = operation();
 
       const passwordError = checkBooksPassword(password);
       if (passwordError) return { ok: false, error: passwordError };
 
       const created = await newKeyRecord(password);
+      if (!isCurrent()) return cancelled();
       if (!created.ok) return { ok: false, error: created.error };
 
       const supabase = getSupabase();
       const { error: upsertError } = await supabase
         .from("app_crypto")
         .upsert({ user_id: userId, ...created.record }, { onConflict: "user_id", ignoreDuplicates: true });
+      if (!isCurrent()) return cancelled();
       if (upsertError) {
         return { ok: false, error: upsertError.message ?? "Could not set up your books key." };
       }
 
       const { data, error: selectError } = await selectRow(supabase, userId);
+      if (!isCurrent()) return cancelled();
       if (selectError || !data) {
         return { ok: false, error: selectError?.message ?? "Could not set up your books key." };
       }
@@ -237,12 +267,10 @@ export const BooksKeyProvider = ({ children }) => {
         };
       }
 
-      setBooksKey(created.mk, created.kid);
-      await cacheKey(created.mk, created.kid);
-      setStatus(BOOKS_KEY_STATUS.UNLOCKED);
+      if (!(await cacheKey(created.mk, created.kid, isCurrent))) return cancelled();
       return { ok: true, recoveryCode: created.recoveryCode };
     },
-    [remote, userId, cacheKey]
+    [remote, userId, cacheKey, operation]
   );
 
   /** Unwrap MK under the books password. A wrong password fails GCM's tag —
@@ -250,19 +278,20 @@ export const BooksKeyProvider = ({ children }) => {
   const unlock = useCallback(
     async (password) => {
       if (!row) return { ok: false, error: "There is no books key to unlock yet." };
+      const isCurrent = operation();
 
       const kek = await deriveKek(password, { salt: row.password_salt, kdf: row.kdf });
+      if (!isCurrent()) return cancelled();
       if (!kek.ok) return { ok: false, error: "That password could not be used." };
 
       const unwrapped = await unwrapKey(kek.key, row.password_wrap);
+      if (!isCurrent()) return cancelled();
       if (!unwrapped.ok) return { ok: false, error: "That password does not match." };
 
-      setBooksKey(unwrapped.key, row.kid);
-      await cacheKey(unwrapped.key, row.kid);
-      setStatus(BOOKS_KEY_STATUS.UNLOCKED);
+      if (!(await cacheKey(unwrapped.key, row.kid, isCurrent))) return cancelled();
       return { ok: true };
     },
-    [row, cacheKey]
+    [row, cacheKey, operation]
   );
 
   /** The second way in. `normalizeRecoveryCode` first, so a code retyped
@@ -270,6 +299,7 @@ export const BooksKeyProvider = ({ children }) => {
   const unlockWithRecoveryCode = useCallback(
     async (code) => {
       if (!row) return { ok: false, error: "There is no books key to unlock yet." };
+      const isCurrent = operation();
       if (!row.recovery_salt || !row.recovery_wrap) {
         return { ok: false, error: "No recovery code was set up for this account." };
       }
@@ -278,17 +308,17 @@ export const BooksKeyProvider = ({ children }) => {
         salt: row.recovery_salt,
         kdf: row.kdf,
       });
+      if (!isCurrent()) return cancelled();
       if (!kek.ok) return { ok: false, error: "That recovery code could not be used." };
 
       const unwrapped = await unwrapKey(kek.key, row.recovery_wrap);
+      if (!isCurrent()) return cancelled();
       if (!unwrapped.ok) return { ok: false, error: "That recovery code does not match." };
 
-      setBooksKey(unwrapped.key, row.kid);
-      await cacheKey(unwrapped.key, row.kid);
-      setStatus(BOOKS_KEY_STATUS.UNLOCKED);
+      if (!(await cacheKey(unwrapped.key, row.kid, isCurrent))) return cancelled();
       return { ok: true };
     },
-    [row, cacheKey]
+    [row, cacheKey, operation]
   );
 
   /**
@@ -298,6 +328,7 @@ export const BooksKeyProvider = ({ children }) => {
    */
   const changePassword = useCallback(
     async (next) => {
+      const isCurrent = operation();
       if (status !== BOOKS_KEY_STATUS.UNLOCKED) return { ok: false, error: "Unlock your books first." };
       const key = getBooksKey();
       if (!key) return { ok: false, error: "Unlock your books first." };
@@ -307,8 +338,10 @@ export const BooksKeyProvider = ({ children }) => {
 
       const salt = newSalt();
       const kek = await deriveKek(next, { salt, kdf: DEFAULT_KDF });
+      if (!isCurrent()) return cancelled();
       if (!kek.ok) return { ok: false, error: kek.error };
       const wrapped = await wrapKey(kek.key, key.mk);
+      if (!isCurrent()) return cancelled();
       if (!wrapped.ok) return { ok: false, error: wrapped.error };
 
       const supabase = getSupabase();
@@ -316,6 +349,7 @@ export const BooksKeyProvider = ({ children }) => {
         .from("app_crypto")
         .update({ kdf: DEFAULT_KDF, password_salt: salt, password_wrap: wrapped.wrapped })
         .eq("user_id", userId);
+      if (!isCurrent()) return cancelled();
       if (error) return { ok: false, error: error.message ?? "Could not change your books password." };
 
       setRow((previous) =>
@@ -323,13 +357,14 @@ export const BooksKeyProvider = ({ children }) => {
       );
       return { ok: true };
     },
-    [status, userId]
+    [status, userId, operation]
   );
 
   /** Mint a fresh recovery code, rewrap MK under it, and write ONE row. The
    *  old code stops working the moment this succeeds — there is only ever
    *  one in force, the same as the password. */
   const regenerateRecoveryCode = useCallback(async () => {
+    const isCurrent = operation();
     if (status !== BOOKS_KEY_STATUS.UNLOCKED) return { ok: false, error: "Unlock your books first." };
     const key = getBooksKey();
     if (!key) return { ok: false, error: "Unlock your books first." };
@@ -337,8 +372,10 @@ export const BooksKeyProvider = ({ children }) => {
     const code = newRecoveryCode();
     const salt = newSalt();
     const kek = await deriveKek(normalizeRecoveryCode(code), { salt, kdf: DEFAULT_KDF });
+    if (!isCurrent()) return cancelled();
     if (!kek.ok) return { ok: false, error: kek.error };
     const wrapped = await wrapKey(kek.key, key.mk);
+    if (!isCurrent()) return cancelled();
     if (!wrapped.ok) return { ok: false, error: wrapped.error };
 
     const supabase = getSupabase();
@@ -346,11 +383,12 @@ export const BooksKeyProvider = ({ children }) => {
       .from("app_crypto")
       .update({ recovery_salt: salt, recovery_wrap: wrapped.wrapped })
       .eq("user_id", userId);
+    if (!isCurrent()) return cancelled();
     if (error) return { ok: false, error: error.message ?? "Could not regenerate your recovery code." };
 
     setRow((previous) => (previous ? { ...previous, recovery_salt: salt, recovery_wrap: wrapped.wrapped } : previous));
     return { ok: true, recoveryCode: code };
-  }, [status, userId]);
+  }, [status, userId, operation]);
 
   const value = useMemo(
     () => ({

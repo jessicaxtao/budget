@@ -1,5 +1,14 @@
 # Accounts, and why they exist
 
+Security lifecycle: auth events clear the previous account's content and key,
+including revoked sessions and direct account switches. Startup also removes
+orphaned account caches while retaining guest/local books and import decisions.
+`clearBooksKey` invalidates a generation counter synchronously; key operations,
+sync work, and store persistence use it to reject work from an ended session.
+Key operations additionally check their provider lifetime before installing or
+caching a key. Test these boundaries in `securityLifecycle.test.js` and
+`SyncContext.test.js` when changing auth or asynchronous persistence.
+
 The server side of the books: the account, the one table behind it, the five gates in front of it, the two ways in, and `localStorage`'s demotion to a cache. The other half of the same story — the build where a household's ledger is a file on their own machine and reaches no server at all — is in `.claude/DESKTOP_APP.md`.
 
 The app was single-user with no auth for its whole life. What ended that is not a second person: it is that **the books moved off the browser**. A Supabase anon key is compiled into the JavaScript bundle and is public by design, so the only thing between a household's ledger and anyone who opens devtools on the deployed app is a row-level-security predicate — and a predicate needs a subject. `auth.uid()` is that subject, which is what makes an account load-bearing rather than a feature.

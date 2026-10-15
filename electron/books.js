@@ -126,6 +126,9 @@ function booksPath() {
 function load(userDataDir) {
   filePath = path.join(userDataDir, "books.json");
   bakPath = path.join(userDataDir, "books.bak.json");
+  // Older versions backed up account caches, including unwrapped keys.
+  // Migrate before serving any renderer, even if this run makes no edits.
+  sanitizeBackup();
 
   let raw;
   try {
@@ -225,6 +228,36 @@ function snapshot() {
   return Object.fromEntries(documents);
 }
 
+function backupPayload(raw) {
+  const parsed = JSON.parse(raw);
+  const data = documentsIn(parsed);
+  if (!data) throw new Error("The books backup is not a valid set of books.");
+  const local = Object.fromEntries(Object.entries(data).filter(([key]) =>
+    !/^hb:(?!guest:)[^:]+:/.test(key) && key !== "booksKey"
+  ));
+  if (Object.keys(local).length === Object.keys(data).length) return raw;
+  return JSON.stringify({ app: FILE_APP, schema: FILE_SCHEMA, data: local }, null, 2) + "\n";
+}
+
+function writePrivate(target, payload) {
+  const tmp = `${target}.tmp`;
+  fs.writeFileSync(tmp, payload, { encoding: "utf8", mode: PRIVATE_MODE });
+  makePrivate(tmp);
+  fs.renameSync(tmp, target);
+}
+
+function sanitizeBackup() {
+  let raw;
+  try {
+    raw = fs.readFileSync(bakPath, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  const clean = backupPayload(raw);
+  if (clean !== raw) writePrivate(bakPath, clean);
+}
+
 function clearTimers() {
   clearTimeout(trailingTimer);
   clearTimeout(maxWaitTimer);
@@ -259,12 +292,13 @@ function writeNow() {
       // The real file is still exactly as this session found it, which is the
       // whole point of taking the copy here rather than at launch.
       try {
-        fs.copyFileSync(filePath, bakPath);
+        writePrivate(bakPath, backupPayload(fs.readFileSync(filePath, "utf8")));
         // A copy keeps the source's mode, which for a file an older build wrote
         // is the world-readable default.
         makePrivate(bakPath);
-      } catch {
+      } catch (error) {
         // No file to back up on a first run, which is not a failure.
+        if (error.code !== "ENOENT") throw error;
       }
       backedUp = true;
     }

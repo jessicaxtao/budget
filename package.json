@@ -18,18 +18,18 @@
     "@testing-library/user-event": "^13.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.30.4",
+    "react-router-dom": "7.18.4",
     "react-scripts": "^5.0.1",
     "uuid": "^11.1.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "node scripts/start.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "shell-config": "node electron/writeShellConfig.js",
-    "desktop": "npm run shell-config -- development && concurrently -k -n cra,electron -c blue,magenta \"cross-env BROWSER=none react-scripts start\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
+    "desktop": "npm run shell-config -- development && concurrently -k -n cra,electron -c blue,magenta \"cross-env BROWSER=none node scripts/start.js\" \"wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .\"",
     "desktop:build": "npm run shell-config && react-scripts build && electron-builder --dir",
     "desktop:dist": "npm run shell-config && react-scripts build && electron-builder"
   },
@@ -60,6 +60,14 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.17",
     "wait-on": "^9.1.0"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
+    }
+  },
+  "overrides": {
+    "webpack-dev-server": "5.2.6"
   },
   "main": "electron/main.js",
   "build": {

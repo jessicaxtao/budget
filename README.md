@@ -48,10 +48,17 @@ built-in sender, and the stock one carries only the link. The web app is
 unaffected either way. `supabase/schema.sql`'s header lists that and the settings
 beside it.
 
-Built with Create React App (react-scripts 5), React 18, React Router 6 and
+Built with Create React App (react-scripts 5), React 18, React Router 7 and
 Tailwind CSS 3, packaged with Electron and electron-builder. Linting is CRA's
 built-in ESLint, which runs as part of `npm start` and `npm test` — there is no
 separate lint script.
+
+`npm start` and `npm run desktop` use `scripts/start.js` to adapt CRA to the
+patched webpack-dev-server 5 release pinned in `package.json`. Development binds
+to localhost by default, validates host/origin headers, and does not enable
+wildcard CORS. Use these scripts instead of invoking `react-scripts start`
+directly. React Router 7's `react-router/dom` export has an explicit Jest mapping
+because CRA's older test resolver does not support that package export.
 
 ## Current features — V0.2
 

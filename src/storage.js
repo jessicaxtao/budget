@@ -232,6 +232,7 @@ export function scopedKey(key) {
  * across before the bundle evaluates and the backend below holds it in a Map.
  */
 const webBackend = {
+  keys: () => Object.keys(localStorage),
   // Called through, never captured. `const { getItem } = localStorage` would be
   // the natural thing to write and would be wrong twice over: the binding loses
   // its receiver, and it is resolved at module evaluation, which is before any
@@ -246,7 +247,7 @@ const webBackend = {
 /**
  * The desktop shell's books file, as a Storage.
  *
- * `bridge.snapshot` is the whole file, already parsed, read across by the
+ * `bridge.takeSnapshot()` consumes the whole file, already parsed, read by the
  * preload before any of this ran. It is re-serialised into the cache one key at
  * a time so that what this backend hands back is a **string** — a fresh parse
  * per read, exactly as `localStorage` gives, with no object shared between the
@@ -261,11 +262,12 @@ const webBackend = {
  */
 function desktopBackend(bridge) {
   const cache = new Map();
-  for (const [key, value] of Object.entries(bridge.snapshot ?? {})) {
+  for (const [key, value] of Object.entries(bridge.takeSnapshot?.() ?? {})) {
     cache.set(key, JSON.stringify(value));
   }
 
   return {
+    keys: () => [...cache.keys()],
     // `null` for absent, not `undefined` — `readKey` tells the two apart and
     // `localStorage` answers this way.
     getItem: (key) => (cache.has(key) ? cache.get(key) : null),
@@ -534,5 +536,23 @@ export function clearScope(userId) {
     }
   } finally {
     setStorageScope(previous);
+  }
+}
+
+/** Remove orphaned account caches at boot or an account switch, keeping local
+ * books and the non-content import decision. */
+export function clearOtherAccountScopes(keepUserId = null) {
+  const content = new Set([...STORE_KEYS, ...LEGACY_KEYS, PENDING_SYNC_KEY, BOOKS_KEY_CACHE_KEY]);
+  let keys;
+  try {
+    keys = backend.keys();
+  } catch {
+    return;
+  }
+  for (const name of keys) {
+    const match = /^hb:([^:]+):(.+)$/.exec(name);
+    if (match && match[1] !== GUEST_SCOPE && match[1] !== keepUserId && content.has(match[2])) {
+      backend.removeItem(name);
+    }
   }
 }

@@ -1,7 +1,8 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "../supabaseClient";
 import {
   clearScope,
+  clearOtherAccountScopes,
   hasStoredBooks,
   isDesktop,
   isGuestMode,
@@ -229,9 +230,8 @@ function isUnknownAccountError(error) {
  */
 async function clearAfterSignOut(userId) {
   clearScope(userId);
-  // The books key does not outlive the session either, for `clearScope`'s own
-  // reason — it is what opens the books that just left this device.
-  clearBooksKey();
+  // Key work was invalidated before awaiting sign-out. Do not clear a newer
+  // account's in-memory key if its sign-in overtook that network request.
   await flushWrites();
 }
 
@@ -244,6 +244,7 @@ export const AuthProvider = ({ children }) => {
     return AUTH_STATUS.CHECKING;
   });
   const [user, setUser] = useState(null);
+  const accountRef = useRef(undefined);
 
   /**
    * True between following a password-reset link and choosing the new password.
@@ -300,30 +301,49 @@ export const AuthProvider = ({ children }) => {
      * bring the client back for this load.
      */
     const followingAuthLink = window.location.hash.includes("access_token");
-    if (local && !followingAuthLink) return undefined;
+    if (local && !followingAuthLink) {
+      clearOtherAccountScopes();
+      clearBooksKey();
+      void flushWrites();
+      return undefined;
+    }
 
     const supabase = getSupabase();
     if (!supabase) return undefined;
 
     let active = true;
+    let receivedAuthEvent = false;
+    const applySession = (session) => {
+      const nextId = session?.user?.id ?? null;
+      if ((accountRef.current !== undefined && accountRef.current !== nextId) || !nextId) {
+        clearScope(accountRef.current);
+        clearBooksKey();
+      }
+      clearOtherAccountScopes(nextId);
+      // Only local IPC/filesystem flushing here, never a Supabase auth call.
+      void flushWrites();
+      accountRef.current = nextId;
+      setUser(session?.user ?? null);
+      setStatus(session ? AUTH_STATUS.SIGNED_IN : signedOutStatus());
+    };
 
     // The persisted session is read back asynchronously, which is the whole
     // reason CHECKING exists.
     supabase.auth
       .getSession()
       .then(({ data }) => {
-        if (!active) return;
-        setUser(data?.session?.user ?? null);
-        setStatus(data?.session ? AUTH_STATUS.SIGNED_IN : signedOutStatus());
+        if (!active || receivedAuthEvent) return;
+        applySession(data?.session);
       })
       .catch(() => {
         // Offline at boot with no cached session. Signed out is the honest
         // reading, and the sign-in form will say why when it is used.
-        if (active) setStatus(signedOutStatus());
+        if (active && !receivedAuthEvent) applySession(null);
       });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
+      receivedAuthEvent = true;
 
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
       if (event === "SIGNED_OUT") setRecovering(false);
@@ -335,8 +355,7 @@ export const AuthProvider = ({ children }) => {
       // for an email sent before the session that has just ended.
       if (session) setPendingSignInEmail(null);
 
-      setUser(session?.user ?? null);
-      setStatus(session ? AUTH_STATUS.SIGNED_IN : signedOutStatus());
+      applySession(session);
     });
 
     return () => {

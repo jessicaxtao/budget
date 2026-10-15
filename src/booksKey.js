@@ -20,6 +20,13 @@
  */
 
 let current = null;
+let generation = 0;
+
+// Captured by asynchronous work; logout invalidates it synchronously, before
+// React unmounts providers or a network sign-out finishes.
+export function booksKeyGeneration() {
+  return generation;
+}
 
 /** Put an unlocked master key — and the `kid` it was sealed under — in
  *  force for the rest of this session. */
@@ -38,4 +45,5 @@ export function getBooksKey() {
 /** Lock back up. Called wherever `clearScope` is. */
 export function clearBooksKey() {
   current = null;
+  generation += 1;
 }

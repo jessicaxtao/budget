@@ -320,6 +320,29 @@ describe("writing", () => {
 });
 
 describe("the backup", () => {
+  it("excludes account data and keys when the first write is logout", () => {
+    seed("books.json", { app: "canopy-budget", schema: 1, data: {
+      budgets: [{ id: "local" }],
+      "hb:guest:budgets": [{ id: "guest" }],
+      "hb:user:transactions": [{ memo: "private" }],
+      "hb:user:booksKey": { raw: "synthetic" },
+    } });
+    books.load(dir);
+    books.remove("hb:user:transactions");
+    books.remove("hb:user:booksKey");
+    expect(books.flush().ok).toBe(true);
+    const local = { budgets: [{ id: "local" }], "hb:guest:budgets": [{ id: "guest" }] };
+    expect(read("books.json").data).toEqual(local);
+    expect(read("books.bak.json").data).toEqual(local);
+  });
+
+  it("scrubs an existing backup at startup even without a subsequent write", () => {
+    seed("books.bak.json", { budgets: [{ id: "local" }], "hb:user:booksKey": { raw: "synthetic" } });
+    books.load(dir);
+    expect(read("books.bak.json").data).toEqual({ budgets: [{ id: "local" }] });
+    expect(exists("books.json")).toBe(false);
+  });
+
   it("is the file as it was found at launch, and is taken once", () => {
     seed("books.json", {
       app: "canopy-budget",

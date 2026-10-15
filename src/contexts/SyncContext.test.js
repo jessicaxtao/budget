@@ -10,6 +10,7 @@ import { getStorageScope, readKey, setStorageScope, writeKey } from "../storage"
 // refuses any other out-of-scope reference. Same shape as AuthContext.test.js,
 // since this suite mounts the real AuthProvider above the real SyncProvider.
 let mockConfigured = true;
+let mockAuthListener;
 
 const mockAuth = {
   getSession: jest.fn(),
@@ -71,9 +72,10 @@ beforeEach(() => {
   clearBooksKey();
   jest.clearAllMocks();
 
-  mockAuth.onAuthStateChange.mockImplementation(() => ({
-    data: { subscription: { unsubscribe: jest.fn() } },
-  }));
+  mockAuth.onAuthStateChange.mockImplementation((listener) => {
+    mockAuthListener = listener;
+    return { data: { subscription: { unsubscribe: jest.fn() } } };
+  });
   mockAuth.getSession.mockResolvedValue({
     data: { session: { user: { id: USER_ID, email: "jt@example.com" } } },
   });
@@ -116,6 +118,29 @@ async function freshKey() {
   setBooksKey(mk, kid);
   return { mk, kid };
 }
+
+test("a failed upload completing after logout cannot recreate its outbox", async () => {
+  await freshKey();
+  let finishUpload;
+  const upsert = jest.fn(() => new Promise((resolve) => { finishUpload = resolve; }));
+  mockDb.from.mockReturnValue(fromStub({ upsert }));
+  const view = await mountSync();
+  const old = view.result.current;
+  act(() => old.push("budgets", [{ id: "private" }]));
+  let upload;
+  act(() => { upload = old.flush(); });
+  await waitFor(() => expect(upsert).toHaveBeenCalledTimes(1));
+  await act(async () => mockAuthListener("SIGNED_OUT", null));
+  await act(async () => {
+    finishUpload({ error: { message: "network failure" } });
+    expect((await upload).ok).toBe(false);
+    old.push("budgets", [{ id: "late edit" }]);
+    expect((await old.flush()).ok).toBe(false);
+  });
+  expect(localStorage.getItem("hb:u1:pendingSync")).toBeNull();
+  expect(localStorage.getItem("pendingSync")).toBeNull();
+  expect(upsert).toHaveBeenCalledTimes(1);
+});
 
 // ---------------------------------------------------------------------------
 // 1. The test the whole change exists to pass.
@@ -210,9 +235,10 @@ describe("a plaintext row on the way in", () => {
     const { result } = await mountSync();
 
     // The plaintext row is taken as-is — the cache holds it in the clear.
+    const previousScope = getStorageScope();
     setStorageScope(USER_ID);
     expect(readKey("budgets")).toEqual([{ id: "b1", name: "Groceries" }]);
-    setStorageScope(null);
+    setStorageScope(previousScope);
 
     // The self-migration already queued it; flushing directly (rather than
     // waiting on the real 700ms debounce) is what resync's own write rides on.

@@ -57,7 +57,7 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 
 ## Routing
 
-`react-router-dom` v6, **pinned**: v7's `react-router/dom` export cannot be resolved by the Jest resolver in react-scripts 5. Both routers take the shared `routerFuture` flags (`src/routerFuture.js`).
+`react-router-dom` v7, pinned to a patched release. CRA's Jest resolver needs the `react-router/dom` mapping in `package.json`; keep it when updating the router. The shared `routerFuture` flags remain compatible with the existing router wrappers.
 
 `src/navigation.js` is the single source of truth for pages, feeding both the route table in `App.js` and the tab bar in `AppShell.js` — **adding a page means adding one entry there**. `src/App.js` is only shell; each page owns its state and modals.
 
@@ -157,3 +157,13 @@ The assignment terms cancel algebraically, so this checks **coverage, not arithm
 **Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`, the guarded WebCrypto and `TextEncoder`/`TextDecoder` polyfills jsdom 16 ships without), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what — including `booksCrypto.test.js`, `BooksKeyContext.test.js` and `SyncContext.test.js`, the three the key design added — and the five tripwires.
 
 **The five tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `storage.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub Issues in `jtxtao/budget`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root (neither exists yet — created lazily by `/domain-modeling`). See `docs/agents/domain.md`.

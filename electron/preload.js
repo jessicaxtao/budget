@@ -23,14 +23,19 @@ const { contextBridge, ipcRenderer } = require("electron");
  * **never `ipcMain.handle`**, which returns a promise that `sendSync` reads as
  * `undefined`, and the app would boot silently with empty books.
  */
-const boot = ipcRenderer.sendSync("books:readAll");
+let boot = ipcRenderer.sendSync("books:readAll");
+const booksPath = boot?.path ?? null;
 
 contextBridge.exposeInMainWorld("__hbDesktop", {
   /** Every document, parsed. `src/storage.js` seeds its cache from this. */
-  snapshot: boot?.documents ?? {},
+  takeSnapshot: () => {
+    const documents = boot?.documents ?? {};
+    boot = null;
+    return documents;
+  },
 
   /** Where the file is, so the app can show it and offer to reveal it. */
-  path: boot?.path ?? null,
+  path: booksPath,
 
   // Fire-and-forget: the renderer has already written its own cache, so it must
   // never wait on the disk to show what the user just did. Main coalesces these

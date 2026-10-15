@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { readKey, scopedKey, writeKey } from "../storage";
 import { useSync } from "../contexts/SyncContext";
+import { booksKeyGeneration } from "../booksKey";
 
 function resolve(defaultValue) {
   return typeof defaultValue === "function" ? defaultValue() : defaultValue;
@@ -44,7 +45,8 @@ function resolve(defaultValue) {
 export default function useSyncedState(key, defaultValue, migrate) {
   // `useSync` returns undefined when no provider is mounted, which is the
   // local-only case rather than a mistake.
-  const { push, subscribeRemote } = useSync() ?? {};
+  const { remote, push, subscribeRemote } = useSync() ?? {};
+  const sessionGeneration = useRef(booksKeyGeneration());
 
   // Held in a ref so callers can keep passing inline literals without
   // re-subscribing on every render.
@@ -67,9 +69,10 @@ export default function useSyncedState(key, defaultValue, migrate) {
   // the server last sent, so a reload costs no writes even though this fires on
   // mount for all fourteen stores.
   useEffect(() => {
+    if (remote && sessionGeneration.current !== booksKeyGeneration()) return;
     writeKey(key, value);
     push?.(key, value);
-  }, [key, value, push]);
+  }, [key, value, push, remote]);
 
   // Another tab on this device. Fires only in tabs that did *not* write, which
   // is what makes it safe to apply directly.

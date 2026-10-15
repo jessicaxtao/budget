@@ -13,7 +13,7 @@ import {
   writeKey,
 } from "../storage";
 import { decryptDocument, encryptDocument, envelopeKid, isEncryptedDocument } from "../booksCrypto";
-import { getBooksKey } from "../booksKey";
+import { booksKeyGeneration, getBooksKey } from "../booksKey";
 
 /**
  * The seam between the books and the wire — and the only file that touches
@@ -164,6 +164,7 @@ export const SyncProvider = ({ children }) => {
 
   /** key -> the value waiting to be sent. Last write per key wins, by design. */
   const pending = useRef(new Map());
+  const accountWork = useRef(null);
 
   /**
    * Keys whose row is to be removed from the account outright.
@@ -224,7 +225,9 @@ export const SyncProvider = ({ children }) => {
     setStorageScope(scope);
 
     if (!remote) {
+      accountWork.current = null;
       pending.current.clear();
+      pendingDeletes.current.clear();
       known.current.clear();
       setHydrated(true);
       setHydrationError(null);
@@ -233,6 +236,10 @@ export const SyncProvider = ({ children }) => {
     }
 
     let active = true;
+    const generation = booksKeyGeneration();
+    const work = { userId, generation };
+    accountWork.current = work;
+    pendingDeletes.current.clear();
     setHydrated(false);
     setHydrationError(null);
 
@@ -242,7 +249,7 @@ export const SyncProvider = ({ children }) => {
         .select("key, value")
         .eq("user_id", userId);
 
-      if (!active) return;
+      if (!active || booksKeyGeneration() !== generation) return;
 
       if (error) {
         // Refusing to render is the right answer here, and the alternative is
@@ -272,7 +279,7 @@ export const SyncProvider = ({ children }) => {
             return;
           }
           const decrypted = await decryptDocument(booksKey.mk, row.value);
-          if (!active) return;
+          if (!active || booksKeyGeneration() !== generation) return;
           if (!decrypted.ok) {
             // Same stance as a failed fetch, and the same reason: falling
             // through would show empty books and then push them up over the
@@ -289,7 +296,7 @@ export const SyncProvider = ({ children }) => {
         }
       }
 
-      if (!active) return;
+      if (!active || booksKeyGeneration() !== generation) return;
 
       // `known` holds plaintext even though the rows that produced it were
       // ciphertext — see the comment on `known`'s declaration for why a
@@ -335,6 +342,7 @@ export const SyncProvider = ({ children }) => {
 
     return () => {
       active = false;
+      if (accountWork.current === work) accountWork.current = null;
     };
   }, [remote, userId, scope]);
 
@@ -343,6 +351,7 @@ export const SyncProvider = ({ children }) => {
   // ---------------------------------------------------------------------
   /** Park the outbox where the next page load will find it. */
   const persistOutbox = useCallback(() => {
+    if (!accountWork.current || accountWork.current.generation !== booksKeyGeneration()) return;
     if (pending.current.size === 0) removeKey(PENDING_SYNC_KEY);
     else writeKey(PENDING_SYNC_KEY, Object.fromEntries(pending.current));
   }, []);
@@ -354,10 +363,20 @@ export const SyncProvider = ({ children }) => {
    */
   const flush = useCallback(async () => {
     if (!remote) return { ok: true };
+    const work = accountWork.current;
+    if (!work || work.userId !== userId || work.generation !== booksKeyGeneration()) {
+      return { ok: false, error: "The account session ended." };
+    }
     if (flushing.current) return { ok: true };
     if (pending.current.size === 0 && pendingDeletes.current.size === 0) return { ok: true };
 
     flushing.current = true;
+    const generation = booksKeyGeneration();
+    const cancelled = () => {
+      if (accountWork.current === work && booksKeyGeneration() === generation && getStorageScope() === userId) return false;
+      flushing.current = false;
+      return true;
+    };
     // Taken as a batch, and left in `pending` until it lands. A write arriving
     // mid-flight lands in the map for the next pass rather than being lost to
     // the one already in flight.
@@ -376,6 +395,7 @@ export const SyncProvider = ({ children }) => {
         .delete()
         .eq("user_id", userId)
         .in("key", drops));
+      if (cancelled()) return { ok: false, error: "The account session ended." };
     }
 
     // Sealed here and only here — `pending`, the outbox and `known` all stay
@@ -399,6 +419,7 @@ export const SyncProvider = ({ children }) => {
         sealed = [];
         for (const [key, value] of batch) {
           const envelope = await encryptDocument(booksKey.mk, booksKey.kid, value);
+          if (cancelled()) return { ok: false, error: "The account session ended." };
           if (!envelope.ok) {
             error = { message: envelope.error };
             sealed = null;
@@ -414,6 +435,7 @@ export const SyncProvider = ({ children }) => {
     }
 
     flushing.current = false;
+    if (cancelled()) return { ok: false, error: "The account session ended." };
 
     if (error) {
       setSyncState(SYNC_STATE.OFFLINE);
@@ -455,6 +477,7 @@ export const SyncProvider = ({ children }) => {
   const push = useCallback(
     (key, value) => {
       if (!remote) return;
+      if (!accountWork.current || accountWork.current.userId !== userId || accountWork.current.generation !== booksKeyGeneration()) return;
 
       // Unchanged from what the server last told us. This is what makes a
       // reload cost zero writes despite every store's persist effect firing on
@@ -471,7 +494,7 @@ export const SyncProvider = ({ children }) => {
       clearTimeout(flushTimer.current);
       flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
     },
-    [remote, persistOutbox]
+    [remote, userId, persistOutbox]
   );
 
   /**
@@ -488,6 +511,7 @@ export const SyncProvider = ({ children }) => {
   const dropRemote = useCallback(
     (keys) => {
       if (!remote) return;
+      if (!accountWork.current || accountWork.current.userId !== userId || accountWork.current.generation !== booksKeyGeneration()) return;
 
       for (const key of keys) {
         pending.current.delete(key);
@@ -501,7 +525,7 @@ export const SyncProvider = ({ children }) => {
       clearTimeout(flushTimer.current);
       flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
     },
-    [remote, persistOutbox]
+    [remote, userId, persistOutbox]
   );
 
   /**
@@ -520,6 +544,7 @@ export const SyncProvider = ({ children }) => {
    */
   const resync = useCallback(() => {
     if (!remote) return;
+    if (!accountWork.current || accountWork.current.userId !== userId || accountWork.current.generation !== booksKeyGeneration()) return;
 
     known.current.clear();
 
@@ -578,6 +603,8 @@ export const SyncProvider = ({ children }) => {
 
   useEffect(() => {
     if (!remote || !hydrated) return undefined;
+    const generation = booksKeyGeneration();
+    const work = accountWork.current;
 
     // Namespaced by app, because the project behind it is no longer this app's
     // alone. Realtime topics are a flat namespace per project, so `app_state`
@@ -602,7 +629,7 @@ export const SyncProvider = ({ children }) => {
           // to another scope, but this channel is only removed in the commit
           // after it. A row landing in that gap must not be written back under
           // an account whose books sign-out has just cleared off this device.
-          if (getStorageScope() !== userId) return;
+          if (accountWork.current !== work || getStorageScope() !== userId || booksKeyGeneration() !== generation) return;
 
           // A key we are still trying to send is one this device has a newer
           // answer for. Letting the server's copy win here would undo an edit
@@ -642,7 +669,7 @@ export const SyncProvider = ({ children }) => {
             // Returning is right for both: the row is the server's and the
             // next hydrate fetches it again, while what we would be throwing
             // away here is either nothing or somebody's own typing.
-            if (getStorageScope() !== userId) return;
+            if (accountWork.current !== work || getStorageScope() !== userId || booksKeyGeneration() !== generation) return;
             if (pending.current.has(row.key)) return;
           }
 

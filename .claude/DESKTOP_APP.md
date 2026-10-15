@@ -1,5 +1,14 @@
 # The desktop app
 
+Security updates: the preload's startup documents are consumed once through
+`takeSnapshot()` and are no longer a permanent exposed property. Backups retain
+local books only: account caches and raw keys are excluded, and existing parsed
+backups are scrubbed at startup. The backup timing described below still applies
+to local books. Every IPC handler validates the registered window's main frame
+and exact origin through `electron/security.js`; navigation and the app protocol
+use the same origin comparison. Development starts through `scripts/start.js`
+to adapt CRA to the patched webpack-dev-server version.
+
 The build where **local mode is actually true**: the household's books are a file on their own machine and reach no server at all. The other half of the same story — the account, the one server table and the gates in front of it — is in `.claude/ACCOUNTS.md`, and the local model the shell is the only build to carry is in `.claude/ASSISTANT.md`.
 
 The Obsidian-style vault plan at the foot of this file is **what was not built**. It is kept because the decision against it is worth not re-deriving, not because it describes anything on disk.

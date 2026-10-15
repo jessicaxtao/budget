@@ -14,6 +14,8 @@ const path = require("path");
 const books = require("./books");
 const assist = require("./assist");
 const receipts = require("./receipts");
+const { sameOrigin, trustedSender } = require("./security");
+const trustedContents = new WeakSet();
 
 /**
  * The desktop shell.
@@ -153,6 +155,7 @@ const MIME = {
 function serveApp() {
   protocol.handle("app", async (request) => {
     const url = new URL(request.url);
+    if (!sameOrigin(request.url, APP_ORIGIN)) return new Response("Forbidden", { status: 403 });
     let rel = decodeURIComponent(url.pathname);
 
     if (rel === "/" || !path.extname(rel)) rel = "/index.html";
@@ -238,7 +241,7 @@ function guardEgress() {
 
     const { protocol: scheme, hostname, origin } = parsed;
     const allowed =
-      scheme === "app:" ||
+      (scheme === "app:" && sameOrigin(details.url, APP_ORIGIN)) ||
       scheme === "devtools:" ||
       scheme === "blob:" ||
       scheme === "data:" ||
@@ -322,6 +325,7 @@ function createWindow() {
   });
 
   win.once("ready-to-show", () => win.show());
+  trustedContents.add(win.webContents);
 
   /**
    * A window that fails to load shows a blank frame and says nothing, which is
@@ -353,7 +357,7 @@ function createWindow() {
   });
 
   win.webContents.on("will-navigate", (event, url) => {
-    const allowed = isDev ? url.startsWith(DEV_URL) : url.startsWith(APP_ORIGIN);
+    const allowed = sameOrigin(url, isDev ? DEV_URL : APP_ORIGIN);
     if (!allowed) {
       event.preventDefault();
       if (/^https?:/.test(url)) shell.openExternal(url);
@@ -408,39 +412,53 @@ function start() {
   hardenSession();
   guardEgress();
 
-  ipcMain.on("books:readAll", (event) => {
+  // Every privileged operation requires this window's own main frame.
+  const allowed = (event) => trustedSender(event, trustedContents, isDev ? DEV_URL : APP_ORIGIN);
+  const on = (channel, handler) => ipcMain.on(channel, (event, ...args) => {
+    if (!allowed(event)) {
+      event.returnValue = null;
+      return;
+    }
+    handler(event, ...args);
+  });
+  const handle = (channel, handler) => ipcMain.handle(channel, (event, ...args) => {
+    if (!allowed(event)) throw new Error("Untrusted IPC sender.");
+    return handler(event, ...args);
+  });
+
+  on("books:readAll", (event) => {
     // `returnValue`, because the preload asks with `sendSync`.
     event.returnValue = { documents: books.snapshot(), path: books.booksPath() };
   });
 
-  ipcMain.on("books:write", (_event, key, json) => books.write(key, json));
-  ipcMain.on("books:remove", (_event, key) => books.remove(key));
-  ipcMain.handle("books:flush", () => books.flush());
-  ipcMain.handle("books:reveal", () => {
+  on("books:write", (_event, key, json) => books.write(key, json));
+  on("books:remove", (_event, key) => books.remove(key));
+  handle("books:flush", () => books.flush());
+  handle("books:reveal", () => {
     shell.showItemInFolder(books.booksPath());
     return { ok: true };
   });
 
   // The assistant. Asked from here rather than from the page so the page's own
   // egress stays exactly what it was — see `electron/assist.js`.
-  ipcMain.handle("assist:status", () => assist.status());
-  ipcMain.handle("assist:ask", (_event, input) => assist.ask(input));
+  handle("assist:status", () => assist.status());
+  handle("assist:ask", (_event, input) => assist.ask(input));
 
   // Receipt files beside the books. Three verbs, each about one id the page
   // minted — see `electron/receipts.js`.
-  ipcMain.handle("receipts:put", (_event, id, ext, bytes) =>
+  handle("receipts:put", (_event, id, ext, bytes) =>
     receipts.put(app.getPath("userData"), id, ext, bytes)
   );
-  ipcMain.handle("receipts:open", async (_event, id) => {
+  handle("receipts:open", async (_event, id) => {
     const file = receipts.locate(app.getPath("userData"), id);
     if (!file) return { ok: false, error: "The receipt could not be found on this computer." };
     // `openPath` answers with an error message, or "" when it worked.
     const failed = await shell.openPath(file);
     return failed ? { ok: false, error: failed } : { ok: true };
   });
-  ipcMain.handle("receipts:remove", (_event, id) => receipts.remove(app.getPath("userData"), id));
+  handle("receipts:remove", (_event, id) => receipts.remove(app.getPath("userData"), id));
 
-  ipcMain.handle("books:saveFile", async (event, name, text) => {
+  handle("books:saveFile", async (event, name, text) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const { canceled, filePath } = await dialog.showSaveDialog(win, {
       title: "Save your books",

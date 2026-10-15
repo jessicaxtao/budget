@@ -388,7 +388,11 @@ function stageDesktop(snapshot = {}) {
   const writes = [];
   const removes = [];
   window.__hbDesktop = {
-    snapshot,
+    takeSnapshot: () => {
+      const result = snapshot;
+      snapshot = {};
+      return result;
+    },
     write: (key, value) => writes.push([key, value]),
     remove: (key) => removes.push(key),
   };
