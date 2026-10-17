@@ -148,7 +148,7 @@ The assignment terms cancel algebraically, so this checks **coverage, not arithm
 
 ## The ten cross-store hooks
 
-`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `cashflowSankey`, `bucketTones`, `cashback`, `payeeSearch`, `payeeDefaults`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
+`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `cashflowSankey`, `bucketTones`, `cashback`, `payeeSearch`, `payeeDefaults`, `duplicates`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
 
 **`DERIVATIONS.md` is the detail**, including which hooks are deliberately *not* in the ten and why `useUpcoming` must never join them, the four cadence names that look consolidatable and are not, and the two `plannedCents` figures that look alike and are not.
 

@@ -2384,3 +2384,79 @@ describe("what a payee opens the form on, and what it can be told", () => {
     expect(storedPayees()[0].defaultKind).toBeNull();
   });
 });
+
+describe("warning about a transaction already in the books", () => {
+  const LOGGED = {
+    id: "t1",
+    kind: "outflow",
+    accountId: "acc1",
+    toAccountId: null,
+    payeeId: "shop",
+    budgetId: "a",
+    splits: null,
+    amountCents: 1250,
+    date: todayISO(),
+    description: "",
+  };
+
+  function openWith(transactions = [LOGGED]) {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
+    localStorage.setItem("payees", JSON.stringify([{ id: "shop", name: "Corner Shop" }]));
+    localStorage.setItem("transactions", JSON.stringify(transactions));
+    localStorage.setItem("assignments", "[]");
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+  }
+
+  const warning = () => screen.queryByRole("region", { name: "Possible duplicate" });
+  const stored = () => JSON.parse(localStorage.getItem("transactions"));
+
+  test("nothing is said until the amount matches one already logged", () => {
+    openWith();
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "12.49" } });
+    expect(warning()).toBeNull();
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "12.50" } });
+    expect(warning()).toHaveTextContent("$12.50 — Corner Shop");
+  });
+
+  test("the first Add is held and writes nothing; Add anyway records it", () => {
+    openWith();
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Corner Shop" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "12.50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(stored()).toHaveLength(1);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(warning()).toHaveTextContent("Not saved yet");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add anyway" }));
+    expect(stored()).toHaveLength(2);
+  });
+
+  test("changing the entry after it was held asks again", () => {
+    openWith([LOGGED, { ...LOGGED, id: "t2", amountCents: 900 }]);
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "12.50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("button", { name: "Add anyway" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(stored()).toHaveLength(2);
+    expect(warning()).toHaveTextContent("Not saved yet");
+  });
+
+  test("a different payee is a different purchase, and passes straight through", () => {
+    openWith();
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Bakery" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "12.50" } });
+    expect(warning()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(stored()).toHaveLength(2);
+  });
+});

@@ -20,6 +20,7 @@ import { orderPayeesByUse } from "../payeeSearch";
 import useCardOffers from "../hooks/useCardOffers";
 import { OFFER_KINDS, offerNudges, rankCardsFor } from "../rewards";
 import { cashbackCents } from "../cashback";
+import { findDuplicates } from "../duplicates";
 import useRecordCashback from "../hooks/useRecordCashback";
 import {
   describeShares,
@@ -28,7 +29,15 @@ import {
   sameShares,
   sharesFromSplits,
 } from "../payeeDefaults";
-import { amountAtRest, currentPeriod, formatBps, formatCents, toCents, todayISO } from "../utils";
+import {
+  amountAtRest,
+  currentPeriod,
+  formatBps,
+  formatCents,
+  formatDateMedium,
+  toCents,
+  todayISO,
+} from "../utils";
 
 /**
  * One form for every movement of money.
@@ -116,6 +125,12 @@ import { amountAtRest, currentPeriod, formatBps, formatCents, toCents, todayISO 
  * unticked. Nothing is learned silently, the line YNAB's last-used category
  * crosses: a payee filed somewhere unusual once must not be filed there forever
  * because nobody noticed.
+ *
+ * **An entry that looks like one already in the ledger is said back before it
+ * is saved** — same direction, amount and account, a few days either side (see
+ * `findDuplicates`). It is a warning, never a refusal: the first press of Add
+ * holds the entry and says so, and a second press records it anyway, because
+ * the same coffee twice in a morning is two real transactions.
  */
 /**
  * One card offer in a sentence, from where this purchase stands against it.
@@ -246,6 +261,11 @@ export default function AddTransactionModal({
   const [accountSeed, setAccountSeed] = useState(0);
   // Which "next time" boxes are ticked, by the offer's key.
   const [remember, setRemember] = useState({});
+  // The possible duplicate a press of Add has already been held on, by
+  // `duplicateKey` below. The next press with the same answers goes through;
+  // changing any of them is a different entry, and is held afresh if it too
+  // looks like one already in the books.
+  const [heldFor, setHeldFor] = useState(null);
 
   const { addTransaction, transactions } = useTransactions();
   const recordCashback = useRecordCashback();
@@ -348,6 +368,7 @@ export default function AddTransactionModal({
     setOpenCount((count) => count + 1);
     setTemplateShares(null);
     setRemember({});
+    setHeldFor(null);
     chosenBudgetRef.current = Boolean(draft?.budgetId);
     // A door other than "Money out" is a direction somebody chose, and so is a
     // draft's; only the ordinary opening is left for a payee to turn.
@@ -640,6 +661,41 @@ export default function AddTransactionModal({
   }
 
   const offers = rememberOffers();
+
+  // Entries this one may be a second copy of, read off the mirrored fields so
+  // the warning comes and goes as the answers change. A payee still being typed
+  // is matched by name, the way submit will resolve it.
+  const candidatePayeeId = isTransfer ? null : payeeId ?? findPayeeByName(payeeName)?.id ?? null;
+  const duplicates = blocked
+    ? []
+    : findDuplicates(
+        {
+          kind,
+          amountCents: totalCents,
+          accountId: fromAccountId,
+          toAccountId: isTransfer ? toAccountId : null,
+          date: picked.date,
+          payeeId: candidatePayeeId,
+          newPayee: !isTransfer && !candidatePayeeId && Boolean(payeeName.trim()),
+        },
+        transactions
+      );
+  const duplicateKey =
+    duplicates.length > 0
+      ? [kind, totalCents, fromAccountId, isTransfer ? toAccountId : "", picked.date]
+          .concat(duplicates.map((entry) => entry.id))
+          .join("|")
+      : null;
+  const held = duplicateKey != null && heldFor === duplicateKey;
+
+  /** One possible duplicate, in the words the register would use for it. */
+  function describeDuplicate(entry) {
+    const who = entry.payeeId ? payees.find((payee) => payee.id === entry.payeeId)?.name : null;
+    const what = who ?? (entry.description?.trim() || null);
+    return `${formatCents(entry.amountCents)}${what ? ` — ${what}` : ""}, ${formatDateMedium(
+      entry.date
+    )}`;
+  }
   const rememberLabel = payeeId
     ? payees.find((payee) => payee.id === payeeId)?.name
     : payeeName.trim();
@@ -666,6 +722,15 @@ export default function AddTransactionModal({
     // A division answers it, since every part of one names a category.
     if (crossesOut && !splitting && !budgetIdRef.current?.value) {
       setError("Money leaving the budget comes out of a category. Choose the one it came from.");
+      return;
+    }
+
+    // Held once, before anything is written — the payee included — so a
+    // duplicate caught here leaves nothing behind. Pressed again on the same
+    // answers, it is the person's call that this happened twice.
+    if (duplicateKey && !held) {
+      setHeldFor(duplicateKey);
+      setError(null);
       return;
     }
 
@@ -800,6 +865,7 @@ export default function AddTransactionModal({
     setParts([]);
     setTemplateShares(null);
     setRemember({});
+    setHeldFor(null);
     setError(null);
     chosenBudgetRef.current = false;
     // The account stays on screen as the answer last given, but like the
@@ -1163,6 +1229,29 @@ export default function AddTransactionModal({
           {isTransfer && (
             <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">{transferNote()}</p>
           )}
+          {duplicates.length > 0 && (
+            <section
+              aria-label="Possible duplicate"
+              aria-live="polite"
+              className="-mt-1 mb-5 border-l-2 border-sulfur py-1 pl-3 pr-3 font-sans text-row text-chalk-soft"
+            >
+              <p className="text-sulfur">
+                {duplicates.length === 1
+                  ? "This looks like one already in the books:"
+                  : "This looks like entries already in the books:"}
+              </p>
+              <ul className="list-disc pl-4">
+                {duplicates.map((entry) => (
+                  <li key={entry.id}>{describeDuplicate(entry)}</li>
+                ))}
+              </ul>
+              <p>
+                {held
+                  ? "Not saved yet. If it really happened twice, press Add anyway to record it as well."
+                  : "Check it isn't the same one before adding it."}
+              </p>
+            </section>
+          )}
           {error && (
             <p role="alert" className="-mt-2 mb-5 font-sans text-row text-vermilion">
               {error}
@@ -1184,7 +1273,7 @@ export default function AddTransactionModal({
                 anotherRef.current = false;
               }}
             >
-              Add
+              {held ? "Add anyway" : "Add"}
             </Button>
             <Button
               variant="outline"
