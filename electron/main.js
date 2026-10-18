@@ -443,6 +443,9 @@ function start() {
   // egress stays exactly what it was — see `electron/assist.js`.
   handle("assist:status", () => assist.status());
   handle("assist:ask", (_event, input) => assist.ask(input));
+  // A hosted model the household keyed, fetched from here — the host checked
+  // against a fixed allow-list, so the renderer's egress stays untouched.
+  handle("assist:fetch", (_event, input) => assist.fetchProvider(input));
 
   // Receipt files beside the books. Three verbs, each about one id the page
   // minted — see `electron/receipts.js`.

@@ -1,96 +1,105 @@
 import { isDesktop } from "./storage";
-import { askAssistant as askDesktop, assistStatus as desktopStatus } from "./desktop";
-import { getSupabase, isSupabaseConfigured } from "./supabaseClient";
+import { askAssistant as askOllama, assistStatus as ollamaStatus, providerFetch } from "./desktop";
+import { buildProviderRequest, readProviderReply } from "./assistantProviders";
+import { effectiveProvider, keyFor, loadAssistConfig, modelFor } from "./assistantSettings";
 
 /**
- * Which model answers "Ask", and the one seam that knows there is more than
- * one. `AskModal` calls these two verbs and nothing else; here is where the
- * sentence goes to the household's own machine or to the account's hosted
- * model, by the one fact that tells them apart.
+ * Which model "Ask" asks, and the one seam that knows there is more than one.
+ * `AskModal` calls these two verbs and nothing else; here is where the sentence
+ * goes to the household's own machine or to a hosted model they brought a key
+ * to, by the provider their settings name (`src/assistantSettings.js`).
  *
- * **Desktop is Ollama on this computer** (`src/desktop.js` → `electron/assist.js`),
- * where the books never leave and the promise is kept by there being nowhere
- * for them to go. **The web is Claude through `/api/assist`**, a same-origin
- * serverless function that holds the key and makes the call off the page — so
- * the browser only ever talks to its own origin (the CSP needs no new one) and
- * the only thing that leaves is the sentence and the household's category,
- * account and payee *names*, never a figure, a balance or a date. The function
- * requires the account's own token, so the hosted path exists only for a
- * signed-in household; a local-only or guest browser has no model to ask, which
- * is `unsupported`, the same answer the desktop bridge gives in a browser.
+ * Three transports, one shape out (`{ ok, … }` or `{ ok: false, reason }`):
  *
- * Both verbs keep `src/desktop.js`'s contracts — `{ ok, models }` /
- * `{ ok, content }` or `{ ok: false, reason }` — so `AskModal`'s status and
- * error branches read one shape whichever model answered.
- */
-
-const ENDPOINT = "/api/assist";
-
-/** The signed-in household's access token, or null when there is no session. */
-async function accessToken() {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-  try {
-    const { data } = await supabase.auth.getSession();
-    return data?.session?.access_token ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Whether there is a model to ask, and — on desktop — which ones.
+ *   ollama  — the desktop's local model, through main (`electron/assist.js`),
+ *             where the books never leave the computer.
+ *   hosted  — Anthropic or OpenAI with the household's own key. **The key never
+ *             touches our server**: on the web the browser calls the provider
+ *             itself (the CSP names those two origins); on the desktop main
+ *             makes the call, so the renderer's egress stays exactly as closed
+ *             as it was. Only the sentence and the household's category, account
+ *             and payee names go up — never a figure, a balance or a date.
  *
- * The web answer carries no model list: the function owns the account's one
- * model, so there is nothing to pick. `hosted` tells `AskModal` which chrome to
- * show (no model select, a different line about where the sentence goes).
- */
-export async function assistStatus() {
-  if (isDesktop()) return desktopStatus();
-  if (!isSupabaseConfigured) return { ok: false, reason: "unsupported" };
-  const token = await accessToken();
-  if (!token) return { ok: false, reason: "signed-out" };
-  return { ok: true, hosted: true, models: [] };
-}
-
-/**
- * Ask the model to read a sentence into `schema`'s shape.
- *
- * `model` is the desktop's pick, ignored on the web where the function owns it.
  * The reply is the reading and nothing more — `resolveReading` checks every
- * name in it against the books before anything is offered.
+ * name in it against the live books before anything is offered.
  */
-export async function askAssistant({ model, messages, schema }) {
-  if (isDesktop()) return askDesktop({ model, messages, schema });
-  if (!isSupabaseConfigured) return { ok: false, reason: "unsupported" };
 
-  const token = await accessToken();
-  if (!token) return { ok: false, reason: "signed-out" };
+const TIMEOUT_MS = 30000;
 
-  let response;
-  try {
-    response = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ messages, schema }),
-    });
-  } catch (error) {
-    return { ok: false, reason: "unreachable", error: String(error?.message ?? error) };
+export async function assistStatus() {
+  const config = loadAssistConfig();
+  const provider = effectiveProvider(config, isDesktop());
+
+  if (provider === "ollama") {
+    if (!isDesktop()) return { ok: false, reason: "unsupported" };
+    return ollamaStatus();
   }
 
-  if (!response.ok) {
+  const key = keyFor(config, provider);
+  if (!key) return { ok: false, reason: "no-key", provider };
+  return { ok: true, hosted: true, provider, model: modelFor(config, provider) };
+}
+
+export async function askAssistant({ model, messages, schema }) {
+  const config = loadAssistConfig();
+  const provider = effectiveProvider(config, isDesktop());
+
+  if (provider === "ollama") {
+    if (!isDesktop()) return { ok: false, reason: "unsupported" };
+    return askOllama({ model, messages, schema });
+  }
+
+  const key = keyFor(config, provider);
+  if (!key) return { ok: false, reason: "no-key" };
+
+  const request = buildProviderRequest(provider, {
+    messages,
+    schema,
+    model: modelFor(config, provider),
+    key,
+  });
+  if (!request) return { ok: false, reason: "unsupported" };
+
+  const sent = await sendProviderRequest(request);
+  if (!sent.ok) {
     const reason =
-      response.status === 401
-        ? "signed-out"
-        : response.status === 503
-        ? "unconfigured"
-        : response.status === 504 || response.status === 408
+      sent.status === 401 || sent.status === 403
+        ? "bad-key"
+        : sent.reason === "timeout"
         ? "timeout"
         : "unreachable";
     return { ok: false, reason };
   }
 
-  const data = await response.json().catch(() => null);
-  if (!data?.ok || !data.content) return { ok: false, reason: data?.reason ?? "bad-response" };
-  return { ok: true, content: data.content };
+  const content = readProviderReply(provider, sent.json);
+  if (!content) return { ok: false, reason: "bad-response" };
+  return { ok: true, content };
+}
+
+/**
+ * Carry one built request to the provider and bring back `{ ok, status, json }`.
+ *
+ * Desktop goes through main so the page never opens a new origin; the browser
+ * fetches the provider straight, since it is the household's own key and the
+ * CSP already names the host.
+ */
+async function sendProviderRequest({ url, headers, body }) {
+  if (isDesktop()) return providerFetch({ url, headers, body, timeoutMs: TIMEOUT_MS });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json = await response.json().catch(() => null);
+    return { ok: response.ok, status: response.status, json };
+  } catch (error) {
+    return { ok: false, status: 0, reason: error?.name === "AbortError" ? "timeout" : "unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
 }

@@ -162,6 +162,33 @@ export async function askAssistant({ model, messages, schema }) {
 }
 
 /**
+ * Carry one built request to a hosted provider through main, and back.
+ *
+ * The desktop mirror of the browser's own `fetch`: a hosted model (Anthropic,
+ * OpenAI) reached with the household's own key, but made from the main process
+ * so the renderer's egress allow-list stays exactly as it was — the same reason
+ * Ollama is asked from main. Main restricts the host to the known providers, so
+ * this is one narrow verb and not a general "fetch any URL". Resolves to
+ * `{ ok, status, json }` or `{ ok: false, status: 0, reason }`.
+ */
+export async function providerFetch({ url, headers, body, timeoutMs }) {
+  const desktop = bridge();
+  if (!desktop?.assistFetch) return { ok: false, status: 0, reason: "unreachable" };
+
+  try {
+    return (
+      (await desktop.assistFetch({ url, headers, body, timeoutMs })) ?? {
+        ok: false,
+        status: 0,
+        reason: "unreachable",
+      }
+    );
+  } catch (error) {
+    return { ok: false, status: 0, reason: "unreachable", error: String(error?.message ?? error) };
+  }
+}
+
+/**
  * Receipt files, on this computer's disk — three verbs, each about one file
  * named by its id, and nothing that reads a path the page chose. See
  * `electron/receipts.js`. Each reports `{ ok: false, unsupported: true }` in a

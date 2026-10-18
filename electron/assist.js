@@ -1,4 +1,6 @@
 const http = require("http");
+const https = require("https");
+const { URL } = require("url");
 
 /**
  * The assistant: a local model, asked to read a sentence.
@@ -174,4 +176,85 @@ async function ask(input, { port } = {}) {
   }
 }
 
-module.exports = { status, ask, DEFAULT_PORT };
+/**
+ * A hosted model the household brought a key to, asked from here rather than
+ * the page.
+ *
+ * The desktop's answer to the browser's own `fetch`: Anthropic or OpenAI with
+ * the household's key, but made in main so the renderer's egress allow-list
+ * (`guardEgress`, the CSP) does not have to grow a provider origin open on
+ * every page load. **It is not a general fetch.** The host is checked against a
+ * fixed allow-list of the known providers — a renderer that asked for anything
+ * else gets `unreachable`, never a request — so this verb carries exactly the
+ * two calls the feature makes and no third. The key is in `headers`, used once,
+ * never logged or kept.
+ *
+ * Returns `{ ok, status, json }`, or `{ ok: false, status: 0, reason }` with
+ * the same words the Ollama path uses, so the renderer reads one shape.
+ */
+const PROVIDER_HOSTS = new Set(["api.anthropic.com", "api.openai.com"]);
+const PROVIDER_TIMEOUT_MS = 30000;
+const MAX_PROVIDER_BODY = 60000;
+
+function fetchProvider(input) {
+  const { url, headers, body } = input ?? {};
+
+  let parsed;
+  try {
+    parsed = new URL(String(url));
+  } catch {
+    return Promise.resolve({ ok: false, status: 0, reason: "unreachable" });
+  }
+  if (parsed.protocol !== "https:" || !PROVIDER_HOSTS.has(parsed.host)) {
+    return Promise.resolve({ ok: false, status: 0, reason: "unreachable" });
+  }
+
+  const payload = body == null ? null : JSON.stringify(body);
+  if (payload && payload.length > MAX_PROVIDER_BODY) {
+    return Promise.resolve({ ok: false, status: 0, reason: "refused" });
+  }
+
+  const safeHeaders = {};
+  if (headers && typeof headers === "object") {
+    for (const [name, value] of Object.entries(headers)) {
+      if (typeof value === "string") safeHeaders[name] = value;
+    }
+  }
+  if (payload) safeHeaders["content-length"] = Buffer.byteLength(payload);
+
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        method: "POST",
+        hostname: parsed.hostname,
+        port: parsed.port || 443,
+        path: parsed.pathname + parsed.search,
+        headers: safeHeaders,
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          let json = null;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            // Left null; the renderer words a bad reply.
+          }
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, json });
+        });
+      }
+    );
+
+    req.setTimeout(PROVIDER_TIMEOUT_MS, () => req.destroy(new Error("timeout")));
+    req.on("error", (error) =>
+      resolve({ ok: false, status: 0, reason: error.message === "timeout" ? "timeout" : "unreachable" })
+    );
+
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+module.exports = { status, ask, fetchProvider, DEFAULT_PORT };

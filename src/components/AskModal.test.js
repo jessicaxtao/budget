@@ -117,9 +117,12 @@ afterEach(() => {
   delete window.__hbDesktop;
 });
 
-test("there is no Ask in a browser, where there is no model to ask", () => {
+test("in a browser with no key set, Ask opens its setup", async () => {
   renderApp();
-  expect(screen.queryByRole("button", { name: "Ask" })).not.toBeInTheDocument();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+  });
+  expect(await screen.findByText(/Anthropic API key/)).toBeInTheDocument();
 });
 
 test("a sentence opens the transaction form filled in, and nothing lands until it is saved", async () => {
@@ -297,7 +300,7 @@ test("no Ollama is explained, with what to do about it", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Ask" }));
 
-  expect(await screen.findByText(/isn't answering yet/)).toBeInTheDocument();
+  expect(await screen.findByText(/isn't answering/)).toBeInTheDocument();
   expect(screen.getByText("ollama pull qwen2.5:7b")).toBeInTheDocument();
   expect(screen.queryByRole("textbox", { name: "What happened?" })).not.toBeInTheDocument();
 });

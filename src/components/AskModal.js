@@ -8,17 +8,16 @@ import { useTransactions } from "../contexts/TransactionsContext";
 import { askAssistant, assistStatus } from "../assistantBridge";
 import { isDesktop } from "../storage";
 import { ASSIST_ACTIONS, buildAssistRequest, resolveReading } from "../assistant";
+import { PROVIDERS, PROVIDER_IDS } from "../assistantProviders";
+import { loadAssistConfig, saveAssistConfig } from "../assistantSettings";
 import { orderPayeesByUse } from "../payeeSearch";
 import { formatCents, formatDateMedium, todayISO } from "../utils";
 
 /**
- * Which local model to ask, remembered on this machine.
- *
- * **Read bare, outside `src/storage.js`**, for `useTheme`'s reason: it is a fact
- * about the computer — which models Ollama has pulled here — and not about the
- * books. Through the storage seam it would be namespaced per account, pushed to
- * a server whose other devices may not have that model at all, and written into
- * the books file, which refuses an unknown key on the way back in.
+ * Which local model to ask, remembered on this machine — the Ollama path only.
+ * The hosted providers keep their own key and model in `assistConfig`
+ * (`src/assistantSettings.js`); this is the legacy key for the one model that
+ * is a fact about the computer, read bare for `useTheme`'s reason.
  */
 const MODEL_KEY = "assistModel";
 
@@ -50,34 +49,39 @@ const EXAMPLES = [
   "File all the Amazon ones under Household",
 ];
 
+/** How a provider id reads in the picker. */
+function providerLabel(id) {
+  if (id === "ollama") return "Ollama (on this computer)";
+  const provider = PROVIDERS[id];
+  return provider ? `${provider.label} · ${provider.model}` : id;
+}
+
 /**
  * Say what happened, in a sentence, and the app opens the form for it.
  *
- * **The model reads; the app decides and the household saves.** On the desktop
- * it is Ollama on this computer, asked through the main process; in a browser
- * it is the account's hosted model, reached through the app's own server
- * (`src/assistantBridge.js` chooses, `electron/assist.js` and `api/assist.js`
- * answer). Either way the model reads the sentence into names; `src/assistant.js`
+ * **The model reads; the app decides and the household saves.** The model is
+ * the household's own — Ollama on this computer, or a hosted Claude/ChatGPT the
+ * household brought a key to — and `src/assistantBridge.js` chooses by their
+ * settings. Either way the model reads the sentence into names; `src/assistant.js`
  * turns the names into ids against the live books; and what the household sees
  * next is the ordinary form — `AddTransactionModal` or `MoveMoneyModal` —
  * already filled in, which the host opens through `onDraft` / `onMove`.
  * **Nothing is written from here except a refile**, and that one is shown row
- * by row with each row ticked or not before anything moves, because refiling
- * twenty receipts through twenty forms would be the opposite of help.
+ * by row with each row ticked or not before anything moves.
  *
- * Mounted only while open, `QuickEntry`'s rule, so there is nothing to
- * re-seed.
+ * Mounted only while open, `QuickEntry`'s rule, so there is nothing to re-seed.
  */
 export default function AskModal({ handleClose, onDraft, onMove }) {
   const inputRef = useRef();
   const [status, setStatus] = useState({ state: "checking" });
   const [model, setModel] = useState(loadModel);
+  const [config, setConfig] = useState(loadAssistConfig);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [refile, setRefile] = useState(null);
   // A model can take a while, and the dialog can be closed in the meantime. An
-  // answer arriving after that is to a question nobody is still asking, and
-  // opening a form off it would be a window appearing out of nowhere.
+  // answer arriving after that is to a question nobody is still asking.
   const openRef = useRef(true);
   useEffect(
     () => () => {
@@ -95,17 +99,24 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
   const check = useCallback(async () => {
     setStatus({ state: "checking" });
     const result = await assistStatus();
+    if (!openRef.current) return;
     if (!result.ok) {
-      setStatus({ state: "unavailable", reason: result.reason });
+      if (result.reason === "no-key") setStatus({ state: "setup" });
+      else setStatus({ state: "unavailable", reason: result.reason });
       return;
     }
-    const models = result.models ?? [];
-    setStatus({ state: "ready", models, hosted: Boolean(result.hosted) });
-    // Desktop picks a model; the hosted path has one and offers no choice.
-    if (!result.hosted) {
-      // The remembered model if it is still installed, else the first that is.
-      setModel((current) => (models.includes(current) ? current : models[0] ?? null));
+    if (result.hosted) {
+      setStatus({ state: "ready", hosted: true, provider: result.provider, model: result.model });
+      return;
     }
+    // Ollama: running, with however many models it has pulled.
+    if (!result.models.length) {
+      setStatus({ state: "unavailable", reason: "no-models" });
+      return;
+    }
+    setStatus({ state: "ready", hosted: false, models: result.models });
+    // The remembered model if it is still installed, else the first that is.
+    setModel((current) => (result.models.includes(current) ? current : result.models[0] ?? null));
   }, []);
 
   useEffect(() => {
@@ -113,15 +124,26 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
   }, [check]);
 
   useEffect(() => {
-    if (status.state === "ready") inputRef.current?.focus();
-  }, [status.state]);
+    if (status.state === "ready" && !editing) inputRef.current?.focus();
+  }, [status.state, editing]);
 
+  const device = isDesktop() ? "computer" : "browser";
   const hosted = status.state === "ready" && status.hosted;
+  const showSetup = status.state === "setup" || editing;
+
+  function onSaved(next) {
+    saveAssistConfig(next);
+    setConfig(next);
+    setEditing(false);
+    setError(null);
+    check();
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     const text = inputRef.current.value.trim();
-    if (!text || busy || (!model && !hosted)) return;
+    if (!text || busy) return;
+    if (!hosted && !model) return;
 
     setBusy(true);
     setError(null);
@@ -133,29 +155,11 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
     setBusy(false);
 
     if (!answer.ok) {
-      setError(
-        answer.reason === "unreachable"
-          ? hosted
-            ? "The assistant couldn't be reached just now. Try again in a moment."
-            : "Ollama stopped answering. Check that it is still running, then try again."
-          : answer.reason === "timeout"
-          ? hosted
-            ? "That took too long. Try again, or say it more simply."
-            : "The model took too long to answer. A smaller model may be quicker."
-          : answer.reason === "signed-out"
-          ? "Your session has expired. Sign in again to use the assistant."
-          : answer.error ?? "The model's answer could not be read. Try saying it another way."
-      );
+      setError(wordError(answer.reason, answer.error, hosted));
       return;
     }
 
-    const resolved = resolveReading(answer.content, {
-      budgets,
-      accounts,
-      payees,
-      transactions,
-      today,
-    });
+    const resolved = resolveReading(answer.content, { budgets, accounts, payees, transactions, today });
 
     if (resolved.action === ASSIST_ACTIONS.ADD) {
       onDraft(resolved);
@@ -177,24 +181,18 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
       )}
 
       {status.state === "unavailable" && (
-        <Unavailable reason={status.reason} onRetry={check} />
+        <Unavailable reason={status.reason} onRetry={check} onUseHosted={() => setEditing(true)} />
       )}
 
-      {status.state === "ready" && !status.hosted && status.models.length === 0 && (
-        <div className="font-sans text-row text-chalk-soft">
-          <p className="mb-3">
-            Ollama is running, but it has no models yet. Pull one from a terminal, then try again:
-          </p>
-          <pre className="mb-4 border border-edge bg-panel-raised px-3 py-2 font-mono text-row text-chalk">
-            ollama pull {SUGGESTED_MODEL}
-          </pre>
-          <Button type="button" onClick={check}>
-            Try again
-          </Button>
-        </div>
+      {showSetup && (
+        <SetupPanel
+          config={config}
+          onSaved={onSaved}
+          onCancel={status.state === "setup" ? null : () => setEditing(false)}
+        />
       )}
 
-      {status.state === "ready" && (status.hosted || status.models.length > 0) && (
+      {status.state === "ready" && !editing && (
         <>
           <form onSubmit={handleSubmit}>
             <label className="mb-2 block">
@@ -213,20 +211,25 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
             </label>
             <p id="ask-help" className="mb-5 font-sans text-label text-chalk-soft">
               {hosted
-                ? "Read by Claude, through this app's own server. Only your sentence and your category, account, and payee names are sent — never your amounts, balances, or dates. You'll see the form filled in before anything is saved."
-                : `Read by ${model} on this computer — nothing is sent anywhere. You'll see the form filled in before anything is saved.`}
+                ? `Read by your ${PROVIDERS[status.provider].model} model with your own key, straight from this ${device}. Only your sentence and your category, account, and payee names are sent to ${PROVIDERS[status.provider].label} — never your amounts, balances, or dates. `
+                : `Read by ${model} on this computer — nothing is sent anywhere. `}
+              You'll see the form filled in before anything is saved.
             </p>
             {error && (
               <p role="alert" className="mb-5 font-sans text-row text-vermilion">
                 {error}
               </p>
             )}
-            <div
-              className={`flex flex-wrap items-center gap-3 ${
-                hosted ? "justify-end" : "justify-between"
-              }`}
-            >
-              {!hosted && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {hosted ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="font-mono text-label uppercase text-chalk-soft underline-offset-4 hover:text-chalk hover:underline"
+                >
+                  {PROVIDERS[status.provider].label} · {status.model} — change
+                </button>
+              ) : (
                 <label className="flex items-center gap-2 font-mono text-label uppercase text-chalk-soft">
                   Model
                   <select
@@ -280,55 +283,140 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
   );
 }
 
-/** Why there is nothing to ask, and the one thing to do about it. */
-function Unavailable({ reason, onRetry }) {
-  // In a browser the model is the account's, reached through the app's server —
-  // so what can be missing is an account, or the server, never Ollama.
-  if (!isDesktop()) {
-    if (reason === "signed-out") {
-      return (
-        <p className="font-sans text-row text-chalk-soft">
-          Sign in to use the assistant — it reads your sentence with your account's model.
-        </p>
-      );
-    }
-    if (reason === "unconfigured") {
-      return (
-        <p className="font-sans text-row text-chalk-soft">
-          The assistant isn't set up for this app.
-        </p>
-      );
-    }
-    return (
-      <div className="font-sans text-row text-chalk-soft">
-        <p className="mb-4">The assistant couldn't be reached just now.</p>
-        <Button type="button" onClick={onRetry}>
-          Try again
-        </Button>
-      </div>
-    );
+/** The sentence an error reason becomes, worded for where the model runs. */
+function wordError(reason, raw, hosted) {
+  switch (reason) {
+    case "bad-key":
+      return "That key was refused. Check it under “change”, then try again.";
+    case "unreachable":
+      return hosted
+        ? "The model couldn't be reached just now. Try again in a moment."
+        : "Ollama stopped answering. Check that it is still running, then try again.";
+    case "timeout":
+      return hosted
+        ? "That took too long. Try again, or say it more simply."
+        : "The model took too long to answer. A smaller model may be quicker.";
+    default:
+      return raw ?? "The model's answer could not be read. Try saying it another way.";
+  }
+}
+
+/**
+ * Pick the model, and — for a hosted one — put in the key.
+ *
+ * The provider and key live on this device only (`assistConfig`), never in the
+ * books: an API key is a secret, and the storage seam would push it to the
+ * server the app exists to keep the books from. The browser offers the two
+ * hosted providers; the desktop adds its own local Ollama.
+ */
+function SetupPanel({ config, onSaved, onCancel }) {
+  const desktop = isDesktop();
+  const device = desktop ? "computer" : "browser";
+  const [provider, setProvider] = useState(config.provider ?? (desktop ? "ollama" : PROVIDERS.anthropic.id));
+  const [keys, setKeys] = useState(() => ({ ...config.keys }));
+  const [models, setModels] = useState(() => ({ ...config.models }));
+
+  const options = desktop ? ["ollama", ...PROVIDER_IDS] : PROVIDER_IDS;
+  const hosted = provider !== "ollama";
+  const meta = PROVIDERS[provider];
+  const key = (keys[provider] ?? "").trim();
+
+  function save() {
+    onSaved({ provider, keys, models });
   }
 
-  if (reason === "unsupported") {
-    return (
-      <p className="font-sans text-row text-chalk-soft">
-        The assistant runs on a model on your own computer, so it is only in the desktop app.
-      </p>
-    );
-  }
+  return (
+    <div className="font-sans text-row text-chalk">
+      <label className="mb-4 block">
+        <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">Model</span>
+        <select
+          value={provider}
+          onChange={(e) => setProvider(e.target.value)}
+          className="w-full border border-edge bg-panel px-2 py-1.5 font-sans text-row text-chalk outline-none focus:border-azure"
+        >
+          {options.map((id) => (
+            <option key={id} value={id}>
+              {providerLabel(id)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {hosted ? (
+        <>
+          <label className="mb-1 block">
+            <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
+              {meta.label} API key
+            </span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={keys[provider] ?? ""}
+              onChange={(e) => setKeys({ ...keys, [provider]: e.target.value })}
+              className="w-full border border-edge bg-panel px-2 py-1.5 font-mono text-row text-chalk outline-none focus:border-azure"
+            />
+          </label>
+          <p className="mb-4 font-sans text-label text-chalk-soft">{meta.keyHint}</p>
+
+          <label className="mb-1 block">
+            <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
+              Model name <span className="normal-case">(optional)</span>
+            </span>
+            <input
+              type="text"
+              autoComplete="off"
+              placeholder={meta.defaultModel}
+              value={models[provider] ?? ""}
+              onChange={(e) => setModels({ ...models, [provider]: e.target.value })}
+              className="w-full border border-edge bg-panel px-2 py-1.5 font-mono text-row text-chalk outline-none focus:border-azure"
+            />
+          </label>
+          <p className="mb-5 font-sans text-label text-chalk-soft">
+            Your key is kept on this {device} and sent only to {meta.label}, with your sentence and your
+            category, account, and payee names — never your amounts, balances, or dates.
+          </p>
+        </>
+      ) : (
+        <p className="mb-5 font-sans text-label text-chalk-soft">
+          Uses Ollama running on this computer, so nothing you type leaves the machine. You'll choose
+          which model it has pulled next.
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="primary" type="button" onClick={save} disabled={hosted && !key}>
+          Save
+        </Button>
+        {onCancel && (
+          <Button type="button" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Why there is nothing to ask, and the two things to do about it. */
+function Unavailable({ reason, onRetry, onUseHosted }) {
   return (
     <div className="font-sans text-row text-chalk-soft">
       <p className="mb-3">
-        The assistant reads your sentence with a model running on this computer, through{" "}
-        <span className="text-chalk">Ollama</span> — so nothing you type leaves the machine. It
-        isn't answering yet. Install it from ollama.com, pull a model, and leave it running:
+        {reason === "no-models"
+          ? "Ollama is running, but it has no models yet. Pull one from a terminal, then try again:"
+          : "The local model (Ollama) isn't answering. Install it from ollama.com, pull a model, and leave it running:"}
       </p>
       <pre className="mb-4 border border-edge bg-panel-raised px-3 py-2 font-mono text-row text-chalk">
         ollama pull {SUGGESTED_MODEL}
       </pre>
-      <Button type="button" onClick={onRetry}>
-        Try again
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" onClick={onRetry}>
+          Try again
+        </Button>
+        <Button type="button" onClick={onUseHosted}>
+          Use a hosted model instead
+        </Button>
+      </div>
     </div>
   );
 }

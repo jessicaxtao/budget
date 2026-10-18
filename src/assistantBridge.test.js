@@ -1,109 +1,118 @@
 import { askAssistant, assistStatus } from "./assistantBridge";
 import { isDesktop } from "./storage";
-import { askAssistant as askDesktop, assistStatus as desktopStatus } from "./desktop";
-import { getSupabase } from "./supabaseClient";
+import { askAssistant as askOllama, assistStatus as ollamaStatus, providerFetch } from "./desktop";
 
 /**
- * Which model answers, by the one fact that tells the two transports apart.
- * The boundaries are mocked — the shell bridge, the Supabase client, the fetch
- * — so what is under test is only the choice and the shapes it keeps.
+ * Which model answers, by the household's settings. The boundaries are mocked
+ * — the shell bridge, the desktop fetch, the browser's fetch — so what is under
+ * test is only the choice of transport and the shapes it keeps. The settings
+ * themselves are real, read from `localStorage`.
  */
 
 jest.mock("./storage", () => ({ isDesktop: jest.fn() }));
-jest.mock("./desktop", () => ({ assistStatus: jest.fn(), askAssistant: jest.fn() }));
-
-// `isSupabaseConfigured` is a value, not a function; a getter over a mock-named
-// holder lets a test say "this build has no project" without reassigning it.
-var mockConfigured = { value: true };
-jest.mock("./supabaseClient", () => ({
-  get isSupabaseConfigured() {
-    return mockConfigured.value;
-  },
-  getSupabase: jest.fn(),
+jest.mock("./desktop", () => ({
+  assistStatus: jest.fn(),
+  askAssistant: jest.fn(),
+  providerFetch: jest.fn(),
 }));
 
-const request = { model: "m", messages: [{ role: "user", content: "45 at Costco" }], schema: { type: "object" } };
+const messages = [
+  { role: "system", content: "sys" },
+  { role: "user", content: "45 at Costco" },
+];
+const schema = { type: "object" };
 
-function withSession(token) {
-  getSupabase.mockReturnValue({
-    auth: { getSession: async () => ({ data: { session: token ? { access_token: token } : null } }) },
-  });
-}
+const setConfig = (config) => localStorage.setItem("assistConfig", JSON.stringify(config));
 
 beforeEach(() => {
-  mockConfigured.value = true;
+  localStorage.clear();
   global.fetch = jest.fn();
 });
-
 afterEach(() => {
   jest.clearAllMocks();
   delete global.fetch;
 });
 
-describe("on the desktop", () => {
+describe("the desktop's local model", () => {
   beforeEach(() => isDesktop.mockReturnValue(true));
 
-  test("both verbs are the shell's, untouched", async () => {
-    desktopStatus.mockResolvedValue({ ok: true, models: ["qwen2.5:7b"] });
-    askDesktop.mockResolvedValue({ ok: true, content: { action: "unknown" } });
+  test("an unconfigured desktop is Ollama, through the shell, untouched", async () => {
+    ollamaStatus.mockResolvedValue({ ok: true, models: ["qwen2.5:7b"] });
+    askOllama.mockResolvedValue({ ok: true, content: { action: "unknown" } });
 
     expect(await assistStatus()).toEqual({ ok: true, models: ["qwen2.5:7b"] });
-    expect(await askAssistant(request)).toEqual({ ok: true, content: { action: "unknown" } });
-    expect(askDesktop).toHaveBeenCalledWith(request);
+    expect(await askAssistant({ model: "qwen2.5:7b", messages, schema })).toEqual({
+      ok: true,
+      content: { action: "unknown" },
+    });
+    expect(askOllama).toHaveBeenCalledWith({ model: "qwen2.5:7b", messages, schema });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 
-describe("in a signed-in browser", () => {
-  beforeEach(() => {
+describe("a hosted model the household keyed", () => {
+  test("an unconfigured browser has a provider but no key, so it asks to be set up", async () => {
     isDesktop.mockReturnValue(false);
-    withSession("tok");
-  });
-
-  test("status is hosted, with no model to pick", async () => {
-    expect(await assistStatus()).toEqual({ ok: true, hosted: true, models: [] });
-  });
-
-  test("the sentence goes to /api/assist with the account's token, and the reading comes back", async () => {
-    const content = { action: "add_transaction", amount: "45" };
-    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, content }) });
-
-    const result = await askAssistant(request);
-
-    expect(result).toEqual({ ok: true, content });
-    const [url, init] = global.fetch.mock.calls[0];
-    expect(url).toBe("/api/assist");
-    expect(init.method).toBe("POST");
-    expect(init.headers.authorization).toBe("Bearer tok");
-    // The model name never leaves — the server owns it. Only the request does.
-    expect(JSON.parse(init.body)).toEqual({ messages: request.messages, schema: request.schema });
-  });
-
-  test("the server's status maps to a reason the modal already reads", async () => {
-    global.fetch.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
-    expect(await askAssistant(request)).toEqual({ ok: false, reason: "signed-out" });
-
-    global.fetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
-    expect(await askAssistant(request)).toEqual({ ok: false, reason: "unconfigured" });
-
-    global.fetch.mockRejectedValue(new Error("offline"));
-    expect((await askAssistant(request)).reason).toBe("unreachable");
-  });
-});
-
-describe("with no session or no project", () => {
-  beforeEach(() => isDesktop.mockReturnValue(false));
-
-  test("a signed-out browser is asked to sign in, and nothing is sent", async () => {
-    withSession(null);
-    expect(await assistStatus()).toEqual({ ok: false, reason: "signed-out" });
-    expect(await askAssistant(request)).toEqual({ ok: false, reason: "signed-out" });
+    expect(await assistStatus()).toEqual({ ok: false, reason: "no-key", provider: "anthropic" });
+    expect(await askAssistant({ messages, schema })).toEqual({ ok: false, reason: "no-key" });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test("an unconfigured build has no model to ask", async () => {
-    mockConfigured.value = false;
-    expect(await assistStatus()).toEqual({ ok: false, reason: "unsupported" });
-    expect(await askAssistant(request)).toEqual({ ok: false, reason: "unsupported" });
+  test("a keyed browser calls the provider straight, with the key and the forced tool", async () => {
+    isDesktop.mockReturnValue(false);
+    setConfig({ provider: "anthropic", keys: { anthropic: "sk-ant-1" }, models: {} });
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ content: [{ type: "tool_use", name: "record", input: { action: "add_transaction" } }] }),
+    });
+
+    expect(await assistStatus()).toEqual({ ok: true, hosted: true, provider: "anthropic", model: "claude-haiku-4-5" });
+
+    const result = await askAssistant({ messages, schema });
+    expect(result).toEqual({ ok: true, content: { action: "add_transaction" } });
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect(init.headers["x-api-key"]).toBe("sk-ant-1");
+    expect(JSON.parse(init.body).tool_choice).toEqual({ type: "tool", name: "record" });
+  });
+
+  test("OpenAI is reached at its own endpoint when chosen", async () => {
+    isDesktop.mockReturnValue(false);
+    setConfig({ provider: "openai", keys: { openai: "sk-o" }, models: {} });
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { tool_calls: [{ function: { name: "record", arguments: '{"action":"unknown"}' } }] } }],
+      }),
+    });
+
+    expect(await askAssistant({ messages, schema })).toEqual({ ok: true, content: { action: "unknown" } });
+    expect(global.fetch.mock.calls[0][0]).toBe("https://api.openai.com/v1/chat/completions");
+  });
+
+  test("a refused key is said as such", async () => {
+    isDesktop.mockReturnValue(false);
+    setConfig({ provider: "anthropic", keys: { anthropic: "bad" }, models: {} });
+    global.fetch.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+    expect(await askAssistant({ messages, schema })).toEqual({ ok: false, reason: "bad-key" });
+  });
+
+  test("on the desktop the hosted call goes through main, never the renderer's fetch", async () => {
+    isDesktop.mockReturnValue(true);
+    setConfig({ provider: "anthropic", keys: { anthropic: "sk-ant-1" }, models: {} });
+    providerFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: { content: [{ type: "tool_use", name: "record", input: { action: "unknown" } }] },
+    });
+
+    expect(await assistStatus()).toEqual({ ok: true, hosted: true, provider: "anthropic", model: "claude-haiku-4-5" });
+    expect(await askAssistant({ messages, schema })).toEqual({ ok: true, content: { action: "unknown" } });
+    expect(providerFetch).toHaveBeenCalledTimes(1);
+    expect(providerFetch.mock.calls[0][0].url).toBe("https://api.anthropic.com/v1/messages");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(ollamaStatus).not.toHaveBeenCalled();
   });
 });

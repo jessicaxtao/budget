@@ -59,13 +59,16 @@ contextBridge.exposeInMainWorld("__hbDesktop", {
   saveFile: (name, text) => ipcRenderer.invoke("books:saveFile", name, text),
 
   /**
-   * The local model, through main. Two verbs and no more: whether Ollama is
-   * there, and "read this sentence into this shape". Neither can reach the
-   * books — the answer comes back to the page, which checks every name in it
-   * and opens an ordinary form. See `electron/assist.js`.
+   * The assistant, through main. Whether Ollama is there, "read this sentence
+   * into this shape" (the local model), and one narrow fetch to a hosted model
+   * the household brought a key to — main checks that last against a fixed
+   * provider allow-list, so it is not a general fetch. None can reach the books:
+   * the answer comes back to the page, which checks every name in it and opens
+   * an ordinary form. See `electron/assist.js`.
    */
   assistStatus: () => ipcRenderer.invoke("assist:status"),
   assistAsk: (input) => ipcRenderer.invoke("assist:ask", input),
+  assistFetch: (input) => ipcRenderer.invoke("assist:fetch", input),
 
   /**
    * Receipt files, kept beside the books. Each verb is about one receipt the

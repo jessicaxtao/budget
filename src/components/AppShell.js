@@ -117,15 +117,12 @@ export default function AppShell({ children }) {
  *
  * **"Ask" is the third door**: a sentence read by a model (`AskModal`), which
  * opens one of the two ordinary forms already filled in — this one, or
- * `MoveMoneyModal`. On the desktop the model is Ollama on the household's own
- * machine, where nothing leaves it; in a browser it is the account's hosted
- * model, reached through the app's own server, so the door opens only for a
- * signed-in household and is absent — rather than present and refusing — for a
- * local-only or guest browser that has no model to ask.
+ * `MoveMoneyModal`. The model is the household's own either way — Ollama on the
+ * desktop, or a hosted Claude/ChatGPT they bring a key to — so the door is here
+ * in both builds; the dialog itself asks for a key, or points at Ollama, when
+ * one is not set up yet.
  */
 function QuickEntry() {
-  const { status } = useAuth() ?? {};
-  const canAsk = isDesktop() || status === AUTH_STATUS.SIGNED_IN;
   const [kind, setKind] = useState(null);
   const [asking, setAsking] = useState(false);
   // What the assistant read, waiting in the form it belongs to. Held as the
@@ -155,17 +152,15 @@ function QuickEntry() {
           <span aria-hidden="true">⇄</span>
           Transfer
         </Button>
-        {canAsk && (
-          <Button
-            variant="canopy"
-            className="flex-1 rounded-full py-2.5 sm:flex-none sm:py-2"
-            type="button"
-            onClick={() => setAsking(true)}
-          >
-            <span aria-hidden="true">✦</span>
-            Ask
-          </Button>
-        )}
+        <Button
+          variant="canopy"
+          className="flex-1 rounded-full py-2.5 sm:flex-none sm:py-2"
+          type="button"
+          onClick={() => setAsking(true)}
+        >
+          <span aria-hidden="true">✦</span>
+          Ask
+        </Button>
       </div>
       {kind != null && (
         <AddTransactionModal show defaultKind={kind} handleClose={() => setKind(null)} />
