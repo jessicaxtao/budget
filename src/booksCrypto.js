@@ -20,13 +20,28 @@
  * than re-encrypting the books, and a device already holding MK does not
  * care that another device just did.
  *
- * `kid` names the key an envelope was sealed with. MK never rotates on this
- * design, so `kid` is not rotation support — it is a tripwire: an envelope
- * whose `kid` does not match the account unlocking it is a cached document
- * that crossed a scope switch or a row that crossed accounts, and refusing
- * it outright is better than handing it to GCM to fail obscurely. Checking
- * `kid` against the live account is the caller's job, which is why
- * `envelopeKid` is exported rather than folded into `decryptDocument`.
+ * `kid` names the key an envelope was sealed with. On the single-household
+ * design it never rotated and was a pure tripwire; with shared households it
+ * grows a second job, because removing a member who has seen MK can only be
+ * made real by **re-keying** the household — a fresh MK under a fresh `kid`,
+ * every document re-sealed. Either way an envelope whose `kid` does not match
+ * the key unlocking it is refused outright rather than handed to GCM to fail
+ * obscurely: a cached document that crossed a scope switch, a row that crossed
+ * households, or a document that predates a re-key. Checking `kid` against the
+ * live key is the caller's job, which is why `envelopeKid` is exported rather
+ * than folded into `decryptDocument`.
+ *
+ * **The second layer: sharing a household without sharing its password.** A
+ * household's MK is still symmetric and still seals every document, but it is
+ * no longer wrapped only under secrets one person typed. Each member has an
+ * RSA-OAEP **identity keypair**; MK is wrapped once per member's public key
+ * (`wrapKeyFor` / `unwrapKeyWith`), so a member opens the household with their
+ * own private key and no shared passphrase ever exists. The private key is the
+ * thing the books password now guards — wrapped under a password-derived KEK
+ * and a recovery-derived one, exactly as MK used to be (`newIdentityRecord`).
+ * One password unlocks one identity; that identity opens every household it has
+ * been granted. All of this is still native `crypto.subtle` — no wasm, no CSP
+ * change.
  */
 
 import { v4 as uuidV4 } from "uuid";
@@ -220,6 +235,159 @@ export async function importMasterKey(raw) {
     // A cache that will not import is a cache to discard, not a crash — the
     // caller falls to `locked` and asks for the password, which always works.
     return { ok: false, error: "That remembered key could not be read." };
+  }
+}
+
+// -----------------------------------------------------------------------
+// Identity keypairs — how a household's MK reaches a second member without a
+// shared secret
+// -----------------------------------------------------------------------
+
+/**
+ * A member's identity keypair. RSA-OAEP rather than ECDH because the job is
+ * exactly `wrapKey`/`unwrapKey` of a 32-byte AES key for one named recipient,
+ * which RSA-OAEP does in one native call with no ephemeral-key bookkeeping; a
+ * 3072-bit modulus carries MK's 32 bytes with room to spare. Extractable for
+ * the private half so it can be wrapped under the password (`wrapPrivateKey`)
+ * and remembered per device, the same bargain `newMasterKey` strikes.
+ */
+export async function newIdentityKeyPair() {
+  return crypto.subtle.generateKey(
+    { name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+    true,
+    ["wrapKey", "unwrapKey"]
+  );
+}
+
+/** The public half as SPKI base64 — the form that sits in `user_keys` in the
+ *  clear, because a public key is public by definition and is what another
+ *  member needs to wrap MK for this one. */
+export async function exportPublicKey(publicKey) {
+  try {
+    return { ok: true, spki: bytesToBase64(new Uint8Array(await crypto.subtle.exportKey("spki", publicKey))) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function importPublicKey(spki) {
+  try {
+    const key = await crypto.subtle.importKey(
+      "spki",
+      base64ToBytes(spki),
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["wrapKey"]
+    );
+    return { ok: true, key };
+  } catch {
+    return { ok: false, error: "That public key could not be read." };
+  }
+}
+
+/** The private half as PKCS8 base64. Two callers: `wrapPrivateKey`, which
+ *  seals these bytes under a password KEK for the server, and the per-device
+ *  cache, which remembers them in the same `exportMasterKey` bargain — the one
+ *  place the private key is written down, beside a plaintext cache of the very
+ *  books it opens, and cleared with the session. */
+export async function exportPrivateKey(privateKey) {
+  try {
+    return { ok: true, pkcs8: bytesToBase64(new Uint8Array(await crypto.subtle.exportKey("pkcs8", privateKey))) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function importPrivateKey(pkcs8) {
+  try {
+    const key = await crypto.subtle.importKey(
+      "pkcs8",
+      base64ToBytes(pkcs8),
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["unwrapKey"]
+    );
+    return { ok: true, key };
+  } catch {
+    return { ok: false, error: "That remembered key could not be read." };
+  }
+}
+
+/**
+ * Wrap a private key under a KEK derived from the books password (or recovery
+ * code). The private key cannot export as "raw" the way MK does, so its PKCS8
+ * bytes are AES-GCM encrypted under the KEK and framed `base64(iv ‖ ct)` — the
+ * same one-string shape `wrapKey` produces, which is what a single column
+ * holds. A wrong password fails GCM's tag the moment `unwrapPrivateKey` tries
+ * it, so there is still no separate verifier.
+ */
+export async function wrapPrivateKey(kek, privateKey) {
+  try {
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", privateKey));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, kek, pkcs8);
+    const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ciphertext), iv.length);
+    return { ok: true, wrapped: bytesToBase64(combined) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function unwrapPrivateKey(kek, wrapped) {
+  try {
+    const combined = base64ToBytes(wrapped);
+    const iv = combined.subarray(0, 12);
+    const ciphertext = combined.subarray(12);
+    const pkcs8 = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, kek, ciphertext);
+    const key = await crypto.subtle.importKey(
+      "pkcs8",
+      pkcs8,
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      true,
+      ["unwrapKey"]
+    );
+    return { ok: true, key };
+  } catch {
+    return { ok: false, error: "That key could not be unwrapped." };
+  }
+}
+
+/**
+ * Wrap a household's MK for one member's public key. This is the whole of how
+ * a second person comes to hold MK: an existing member, who has MK unlocked,
+ * seals it under the invitee's public key so only the invitee's private key
+ * can open it. The server stores the result (`household_keys.wrapped_mk`) and
+ * is never nearer to MK for having relayed it.
+ */
+export async function wrapKeyFor(mk, recipientPublicKey) {
+  try {
+    const wrapped = await crypto.subtle.wrapKey("raw", mk, recipientPublicKey, { name: "RSA-OAEP" });
+    return { ok: true, wrapped: bytesToBase64(new Uint8Array(wrapped)) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** The other half of `wrapKeyFor`: a member opens their own `wrapped_mk` with
+ *  their private key. A wrap meant for a different member — a different public
+ *  key — fails RSA-OAEP's own check and comes back `{ ok: false }` rather than
+ *  throwing. */
+export async function unwrapKeyWith(privateKey, wrapped) {
+  try {
+    const key = await crypto.subtle.unwrapKey(
+      "raw",
+      base64ToBytes(wrapped),
+      privateKey,
+      { name: "RSA-OAEP" },
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["encrypt", "decrypt"]
+    );
+    return { ok: true, key };
+  } catch {
+    return { ok: false, error: "That household key could not be unwrapped for this member." };
   }
 }
 
@@ -444,6 +612,59 @@ export async function newKeyRecord(password) {
       record: {
         kid,
         kdf: DEFAULT_KDF,
+        password_salt: passwordSalt,
+        password_wrap: passwordWrap.wrapped,
+        recovery_salt: recoverySalt,
+        recovery_wrap: recoveryWrap.wrapped,
+      },
+    };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * A new identity keypair, its private half wrapped once under the password and
+ * once under a fresh recovery code — the whole of what a first sign-in writes
+ * to `user_keys`. The shared-household analogue of `newKeyRecord`, and the same
+ * shape of answer, with one difference that is the entire point: what is
+ * wrapped here is a **private key**, not a master key. The master key belongs
+ * to a household, is minted when a household is created, and is wrapped for this
+ * identity's public key in `household_keys` — never under a password at all.
+ *
+ * So a password change rewraps this private key and touches no household; and a
+ * person in several households unlocks all of them from this one secret.
+ */
+export async function newIdentityRecord(password) {
+  try {
+    const pair = await newIdentityKeyPair();
+    const publicKey = await exportPublicKey(pair.publicKey);
+    if (!publicKey.ok) return failure(publicKey.error);
+
+    const passwordSalt = newSalt();
+    const passwordKek = await deriveKek(password, { salt: passwordSalt, kdf: DEFAULT_KDF });
+    if (!passwordKek.ok) return failure(passwordKek.error);
+    const passwordWrap = await wrapPrivateKey(passwordKek.key, pair.privateKey);
+    if (!passwordWrap.ok) return failure(passwordWrap.error);
+
+    const recoveryCode = newRecoveryCode();
+    const recoverySalt = newSalt();
+    const recoveryKek = await deriveKek(normalizeRecoveryCode(recoveryCode), {
+      salt: recoverySalt,
+      kdf: DEFAULT_KDF,
+    });
+    if (!recoveryKek.ok) return failure(recoveryKek.error);
+    const recoveryWrap = await wrapPrivateKey(recoveryKek.key, pair.privateKey);
+    if (!recoveryWrap.ok) return failure(recoveryWrap.error);
+
+    return {
+      ok: true,
+      publicKey: pair.publicKey,
+      privateKey: pair.privateKey,
+      recoveryCode,
+      record: {
+        kdf: DEFAULT_KDF,
+        public_key: publicKey.spki,
         password_salt: passwordSalt,
         password_wrap: passwordWrap.wrapped,
         recovery_salt: recoverySalt,

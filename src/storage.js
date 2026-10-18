@@ -138,6 +138,28 @@ export const PENDING_SYNC_KEY = "pendingSync";
 export const BOOKS_KEY_CACHE_KEY = "booksKey";
 
 /**
+ * Where this device caches the account's unlocked **identity private key**
+ * between page loads — the RSA key the books password guards, which in turn
+ * unwraps each household's master key.
+ *
+ * Cached under the **user's** scope (not a household's), because one identity
+ * opens every household the user belongs to. Absent from `STORE_KEYS` and swept
+ * by `clearScope` for `BOOKS_KEY_CACHE_KEY`'s exact reason: it is not one of the
+ * books but it is what opens them, so it leaves with the session.
+ */
+export const IDENTITY_KEY_CACHE_KEY = "identityKey";
+
+/**
+ * The "I already decided about importing" flag, written by `ImportBooksGate`.
+ *
+ * Named here, not just in that component, because `clearScope` has to recognise
+ * it: it is the one scoped key that must **survive** sign-out, since it records
+ * a choice the person already made rather than any book content, and dropping it
+ * would re-offer the import to someone who answered "start fresh".
+ */
+export const IMPORT_DECISION_KEY = "importDecision";
+
+/**
  * The scope a trial runs in — someone using the app without an account.
  *
  * A scope of its own, and **not** the unscoped bare keys, which is the whole
@@ -211,6 +233,22 @@ export function getStorageScope() {
 /** Where `key` lives for the user currently in scope. */
 export function scopedKey(key) {
   return scope ? `${PREFIX}:${scope}:${key}` : key;
+}
+
+/**
+ * The scope string for one household's books — `<uid>:<householdId>`.
+ *
+ * A shared budget is a household, not an account, so the books a device shows
+ * belong to the active household rather than to the signed-in user. Keeping the
+ * user id as the first segment is what lets `clearScope` sweep every household a
+ * user has cached in one pass on sign-out, and keeps the key tables and outbox
+ * grouped under the person the session belongs to. Falls back to the bare user
+ * id when there is no household yet (a brand-new account mid-setup), which is
+ * harmless: nothing is stored against it until a household exists.
+ */
+export function householdScope(userId, householdId) {
+  if (!userId) return null;
+  return householdId ? `${userId}:${householdId}` : userId;
 }
 
 /**
@@ -528,21 +566,35 @@ export function replaceScope(userId, snapshot) {
  */
 export function clearScope(userId) {
   if (!userId) return;
-  const previous = scope;
-  setStorageScope(userId);
+  let keys;
   try {
-    for (const key of [...STORE_KEYS, ...LEGACY_KEYS, PENDING_SYNC_KEY, BOOKS_KEY_CACHE_KEY]) {
-      removeKey(key);
+    keys = backend.keys();
+  } catch {
+    return;
+  }
+  // Everything under this user's prefix goes — every household's documents, the
+  // per-household outbox and master-key cache, and the user's own identity-key
+  // cache — in one sweep rather than a fixed list, because a user may have more
+  // than one household cached and `clearScope` cannot name them all. Prefix
+  // rather than `setStorageScope`, deliberately: the keys to remove sit under
+  // `hb:<uid>:<householdId>:…` as well as `hb:<uid>:…`, so a single scope could
+  // not address them. The one survivor is the import decision — a choice the
+  // person made, not book content (see `IMPORT_DECISION_KEY`).
+  const prefix = `${PREFIX}:${userId}:`;
+  for (const name of keys) {
+    if (name.startsWith(prefix) && !name.endsWith(`:${IMPORT_DECISION_KEY}`)) {
+      try {
+        backend.removeItem(name);
+      } catch {
+        /* nothing further we can do */
+      }
     }
-  } finally {
-    setStorageScope(previous);
   }
 }
 
 /** Remove orphaned account caches at boot or an account switch, keeping local
- * books and the non-content import decision. */
+ * books, the kept guest trial, and each account's non-content import decision. */
 export function clearOtherAccountScopes(keepUserId = null) {
-  const content = new Set([...STORE_KEYS, ...LEGACY_KEYS, PENDING_SYNC_KEY, BOOKS_KEY_CACHE_KEY]);
   let keys;
   try {
     keys = backend.keys();
@@ -551,8 +603,10 @@ export function clearOtherAccountScopes(keepUserId = null) {
   }
   for (const name of keys) {
     const match = /^hb:([^:]+):(.+)$/.exec(name);
-    if (match && match[1] !== GUEST_SCOPE && match[1] !== keepUserId && content.has(match[2])) {
-      backend.removeItem(name);
-    }
+    if (!match) continue;
+    const owner = match[1];
+    if (owner === GUEST_SCOPE || owner === keepUserId) continue;
+    if (name.endsWith(`:${IMPORT_DECISION_KEY}`)) continue;
+    backend.removeItem(name);
   }
 }

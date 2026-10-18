@@ -3,6 +3,7 @@ import { getSupabase, isSupabaseConfigured } from "../supabaseClient";
 import {
   clearScope,
   clearOtherAccountScopes,
+  getStorageScope,
   hasStoredBooks,
   isDesktop,
   isGuestMode,
@@ -611,7 +612,9 @@ export const AuthProvider = ({ children }) => {
     const id = user?.id;
     if (!id) return { ok: false, error: "You are not signed in." };
 
-    const books = snapshotScope(id);
+    // The books of the household currently in view — its scope is `<uid>:<hid>`,
+    // which is whatever `SyncProvider` set and `getStorageScope` reports now.
+    const books = snapshotScope(getStorageScope());
     const target = localScope();
 
     if (hasStoredBooks(target)) {

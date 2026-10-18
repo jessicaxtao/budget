@@ -17,6 +17,16 @@ import {
   newKeyRecord,
   exportMasterKey,
   importMasterKey,
+  newIdentityKeyPair,
+  exportPublicKey,
+  importPublicKey,
+  exportPrivateKey,
+  importPrivateKey,
+  wrapPrivateKey,
+  unwrapPrivateKey,
+  wrapKeyFor,
+  unwrapKeyWith,
+  newIdentityRecord,
 } from "./booksCrypto";
 import { STORE_KEYS } from "./storage";
 import { EMPTY_SCHEDULE } from "./contexts/PayScheduleContext";
@@ -336,5 +346,191 @@ describe("booksCrypto", () => {
     });
     // Valid base64, wrong length for an AES-256 key.
     expect((await importMasterKey("YWJj")).ok).toBe(false);
+  });
+
+  // Two non-exported AES keys are the same key iff they seal identical bytes
+  // from the same plaintext and IV — the only comparison available when the
+  // whole point is that the key never leaves the CryptoKey.
+  async function sameKey(a, b) {
+    const iv = new Uint8Array(12);
+    const plaintext = new Uint8Array([7, 7, 7]);
+    const byA = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, a, plaintext));
+    const byB = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, b, plaintext));
+    return Array.from(byA).join() === Array.from(byB).join();
+  }
+
+  describe("identity keypairs and recipient wrapping", () => {
+    test("wrapKeyFor then unwrapKeyWith recovers the same master key", async () => {
+      const pair = await newIdentityKeyPair();
+      const mk = await newMasterKey();
+
+      const wrapped = await wrapKeyFor(mk, pair.publicKey);
+      expect(wrapped.ok).toBe(true);
+      expect(typeof wrapped.wrapped).toBe("string");
+
+      const unwrapped = await unwrapKeyWith(pair.privateKey, wrapped.wrapped);
+      expect(unwrapped.ok).toBe(true);
+      expect(await sameKey(unwrapped.key, mk)).toBe(true);
+    });
+
+    test("a wrap meant for one member cannot be opened by another's private key", async () => {
+      const alice = await newIdentityKeyPair();
+      const bob = await newIdentityKeyPair();
+      const mk = await newMasterKey();
+
+      const forAlice = await wrapKeyFor(mk, alice.publicKey);
+      expect(forAlice.ok).toBe(true);
+
+      const bobTries = await unwrapKeyWith(bob.privateKey, forAlice.wrapped);
+      expect(bobTries.ok).toBe(false);
+      expect(bobTries.error).toBeTruthy();
+    });
+
+    test("a public key survives export to SPKI and import back, still wrapping for the same private key", async () => {
+      const pair = await newIdentityKeyPair();
+      const mk = await newMasterKey();
+
+      const spki = await exportPublicKey(pair.publicKey);
+      expect(spki.ok).toBe(true);
+      const reimported = await importPublicKey(spki.spki);
+      expect(reimported.ok).toBe(true);
+
+      const wrapped = await wrapKeyFor(mk, reimported.key);
+      expect(wrapped.ok).toBe(true);
+      const unwrapped = await unwrapKeyWith(pair.privateKey, wrapped.wrapped);
+      expect(unwrapped.ok).toBe(true);
+      expect(await sameKey(unwrapped.key, mk)).toBe(true);
+    });
+
+    test("a private key survives export to PKCS8 and import back, still unwrapping its own wraps", async () => {
+      const pair = await newIdentityKeyPair();
+      const mk = await newMasterKey();
+      const wrapped = await wrapKeyFor(mk, pair.publicKey);
+
+      const pkcs8 = await exportPrivateKey(pair.privateKey);
+      expect(pkcs8.ok).toBe(true);
+      const reimported = await importPrivateKey(pkcs8.pkcs8);
+      expect(reimported.ok).toBe(true);
+
+      const unwrapped = await unwrapKeyWith(reimported.key, wrapped.wrapped);
+      expect(unwrapped.ok).toBe(true);
+      expect(await sameKey(unwrapped.key, mk)).toBe(true);
+    });
+
+    test("wrapPrivateKey / unwrapPrivateKey round-trip a private key under a password KEK", async () => {
+      const pair = await newIdentityKeyPair();
+      const mk = await newMasterKey();
+      const forMe = await wrapKeyFor(mk, pair.publicKey);
+
+      const salt = newSalt();
+      const kek = await deriveKek(PASSWORD, { salt, kdf: DEFAULT_KDF });
+      const wrapped = await wrapPrivateKey(kek.key, pair.privateKey);
+      expect(wrapped.ok).toBe(true);
+
+      const reopenedKek = await deriveKek(PASSWORD, { salt, kdf: DEFAULT_KDF });
+      const unwrappedPriv = await unwrapPrivateKey(reopenedKek.key, wrapped.wrapped);
+      expect(unwrappedPriv.ok).toBe(true);
+
+      // The private key that came back still opens a wrap meant for it.
+      const mkBack = await unwrapKeyWith(unwrappedPriv.key, forMe.wrapped);
+      expect(mkBack.ok).toBe(true);
+      expect(await sameKey(mkBack.key, mk)).toBe(true);
+    });
+
+    test("a wrong password fails to unwrap the private key rather than returning a usable one", async () => {
+      const pair = await newIdentityKeyPair();
+      const salt = newSalt();
+      const kek = await deriveKek(PASSWORD, { salt, kdf: DEFAULT_KDF });
+      const wrapped = await wrapPrivateKey(kek.key, pair.privateKey);
+
+      const wrongKek = await deriveKek("not the password", { salt, kdf: DEFAULT_KDF });
+      const attempt = await unwrapPrivateKey(wrongKek.key, wrapped.wrapped);
+      expect(attempt.ok).toBe(false);
+    });
+
+    test("newIdentityRecord: both the password and the recovery code unwrap the same private key", async () => {
+      const created = await newIdentityRecord(PASSWORD);
+      expect(created.ok).toBe(true);
+      const { record } = created;
+
+      // A household MK, wrapped for this fresh identity's public key.
+      const publicKey = await importPublicKey(record.public_key);
+      const mk = await newMasterKey();
+      const wrappedMk = await wrapKeyFor(mk, publicKey.key);
+
+      const passwordKek = await deriveKek(PASSWORD, {
+        salt: record.password_salt,
+        kdf: record.kdf,
+      });
+      const privFromPassword = await unwrapPrivateKey(passwordKek.key, record.password_wrap);
+      expect(privFromPassword.ok).toBe(true);
+
+      const recoveryKek = await deriveKek(normalizeRecoveryCode(created.recoveryCode), {
+        salt: record.recovery_salt,
+        kdf: record.kdf,
+      });
+      const privFromRecovery = await unwrapPrivateKey(recoveryKek.key, record.recovery_wrap);
+      expect(privFromRecovery.ok).toBe(true);
+
+      // Either private key opens the household MK wrapped for this identity.
+      const viaPassword = await unwrapKeyWith(privFromPassword.key, wrappedMk.wrapped);
+      const viaRecovery = await unwrapKeyWith(privFromRecovery.key, wrappedMk.wrapped);
+      expect(viaPassword.ok).toBe(true);
+      expect(viaRecovery.ok).toBe(true);
+      expect(await sameKey(viaPassword.key, mk)).toBe(true);
+      expect(await sameKey(viaRecovery.key, mk)).toBe(true);
+    });
+
+    test("changing the books password rewraps only the private key; every household MK stays reachable", async () => {
+      const created = await newIdentityRecord(PASSWORD);
+      const { record } = created;
+
+      // The identity is in two households; each MK is wrapped for its public key.
+      const publicKey = await importPublicKey(record.public_key);
+      const mkOne = await newMasterKey();
+      const mkTwo = await newMasterKey();
+      const wrapOne = await wrapKeyFor(mkOne, publicKey.key);
+      const wrapTwo = await wrapKeyFor(mkTwo, publicKey.key);
+
+      // Change the password: unwrap the private key with the old one, rewrap
+      // under the new. No household MK is touched.
+      const oldKek = await deriveKek(PASSWORD, { salt: record.password_salt, kdf: record.kdf });
+      const priv = await unwrapPrivateKey(oldKek.key, record.password_wrap);
+      expect(priv.ok).toBe(true);
+      const newSaltValue = newSalt();
+      const newKek = await deriveKek("a brand new password", { salt: newSaltValue, kdf: record.kdf });
+      const rewrapped = await wrapPrivateKey(newKek.key, priv.key);
+      expect(rewrapped.ok).toBe(true);
+
+      // The new password opens the private key, which still opens both MKs.
+      const reopenedKek = await deriveKek("a brand new password", {
+        salt: newSaltValue,
+        kdf: record.kdf,
+      });
+      const privAgain = await unwrapPrivateKey(reopenedKek.key, rewrapped.wrapped);
+      const backOne = await unwrapKeyWith(privAgain.key, wrapOne.wrapped);
+      const backTwo = await unwrapKeyWith(privAgain.key, wrapTwo.wrapped);
+      expect(await sameKey(backOne.key, mkOne)).toBe(true);
+      expect(await sameKey(backTwo.key, mkTwo)).toBe(true);
+    });
+
+    test("a tampered private-key wrap fails closed", async () => {
+      const pair = await newIdentityKeyPair();
+      const salt = newSalt();
+      const kek = await deriveKek(PASSWORD, { salt, kdf: DEFAULT_KDF });
+      const wrapped = await wrapPrivateKey(kek.key, pair.privateKey);
+
+      const bytes = base64ToBytes(wrapped.wrapped);
+      bytes[bytes.length - 1] ^= 0xff;
+      const reopenedKek = await deriveKek(PASSWORD, { salt, kdf: DEFAULT_KDF });
+      const attempt = await unwrapPrivateKey(reopenedKek.key, bytesToBase64(bytes));
+      expect(attempt.ok).toBe(false);
+    });
+
+    test("import helpers refuse garbage rather than throwing", async () => {
+      expect((await importPublicKey("not base64 !!")).ok).toBe(false);
+      expect((await importPrivateKey("not base64 !!")).ok).toBe(false);
+      expect((await unwrapKeyWith((await newIdentityKeyPair()).privateKey, "!!")).ok).toBe(false);
+    });
   });
 });

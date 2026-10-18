@@ -3,6 +3,7 @@ import { getSupabase, isSupabaseConfigured } from "../supabaseClient";
 import { AUTH_STATUS, useAuth } from "./AuthContext";
 import {
   getStorageScope,
+  householdScope,
   localScope,
   PENDING_SYNC_KEY,
   readKey,
@@ -14,6 +15,7 @@ import {
 } from "../storage";
 import { decryptDocument, encryptDocument, envelopeKid, isEncryptedDocument } from "../booksCrypto";
 import { booksKeyGeneration, getBooksKey } from "../booksKey";
+import { useHousehold } from "./HouseholdContext";
 
 /**
  * The seam between the books and the wire — and the only file that touches
@@ -127,8 +129,15 @@ export const SYNC_STATE = {
 
 export const SyncProvider = ({ children }) => {
   const { status, userId } = useAuth();
+  const { activeHouseholdId } = useHousehold();
 
-  const remote = status === AUTH_STATUS.SIGNED_IN && isSupabaseConfigured && Boolean(userId);
+  // A shared budget is a household, so the books belong to one and `remote`
+  // needs a household as much as it needs a signed-in user. The gate above this
+  // provider (`HouseholdGate`) only renders children once a household is ready,
+  // so in practice this is true whenever this provider is reached signed in.
+  const remote =
+    status === AUTH_STATUS.SIGNED_IN && isSupabaseConfigured && Boolean(userId) && Boolean(activeHouseholdId);
+  const householdId = activeHouseholdId;
 
   /**
    * Whose books the cache is showing, and the one place the three cases are
@@ -146,7 +155,7 @@ export const SyncProvider = ({ children }) => {
    * and those bare keys are the books the app has always kept. It is also how
    * the whole test suite runs.
    */
-  const scope = remote ? userId : status === AUTH_STATUS.GUEST ? localScope() : null;
+  const scope = remote ? householdScope(userId, householdId) : status === AUTH_STATUS.GUEST ? localScope() : null;
 
   // Applied during render, not in the effect below. Every store reads storage in
   // its own lazy initialiser, and those run after this render and before any
@@ -237,7 +246,7 @@ export const SyncProvider = ({ children }) => {
 
     let active = true;
     const generation = booksKeyGeneration();
-    const work = { userId, generation };
+    const work = { householdId, generation };
     accountWork.current = work;
     pendingDeletes.current.clear();
     setHydrated(false);
@@ -247,7 +256,7 @@ export const SyncProvider = ({ children }) => {
       const { data, error } = await getSupabase()
         .from("app_state")
         .select("key, value")
-        .eq("user_id", userId);
+        .eq("household_id", householdId);
 
       if (!active || booksKeyGeneration() !== generation) return;
 
@@ -303,21 +312,20 @@ export const SyncProvider = ({ children }) => {
       // cache of ciphertext could never match anything again.
       known.current.clear();
       for (const key of Object.keys(snapshot)) known.current.set(key, canonicalJSON(snapshot[key]));
-      restoreScope(userId, snapshot);
+      restoreScope(scope, snapshot);
 
       // Anything this browser wrote but never managed to send outranks what
       // came back, because it is strictly newer — the server's copy is the one
       // that predates it. Re-applied over the snapshot and re-queued, so a tab
-      // closed mid-debounce costs a delay rather than the edit.
-      setStorageScope(userId);
+      // closed mid-debounce costs a delay rather than the edit. The outbox lives
+      // under this household's own scope, which is already in force.
       const outbox = readKey(PENDING_SYNC_KEY);
-      setStorageScope(scope);
 
       pending.current.clear();
       if (outbox && typeof outbox === "object") {
         for (const [key, value] of Object.entries(outbox)) {
           pending.current.set(key, value);
-          restoreScope(userId, { [key]: value });
+          restoreScope(scope, { [key]: value });
         }
       }
 
@@ -344,7 +352,7 @@ export const SyncProvider = ({ children }) => {
       active = false;
       if (accountWork.current === work) accountWork.current = null;
     };
-  }, [remote, userId, scope]);
+  }, [remote, scope, householdId]);
 
   // ---------------------------------------------------------------------
   // Push
@@ -364,7 +372,7 @@ export const SyncProvider = ({ children }) => {
   const flush = useCallback(async () => {
     if (!remote) return { ok: true };
     const work = accountWork.current;
-    if (!work || work.userId !== userId || work.generation !== booksKeyGeneration()) {
+    if (!work || work.householdId !== householdId || work.generation !== booksKeyGeneration()) {
       return { ok: false, error: "The account session ended." };
     }
     if (flushing.current) return { ok: true };
@@ -373,7 +381,7 @@ export const SyncProvider = ({ children }) => {
     flushing.current = true;
     const generation = booksKeyGeneration();
     const cancelled = () => {
-      if (accountWork.current === work && booksKeyGeneration() === generation && getStorageScope() === userId) return false;
+      if (accountWork.current === work && booksKeyGeneration() === generation && getStorageScope() === scope) return false;
       flushing.current = false;
       return true;
     };
@@ -393,7 +401,7 @@ export const SyncProvider = ({ children }) => {
       ({ error } = await getSupabase()
         .from("app_state")
         .delete()
-        .eq("user_id", userId)
+        .eq("household_id", householdId)
         .in("key", drops));
       if (cancelled()) return { ok: false, error: "The account session ended." };
     }
@@ -425,13 +433,13 @@ export const SyncProvider = ({ children }) => {
             sealed = null;
             break;
           }
-          sealed.push({ user_id: userId, key, value: envelope.envelope });
+          sealed.push({ household_id: householdId, key, value: envelope.envelope });
         }
       }
     }
 
     if (!error && sealed) {
-      ({ error } = await getSupabase().from("app_state").upsert(sealed, { onConflict: "user_id,key" }));
+      ({ error } = await getSupabase().from("app_state").upsert(sealed, { onConflict: "household_id,key" }));
     }
 
     flushing.current = false;
@@ -463,7 +471,7 @@ export const SyncProvider = ({ children }) => {
       setSyncState(SYNC_STATE.IDLE);
     }
     return { ok: true };
-  }, [remote, userId, persistOutbox]);
+  }, [remote, householdId, scope, persistOutbox]);
 
   flushRef.current = flush;
 
@@ -477,7 +485,7 @@ export const SyncProvider = ({ children }) => {
   const push = useCallback(
     (key, value) => {
       if (!remote) return;
-      if (!accountWork.current || accountWork.current.userId !== userId || accountWork.current.generation !== booksKeyGeneration()) return;
+      if (!accountWork.current || accountWork.current.householdId !== householdId || accountWork.current.generation !== booksKeyGeneration()) return;
 
       // Unchanged from what the server last told us. This is what makes a
       // reload cost zero writes despite every store's persist effect firing on
@@ -494,7 +502,7 @@ export const SyncProvider = ({ children }) => {
       clearTimeout(flushTimer.current);
       flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
     },
-    [remote, userId, persistOutbox]
+    [remote, householdId, persistOutbox]
   );
 
   /**
@@ -511,7 +519,7 @@ export const SyncProvider = ({ children }) => {
   const dropRemote = useCallback(
     (keys) => {
       if (!remote) return;
-      if (!accountWork.current || accountWork.current.userId !== userId || accountWork.current.generation !== booksKeyGeneration()) return;
+      if (!accountWork.current || accountWork.current.householdId !== householdId || accountWork.current.generation !== booksKeyGeneration()) return;
 
       for (const key of keys) {
         pending.current.delete(key);
@@ -525,7 +533,7 @@ export const SyncProvider = ({ children }) => {
       clearTimeout(flushTimer.current);
       flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
     },
-    [remote, userId, persistOutbox]
+    [remote, householdId, persistOutbox]
   );
 
   /**
@@ -544,12 +552,12 @@ export const SyncProvider = ({ children }) => {
    */
   const resync = useCallback(() => {
     if (!remote) return;
-    if (!accountWork.current || accountWork.current.userId !== userId || accountWork.current.generation !== booksKeyGeneration()) return;
+    if (!accountWork.current || accountWork.current.householdId !== householdId || accountWork.current.generation !== booksKeyGeneration()) return;
 
     known.current.clear();
 
     const previousScope = getStorageScope();
-    setStorageScope(userId);
+    setStorageScope(scope);
     try {
       for (const key of STORE_KEYS) {
         const value = readKey(key);
@@ -564,7 +572,7 @@ export const SyncProvider = ({ children }) => {
 
     clearTimeout(flushTimer.current);
     flushTimer.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
-  }, [remote, userId, persistOutbox]);
+  }, [remote, householdId, scope, persistOutbox]);
 
   resyncRef.current = resync;
 
@@ -612,14 +620,14 @@ export const SyncProvider = ({ children }) => {
     // has — hygiene rather than a fix, since the `postgres_changes` bindings
     // below are per-subscription and would not cross-deliver either way.
     const channel = getSupabase()
-      .channel(`budget:app_state:${userId}`)
+      .channel(`budget:app_state:${householdId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "app_state",
-          filter: `user_id=eq.${userId}`,
+          filter: `household_id=eq.${householdId}`,
         },
         async (payload) => {
           const row = payload.new ?? payload.old;
@@ -628,8 +636,9 @@ export const SyncProvider = ({ children }) => {
           // The session has ended and the render has already moved the cache
           // to another scope, but this channel is only removed in the commit
           // after it. A row landing in that gap must not be written back under
-          // an account whose books sign-out has just cleared off this device.
-          if (accountWork.current !== work || getStorageScope() !== userId || booksKeyGeneration() !== generation) return;
+          // a household whose books sign-out or a switch has just cleared off
+          // this device.
+          if (accountWork.current !== work || getStorageScope() !== scope || booksKeyGeneration() !== generation) return;
 
           // A key we are still trying to send is one this device has a newer
           // answer for. Letting the server's copy win here would undo an edit
@@ -669,7 +678,7 @@ export const SyncProvider = ({ children }) => {
             // Returning is right for both: the row is the server's and the
             // next hydrate fetches it again, while what we would be throwing
             // away here is either nothing or somebody's own typing.
-            if (accountWork.current !== work || getStorageScope() !== userId || booksKeyGeneration() !== generation) return;
+            if (accountWork.current !== work || getStorageScope() !== scope || booksKeyGeneration() !== generation) return;
             if (pending.current.has(row.key)) return;
           }
 
@@ -678,7 +687,7 @@ export const SyncProvider = ({ children }) => {
           if (known.current.get(row.key) === serialized) return;
 
           known.current.set(row.key, serialized);
-          restoreScope(userId, { [row.key]: value });
+          restoreScope(scope, { [row.key]: value });
 
           for (const listener of listeners.current.get(row.key) ?? []) listener(value);
         }
@@ -688,7 +697,7 @@ export const SyncProvider = ({ children }) => {
     return () => {
       getSupabase().removeChannel(channel);
     };
-  }, [remote, hydrated, userId]);
+  }, [remote, hydrated, scope, householdId]);
 
   const value = useMemo(
     () => ({ remote, hydrated, syncState, push, dropRemote, subscribeRemote, flush, resync }),
@@ -730,9 +739,10 @@ export const SyncProvider = ({ children }) => {
 
   return (
     <SyncContext.Provider value={value}>
-      {/* Keyed on the account, so switching users remounts every store rather
-          than asking each one to notice that the books underneath it changed. */}
-      <React.Fragment key={userId ?? "local"}>{children}</React.Fragment>
+      {/* Keyed on the household scope, so switching households (or users)
+          remounts every store rather than asking each one to notice that the
+          books underneath it changed. */}
+      <React.Fragment key={scope ?? "local"}>{children}</React.Fragment>
     </SyncContext.Provider>
   );
 };

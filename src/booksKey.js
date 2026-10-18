@@ -29,9 +29,16 @@ export function booksKeyGeneration() {
 }
 
 /** Put an unlocked master key — and the `kid` it was sealed under — in
- *  force for the rest of this session. */
-export function setBooksKey(mk, kid) {
-  current = { mk, kid };
+ *  force for the rest of this session.
+ *
+ *  `householdId` is the household whose books this key opens, carried here
+ *  for the one reader that needs it and cannot reach a hook: `receipts.js`
+ *  names each receipt's storage folder by the household id, and the row-level
+ *  policy on the bucket checks that folder against membership. It is optional
+ *  so the single-household and pre-household callers (and the key tests) can
+ *  keep passing two arguments. */
+export function setBooksKey(mk, kid, householdId = null) {
+  current = { mk, kid, householdId };
 }
 
 /** The unlocked key, or `null` if nothing has unlocked it yet this

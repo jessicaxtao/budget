@@ -39,7 +39,17 @@ jest.mock("../supabaseClient", () => ({
   },
 }));
 
+// SyncProvider now reads the active household from HouseholdContext, which is
+// not mounted here. Mocking the hook keeps this suite focused on the wire,
+// exactly as it mounts the real AuthProvider but mocks the Supabase client.
+jest.mock("./HouseholdContext", () => ({
+  useHousehold: () => ({ activeHouseholdId: "h1" }),
+}));
+
 const USER_ID = "u1";
+const HOUSEHOLD_ID = "h1";
+// The books cache is scoped by household now: `<uid>:<householdId>`.
+const SCOPE = `${USER_ID}:${HOUSEHOLD_ID}`;
 
 /** A `.from("app_state")` stub covering select, upsert and delete in one shape. */
 function fromStub({ rows = [], upsert, deleteError = null } = {}) {
@@ -137,7 +147,7 @@ test("a failed upload completing after logout cannot recreate its outbox", async
     old.push("budgets", [{ id: "late edit" }]);
     expect((await old.flush()).ok).toBe(false);
   });
-  expect(localStorage.getItem("hb:u1:pendingSync")).toBeNull();
+  expect(localStorage.getItem("hb:u1:h1:pendingSync")).toBeNull();
   expect(localStorage.getItem("pendingSync")).toBeNull();
   expect(upsert).toHaveBeenCalledTimes(1);
 });
@@ -236,7 +246,7 @@ describe("a plaintext row on the way in", () => {
 
     // The plaintext row is taken as-is — the cache holds it in the clear.
     const previousScope = getStorageScope();
-    setStorageScope(USER_ID);
+    setStorageScope(SCOPE);
     expect(readKey("budgets")).toEqual([{ id: "b1", name: "Groceries" }]);
     setStorageScope(previousScope);
 
@@ -351,7 +361,7 @@ describe("a realtime row", () => {
     });
 
     expect(listener).toHaveBeenCalledWith([{ id: "fromAnotherDevice" }]);
-    setStorageScope(USER_ID);
+    setStorageScope(SCOPE);
     expect(readKey("budgets")).toEqual([{ id: "fromAnotherDevice" }]);
     setStorageScope(null);
   });
@@ -391,7 +401,7 @@ describe("a realtime row", () => {
 
     // Ignored outright: no second call, and the cache still holds the good value.
     expect(listener).toHaveBeenCalledTimes(1);
-    setStorageScope(USER_ID);
+    setStorageScope(SCOPE);
     expect(readKey("budgets")).toEqual([{ id: "good" }]);
     setStorageScope(null);
   });
@@ -453,7 +463,7 @@ describe("a realtime row", () => {
     // scope guard so the decrypt never ran — passing this test while proving
     // nothing about the window after it.
     const previousScope = getStorageScope();
-    setStorageScope(USER_ID);
+    setStorageScope(SCOPE);
     writeKey("budgets", [{ id: "typedHere" }]);
     setStorageScope(previousScope);
 
@@ -473,7 +483,7 @@ describe("a realtime row", () => {
     // The server's older copy must not have won: no listener fired, and the
     // cache still holds what the user can see.
     expect(listener).not.toHaveBeenCalled();
-    setStorageScope(USER_ID);
+    setStorageScope(SCOPE);
     expect(readKey("budgets")).toEqual([{ id: "typedHere" }]);
     setStorageScope(null);
   });
@@ -515,7 +525,7 @@ describe("a realtime row", () => {
     });
 
     expect(listener).not.toHaveBeenCalled();
-    setStorageScope(USER_ID);
+    setStorageScope(SCOPE);
     expect(readKey("budgets")).toBeUndefined();
     setStorageScope(null);
   });

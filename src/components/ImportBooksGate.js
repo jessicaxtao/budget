@@ -5,16 +5,28 @@ import { useAuth } from "../contexts/AuthContext";
 import { useSync } from "../contexts/SyncContext";
 import { deviceLabel, isDesktop } from "../desktop";
 import {
+  getStorageScope,
   hasStoredBooks,
+  IMPORT_DECISION_KEY as DECISION_KEY,
   readKey,
   restoreScope,
+  setStorageScope,
   snapshotScope,
   STORE_KEYS,
   writeKey,
 } from "../storage";
 
-/** Where the "I already decided" flag lives. Scoped, and never synced. */
-const DECISION_KEY = "importDecision";
+/** Read/write the decision flag under the **user's** scope (not the active
+ *  household's), so it is one choice per account and survives `clearScope`. */
+function withUserScope(userId, run) {
+  const previous = getStorageScope();
+  setStorageScope(userId);
+  try {
+    return run();
+  } finally {
+    setStorageScope(previous);
+  }
+}
 
 /**
  * The one-time offer to carry this browser's books up into the account.
@@ -41,26 +53,29 @@ export default function ImportBooksGate({ children }) {
   const { userId } = useAuth();
   const { remote, push, flush } = useSync();
 
-  const [decided, setDecided] = useState(() => (remote ? Boolean(readKey(DECISION_KEY)) : true));
+  const [decided, setDecided] = useState(() =>
+    remote ? Boolean(withUserScope(userId, () => readKey(DECISION_KEY))) : true
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   // Computed once, before any store has mounted and written its empty default
-  // into the cache. Deferred by a render and this would read every account as
-  // already having books.
+  // into the cache. Deferred by a render and this would read every household as
+  // already having books. The emptiness check is the **active household's**
+  // scope, which `SyncProvider` has already set — `getStorageScope()`.
   const offer = useMemo(() => {
     if (!remote || decided) return null;
-    if (hasStoredBooks(userId)) return null;
+    if (hasStoredBooks(getStorageScope())) return null;
 
     const snapshot = snapshotScope(null);
     if (!hasStoredBooks(null)) return null;
     return snapshot;
-  }, [remote, decided, userId]);
+  }, [remote, decided]);
 
   if (!offer) return children;
 
   function remember() {
-    writeKey(DECISION_KEY, { at: new Date().toISOString() });
+    withUserScope(userId, () => writeKey(DECISION_KEY, { at: new Date().toISOString() }));
     setDecided(true);
   }
 
@@ -70,8 +85,8 @@ export default function ImportBooksGate({ children }) {
 
     // Local first, so the books are in place the moment the app renders even if
     // the network is slow — the push below is what makes them durable, and the
-    // queue survives a failure and retries.
-    restoreScope(userId, offer);
+    // queue survives a failure and retries. Into the active household's scope.
+    restoreScope(getStorageScope(), offer);
     for (const key of STORE_KEYS) {
       if (offer[key] !== undefined) push(key, offer[key]);
     }

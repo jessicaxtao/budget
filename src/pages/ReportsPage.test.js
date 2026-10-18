@@ -118,7 +118,7 @@ describe("a year of books", () => {
     setup();
     renderPage();
 
-    const rows = within(screen.getByText("Where the money went").closest("section")).getAllByRole(
+    const rows = within(screen.getByRole("heading", { name: "Where the money went" }).closest("section")).getAllByRole(
       "row"
     );
     // Header, two categories, the footer. Rent is the bigger of the two and
@@ -187,7 +187,7 @@ describe("a year of books", () => {
     // And the ranking drops the column that would have copied Spent down the
     // page — with it goes the judgement against the estimate, which carry-over
     // can still explain over a single month.
-    const ranking = () => within(screen.getByText("Where the money went").closest("section"));
+    const ranking = () => within(screen.getByRole("heading", { name: "Where the money went" }).closest("section"));
     expect(ranking().queryByRole("columnheader", { name: "Per month" })).not.toBeInTheDocument();
     expect(ranking().getByRole("columnheader", { name: "Spent" })).toBeInTheDocument();
     expect(ranking().getByText("One month of records")).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe("a year of books", () => {
     expect(tile("Income")).toBe("$15,000");
     expect(screen.getByText(`${formatPeriod(monthsBack(2))} – ${formatPeriod(PERIOD)}`)).toBeInTheDocument();
     expect(
-      within(screen.getByText("Where the money went").closest("section")).getByText(
+      within(screen.getByRole("heading", { name: "Where the money went" }).closest("section")).getByText(
         "Per month is over 3 months of records"
       )
     ).toBeInTheDocument();
@@ -311,7 +311,7 @@ describe("the plan against the books", () => {
     { id: "g2", name: "Treats", bucket: "fun" },
   ];
 
-  const planSection = () => screen.getByText("Against the plan").closest("section");
+  const planSection = () => screen.getByRole("heading", { name: "Against the plan" }).closest("section");
 
   test("the plan's monthly total is named beside the chart, and the chart draws a threshold", () => {
     seed({
@@ -495,7 +495,7 @@ describe("a window the reader names", () => {
     fireEvent.change(monthField("To"), { target: { value: addMonths(PERIOD, 1) } });
     fireEvent.click(screen.getByText("Show the plan comparison as a table"));
 
-    const planSection = screen.getByText("Against the plan").closest("section");
+    const planSection = screen.getByRole("heading", { name: "Against the plan" }).closest("section");
     const rowFor = (period) =>
       within(planSection)
         .getAllByRole("row")

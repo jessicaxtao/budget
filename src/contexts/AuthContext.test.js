@@ -61,6 +61,13 @@ jest.mock("../supabaseClient", () => ({
   },
 }));
 
+// The tests that mount SyncProvider reach through HouseholdContext for the
+// active household. Mock the hook so those keep their focus on auth and sync
+// scoping; a signed-in session then resolves to the scope `u1:h1`.
+jest.mock("./HouseholdContext", () => ({
+  useHousehold: () => ({ activeHouseholdId: "h1" }),
+}));
+
 beforeEach(() => {
   mockConfigured = true;
   mockAuthListener = null;
@@ -416,6 +423,9 @@ describe("stopping sync", () => {
     restoreScope("u1", { budgets: [{ id: "b1" }], transactions: [{ id: "t1" }] });
 
     const { result } = await mountAuth();
+    // SyncProvider is not mounted here, so stand in for the scope it would have
+    // set — the active household's books are what `stopSyncing` snapshots.
+    setStorageScope("u1");
     await act(async () => {
       await result.current.stopSyncing();
     });
@@ -466,6 +476,7 @@ describe("stopping sync", () => {
     });
 
     const { result } = await mountAuth();
+    setStorageScope("u1");
     await act(async () => {
       await result.current.stopSyncing();
     });
@@ -919,7 +930,7 @@ describe("the scope a guest runs in", () => {
     });
 
     mountTree();
-    await waitFor(() => expect(getStorageScope()).toBe("u1"));
+    await waitFor(() => expect(getStorageScope()).toBe("u1:h1"));
   });
 });
 

@@ -126,15 +126,35 @@ function elsewhere(receipt) {
   };
 }
 
-// Unchanged even for a sealed receipt, deliberately: the real extension on a
-// file of ciphertext is a small lie, and the right trade. Changing it would
-// strand every receipt already uploaded under the honest one, to hide a
-// media type the server can infer anyway from the record's own `sizeBytes`.
-// Neither path segment is a filename — the first is the user id Storage's
-// own policy already checks, the second a UUID — so nothing here names what
-// the bytes are regardless of the extension on the end.
+// The real extension on a file of ciphertext is a small lie, and the right
+// trade — changing it would strand every receipt already uploaded. Neither path
+// segment is a filename: the first is the **household id** the bucket's policy
+// checks against membership, the second a UUID.
+//
+// The folder is the household id (carried on the unlocked key by
+// `booksKey.js`), not the composite storage scope — the policy casts that first
+// segment to a uuid and matches it against `is_member`, so a `<uid>:<hid>` scope
+// would be rejected. A receipt uploaded before shared households sits under the
+// old `<uid>/` folder; `readReceipt` falls back to it, which is why the legacy
+// path is derived here too.
+function accountFolder() {
+  const key = getBooksKey();
+  if (key?.householdId) return key.householdId;
+  // No household on the key (an older cache, or local mode) — fall back to the
+  // scope, taking only its household segment if it is composite.
+  const scope = getStorageScope();
+  return scope && scope.includes(":") ? scope.slice(scope.indexOf(":") + 1) : scope;
+}
+
 function accountPath(receipt) {
-  return `${getStorageScope()}/${receipt.id}.${RECEIPT_TYPES[receipt.type]}`;
+  return `${accountFolder()}/${receipt.id}.${RECEIPT_TYPES[receipt.type]}`;
+}
+
+/** The pre-household `<uid>/…` path, for a receipt uploaded before this change. */
+function legacyAccountPath(receipt) {
+  const scope = getStorageScope();
+  const uid = scope && scope.includes(":") ? scope.slice(0, scope.indexOf(":")) : scope;
+  return uid ? `${uid}/${receipt.id}.${RECEIPT_TYPES[receipt.type]}` : null;
 }
 
 /**
@@ -281,7 +301,13 @@ export async function readReceipt(receipt) {
   if (receipt.storedIn !== currentMedium()) return elsewhere(receipt);
   try {
     if (receipt.storedIn === RECEIPT_MEDIA.ACCOUNT) {
-      const { data, error } = await getSupabase().storage.from(BUCKET).download(accountPath(receipt));
+      let { data, error } = await getSupabase().storage.from(BUCKET).download(accountPath(receipt));
+      if (error || !data) {
+        // A receipt uploaded before shared households lives under the old
+        // `<uid>/` folder; try it before giving up.
+        const legacy = legacyAccountPath(receipt);
+        if (legacy) ({ data, error } = await getSupabase().storage.from(BUCKET).download(legacy));
+      }
       if (error || !data) return { ok: false, error: "The receipt could not be found." };
       // Take an unsealed receipt — one uploaded before this change existed
       // — as-is, the same stance `SyncContext`'s hydrate takes on a

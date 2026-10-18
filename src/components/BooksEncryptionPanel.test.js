@@ -3,19 +3,19 @@ import userEvent from "@testing-library/user-event";
 import BooksEncryptionPanel from "./BooksEncryptionPanel";
 import { SyncContext } from "../contexts/SyncContext";
 import {
-  BOOKS_KEY_STATUS,
-  BooksKeyContext,
+  IDENTITY_STATUS,
+  IdentityKeyContext,
   MIN_BOOKS_PASSWORD_LENGTH,
-} from "../contexts/BooksKeyContext";
+} from "../contexts/IdentityKeyContext";
 
 /**
  * This is the panel's own contract, not the key's — the round trip through a
- * real server and a real master key is `BooksKeyContext.test.js`'s job. What
+ * real server and a real master key is `IdentityKeyContext.test.js`'s job. What
  * is pinned here is what this component does with whatever that context
  * reports: both halves of what the server can see, a refused password
  * change surfaced rather than swallowed, a regenerated recovery code shown
  * once, and the component going inert rather than throwing when there is no
- * `BooksKeyProvider` above it — the exact shape every page suite renders in.
+ * `IdentityKeyProvider` above it — the exact shape every page suite renders in.
  *
  * **Both contexts are staged through their real `Provider`, and nothing here
  * mocks a hook** — `TESTING.md`'s rule, and this suite is why both context
@@ -25,7 +25,7 @@ import {
  * stages `SyncContext` the same way.
  */
 function renderPanel({ remote = true, booksKey } = {}) {
-  // No `SyncProvider` and no `BooksKeyProvider`: the shape every page suite
+  // No `SyncProvider` and no `IdentityKeyProvider`: the shape every page suite
   // and `App.test.js`'s route sweep render the page in.
   const tree =
     remote === undefined ? (
@@ -42,7 +42,7 @@ function renderPanel({ remote = true, booksKey } = {}) {
     booksKey === undefined ? (
       tree
     ) : (
-      <BooksKeyContext.Provider value={booksKey}>{tree}</BooksKeyContext.Provider>
+      <IdentityKeyContext.Provider value={booksKey}>{tree}</IdentityKeyContext.Provider>
     )
   );
 }
@@ -70,13 +70,13 @@ describe("with no key context above it", () => {
 describe("on a build with no account server", () => {
   test("renders nothing even once a key context exists", () => {
     // `remote` false is the unconfigured-build and local-only shape:
-    // `BooksKeyContext` reports `unlocked` immediately there too, since there
+    // `IdentityKeyContext` reports `unlocked` immediately there too, since there
     // is nothing to lock — so the panel has to read `remote` itself rather
     // than trust `status` alone, or it would describe a server that is not
     // in the picture.
     const { container } = renderPanel({
       remote: false,
-      booksKey: { status: BOOKS_KEY_STATUS.UNLOCKED, changePassword: jest.fn(), regenerateRecoveryCode: jest.fn() },
+      booksKey: { status: IDENTITY_STATUS.UNLOCKED, changePassword: jest.fn(), regenerateRecoveryCode: jest.fn() },
     });
     expect(container).toBeEmptyDOMElement();
   });
@@ -85,7 +85,7 @@ describe("on a build with no account server", () => {
 describe("what the server can and cannot see", () => {
   test("states both halves", async () => {
     renderPanel({
-      booksKey: { status: BOOKS_KEY_STATUS.UNLOCKED, changePassword: jest.fn(), regenerateRecoveryCode: jest.fn() },
+      booksKey: { status: IDENTITY_STATUS.UNLOCKED, changePassword: jest.fn(), regenerateRecoveryCode: jest.fn() },
     });
     await open();
 
@@ -109,7 +109,7 @@ describe("when the key was set up", () => {
   test("is read as a local day, not a sliced UTC one", async () => {
     renderPanel({
       booksKey: {
-        status: BOOKS_KEY_STATUS.UNLOCKED,
+        status: IDENTITY_STATUS.UNLOCKED,
         createdAt: "2026-03-01T03:30:00.000Z",
         changePassword: jest.fn(),
         regenerateRecoveryCode: jest.fn(),
@@ -132,7 +132,7 @@ describe("when the key was set up", () => {
   test("is absent rather than guessed when the row carries no date", async () => {
     renderPanel({
       booksKey: {
-        status: BOOKS_KEY_STATUS.UNLOCKED,
+        status: IDENTITY_STATUS.UNLOCKED,
         createdAt: null,
         changePassword: jest.fn(),
         regenerateRecoveryCode: jest.fn(),
@@ -147,7 +147,7 @@ describe("when the key was set up", () => {
 describe("changing the books password", () => {
   function setup(changePassword) {
     renderPanel({
-      booksKey: { status: BOOKS_KEY_STATUS.UNLOCKED, changePassword, regenerateRecoveryCode: jest.fn() },
+      booksKey: { status: IDENTITY_STATUS.UNLOCKED, changePassword, regenerateRecoveryCode: jest.fn() },
     });
   }
 
@@ -196,7 +196,7 @@ describe("changing the books password", () => {
 describe("the \"needs unlocked\" controls", () => {
   test("are not offered while the books are only locked", async () => {
     renderPanel({
-      booksKey: { status: BOOKS_KEY_STATUS.LOCKED, changePassword: jest.fn(), regenerateRecoveryCode: jest.fn() },
+      booksKey: { status: IDENTITY_STATUS.LOCKED, changePassword: jest.fn(), regenerateRecoveryCode: jest.fn() },
     });
     await open();
 
@@ -213,7 +213,7 @@ describe("regenerating the recovery code", () => {
       .mockResolvedValue({ ok: true, recoveryCode: "ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB" });
     renderPanel({
       booksKey: {
-        status: BOOKS_KEY_STATUS.UNLOCKED,
+        status: IDENTITY_STATUS.UNLOCKED,
         changePassword: jest.fn(),
         regenerateRecoveryCode,
       },
@@ -243,7 +243,7 @@ describe("regenerating the recovery code", () => {
     const regenerateRecoveryCode = jest.fn().mockResolvedValue({ ok: false, error: "Unlock your books first." });
     renderPanel({
       booksKey: {
-        status: BOOKS_KEY_STATUS.UNLOCKED,
+        status: IDENTITY_STATUS.UNLOCKED,
         changePassword: jest.fn(),
         regenerateRecoveryCode,
       },

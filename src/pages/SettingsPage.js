@@ -4,6 +4,7 @@ import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
 import Button from "../components/Button";
 import BooksEncryptionPanel from "../components/BooksEncryptionPanel";
 import BooksFilePanel from "../components/BooksFilePanel";
+import HouseholdPanel from "../components/HouseholdPanel";
 import GivingCategoriesPanel from "../components/GivingCategoriesPanel";
 import PageHeader from "../components/PageHeader";
 import PayeeList from "../components/PayeeList";
@@ -64,6 +65,7 @@ export default function SettingsPage() {
         <BalanceHistoryPanel />
         <BooksFilePanel />
         <BooksEncryptionPanel />
+        <HouseholdPanel />
       </div>
       <AssignIncomeModal
         show={showAssignStartingModal}

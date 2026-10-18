@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { sankeyFlows } from "../cashflowSankey";
 import CashflowChart from "../components/CashflowChart";
+import CashflowLineChart from "../components/CashflowLineChart";
 import CashflowSankey from "../components/CashflowSankey";
 import CategoryDetailPanel from "../components/CategoryDetailPanel";
 import PageHeader from "../components/PageHeader";
@@ -10,6 +11,7 @@ import ReportSummary from "../components/ReportSummary";
 import ReportWidgetLayout from "../components/ReportWidgetLayout";
 import SegmentedControl from "../components/SegmentedControl";
 import SpendingByCategoryTable from "../components/SpendingByCategoryTable";
+import SpendingDonutChart from "../components/SpendingDonutChart";
 import { useAccounts } from "../contexts/AccountsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import useSpendingReport, {
@@ -138,6 +140,8 @@ function MonthField({ id, label, value, min, max, onChange }) {
 
 export default function ReportsPage() {
   const [rangeKey, setRangeKey] = useState(DEFAULT_REPORT_RANGE);
+  const [cashflowView, setCashflowView] = useState("bars");
+  const [flowsView, setFlowsView] = useState("sankey");
   // Read once, so the window's end and every month in it come from the same
   // reading of the calendar.
   const [thisMonth] = useState(currentPeriod);
@@ -319,26 +323,34 @@ export default function ReportsPage() {
           )}
 
           <section data-widget-id="month" className="border border-edge bg-panel">
-            {/* No span of months in the corner, unlike the net-worth chart's
-                header: there the summary above is one month and the chart is a
-                window, so the window has to be named. Here the summary *is* the
-                window, and printing the same two months a second time on the
-                same screen makes a reader stop and check whether they differ. */}
-            <div className="border-b border-edge px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Month by month
               </h2>
+              <SegmentedControl
+                label="Chart style for month by month"
+                options={[
+                  { value: "bars", label: "Bars" },
+                  { value: "lines", label: "Lines" },
+                ]}
+                value={cashflowView}
+                onChange={setCashflowView}
+              />
             </div>
 
-            {/* Told the same two ends the plan chart below is told, and for the
-                one thing a line can get wrong that a column cannot: a column of
-                zero is a sum, while a *line* through a month nobody recorded —
-                or has not lived — claims the household broke even in it. */}
-            <CashflowChart
-              series={report.series}
-              coverageStartPeriod={report.coverageStartPeriod}
-              coverageEndPeriod={report.coverageEndPeriod}
-            />
+            {cashflowView === "bars" ? (
+              <CashflowChart
+                series={report.series}
+                coverageStartPeriod={report.coverageStartPeriod}
+                coverageEndPeriod={report.coverageEndPeriod}
+              />
+            ) : (
+              <CashflowLineChart
+                series={report.series}
+                coverageStartPeriod={report.coverageStartPeriod}
+                coverageEndPeriod={report.coverageEndPeriod}
+              />
+            )}
 
             {/* The chart's table twin. Every figure it draws is also readable
                 here, which is what makes the colour encoding safe — and what
@@ -438,22 +450,37 @@ export default function ReportsPage() {
               the whole window at once, and the only one that shows each answer
               as a share of everything that came in. */}
           <section data-widget-id="flows" className="border border-edge bg-panel">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
-              <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
-                Where it came from, where it went
-              </h2>
-              {flows && (
-                <span className="font-mono text-label uppercase text-chalk-soft">
-                  {flows.shortfallCents > 0
-                    ? `${formatCents(flows.shortfallCents)} spent beyond income`
-                    : `${formatCents(flows.keptCents)} kept`}
-                </span>
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
+                  Where it came from, where it went
+                </h2>
+                {flowsView === "sankey" && flows && (
+                  <span className="font-mono text-label uppercase text-chalk-soft">
+                    {flows.shortfallCents > 0
+                      ? `${formatCents(flows.shortfallCents)} spent beyond income`
+                      : `${formatCents(flows.keptCents)} kept`}
+                  </span>
+                )}
+              </div>
+              <SegmentedControl
+                label="Chart style for flows"
+                options={[
+                  { value: "sankey", label: "Sankey" },
+                  { value: "pie", label: "Pie" },
+                ]}
+                value={flowsView}
+                onChange={setFlowsView}
+              />
             </div>
 
-            <CashflowSankey report={report} payeeName={payeeName} />
+            {flowsView === "sankey" ? (
+              <CashflowSankey report={report} payeeName={payeeName} />
+            ) : (
+              <SpendingDonutChart report={report} />
+            )}
 
-            {flows && (
+            {flowsView === "sankey" && flows && (
               <details className="border-t border-edge">
                 <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                   Show the flows as a table

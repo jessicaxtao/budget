@@ -3,7 +3,7 @@ import Button from "./Button";
 import Field from "./Field";
 import { offerFile } from "../booksFile";
 import { CURRENCY_LOCALE } from "../utils";
-import { BOOKS_KEY_STATUS, MIN_BOOKS_PASSWORD_LENGTH, useBooksKey } from "../contexts/BooksKeyContext";
+import { IDENTITY_STATUS, MIN_BOOKS_PASSWORD_LENGTH, useIdentityKey } from "../contexts/IdentityKeyContext";
 import { useSync } from "../contexts/SyncContext";
 
 /**
@@ -54,13 +54,13 @@ function formatSetUpDay(createdAt) {
 
 export default function BooksEncryptionPanel() {
   const { remote } = useSync() ?? {};
-  const { status, createdAt, changePassword, regenerateRecoveryCode } = useBooksKey() ?? {};
+  const { status, createdAt, changePassword, regenerateRecoveryCode } = useIdentityKey() ?? {};
 
   const applicable =
-    remote && (status === BOOKS_KEY_STATUS.UNLOCKED || status === BOOKS_KEY_STATUS.LOCKED);
+    remote && (status === IDENTITY_STATUS.UNLOCKED || status === IDENTITY_STATUS.LOCKED);
   if (!applicable) return null;
 
-  const unlocked = status === BOOKS_KEY_STATUS.UNLOCKED;
+  const unlocked = status === IDENTITY_STATUS.UNLOCKED;
   const setUpDay = formatSetUpDay(createdAt);
 
   return (
