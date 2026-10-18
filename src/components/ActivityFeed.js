@@ -1,6 +1,5 @@
 import { useActivity } from "../contexts/ActivityContext";
 import { useAuth } from "../contexts/AuthContext";
-import { useHousehold } from "../contexts/HouseholdContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { TO_BE_ASSIGNED } from "../contexts/constants";
@@ -55,7 +54,6 @@ export default function ActivityFeed() {
 
 function ActivityRow({ entry, striped }) {
   const { userId } = useAuth();
-  const { members } = useHousehold() ?? {};
   const { budgets } = useBudgets();
   const { payeeById } = usePayees();
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import AppProviders from "../contexts/AppProviders";
-import RewardsPage from "./RewardsPage";
+import RewardsPage, { RewardsValuationsPanel } from "./RewardsPage";
 import { todayISO } from "../utils";
 
 /**
@@ -11,6 +11,21 @@ function renderPage() {
   return render(
     <AppProviders>
       <RewardsPage />
+    </AppProviders>
+  );
+}
+
+/**
+ * Renders RewardsPage alongside the valuations panel (which now lives in
+ * SettingsPage) so tests that span both — e.g. "typing a custom value changes
+ * the headline figure" — can reach inputs in both components via the shared
+ * Rewards context.
+ */
+function renderPageWithValuations() {
+  return render(
+    <AppProviders>
+      <RewardsPage />
+      <RewardsValuationsPanel />
     </AppProviders>
   );
 }
@@ -74,7 +89,7 @@ test("a typed valuation moves every figure that reads it, and blank puts the cat
     "rewardsBalances",
     JSON.stringify([{ id: "b1", programId: "united", holder: null, points: 100000, asOf: null }])
   );
-  renderPage();
+  renderPageWithValuations();
   expect(tile("All rewards")).toHaveTextContent("$1,300");
 
   const field = screen.getByRole("textbox", { name: /your value for united/i });
@@ -92,7 +107,7 @@ test("a typed valuation moves every figure that reads it, and blank puts the cat
 });
 
 test("a refused valuation is said out loud and changes nothing", () => {
-  renderPage();
+  renderPageWithValuations();
   const field = screen.getByRole("textbox", { name: /your value for hilton/i });
   fireEvent.change(field, { target: { value: "cheap" } });
   fireEvent.blur(field);
@@ -620,7 +635,7 @@ describe("card offers", () => {
           },
         ])
       );
-      renderPage();
+      renderPageWithValuations();
 
       const row = () => screen.getByRole("rowheader", { name: "Dining out" }).closest("tr");
       // 3× at 1.70¢ is 5.1%, which beats 4% cash.

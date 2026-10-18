@@ -10,6 +10,7 @@ import Button from "./Button";
 import { AUTH_STATUS, useAuth } from "../contexts/AuthContext";
 import { SYNC_STATE, useSync } from "../contexts/SyncContext";
 import { isDesktop } from "../storage";
+import useTheme from "../hooks/useTheme";
 import Elder from "./Elder";
 
 // A door with an arrow leaving it: what "Sign out" wears below `sm`, where its
@@ -34,6 +35,8 @@ function SignOutIcon() {
  * Elder beside the name and account controls at the far end.
  */
 export default function AppShell({ children }) {
+  useTheme(); // applies data-theme to <html> on every render, regardless of which page is shown
+
   return (
     <div className="min-h-screen bg-ledger">
       <header className="bg-canopy">
