@@ -10,32 +10,7 @@ import Button from "./Button";
 import { AUTH_STATUS, useAuth } from "../contexts/AuthContext";
 import { SYNC_STATE, useSync } from "../contexts/SyncContext";
 import { isDesktop } from "../storage";
-import useTheme, { THEMES } from "../hooks/useTheme";
 import Elder from "./Elder";
-
-// Sun and moon for the switch: the icon is the mode the app is in now, and the
-// label plus `aria-pressed` say the same thing in words.
-function SunIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true" focusable="false">
-      <circle cx="8" cy="8" r="3" fill="currentColor" />
-      <path
-        d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true" focusable="false">
-      <path d="M13.5 10.2A5.8 5.8 0 0 1 5.8 2.5a5.8 5.8 0 1 0 7.7 7.7z" fill="currentColor" />
-    </svg>
-  );
-}
 
 // A door with an arrow leaving it: what "Sign out" wears below `sm`, where its
 // words are what pushes the header onto a second line.
@@ -56,16 +31,9 @@ function SignOutIcon() {
 
 /**
  * The canopy: the header band, the same deep green in both modes, with the
- * Elder beside the name and the light/dark switch at the far end.
- *
- * The switch is a toggle button (`aria-pressed` on "Dark mode") rather than a
- * two-option strip, because there are only two states and one of them is
- * always the answer to "is it on".
+ * Elder beside the name and account controls at the far end.
  */
 export default function AppShell({ children }) {
-  const { theme, toggleTheme } = useTheme();
-  const dark = theme === THEMES.DARK;
-
   return (
     <div className="min-h-screen bg-ledger">
       <header className="bg-canopy">
@@ -77,26 +45,8 @@ export default function AppShell({ children }) {
               </span>
               <span className="font-display text-xl text-on-canopy sm:text-2xl">Canopy Budget</span>
             </div>
-            {/* The switch is a preference about the screen and the account
-                control is who the books belong to, so identity sits at the
-                far edge where it has always been and the switch tucks in
-                beside it. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
               <QuickEntry />
-              <Button
-                variant="canopy"
-                className="gap-2 rounded-full max-sm:px-2.5"
-                type="button"
-                aria-pressed={dark}
-                onClick={toggleTheme}
-              >
-                {dark ? <MoonIcon /> : <SunIcon />}
-                {/* The icon already says which mode is on; the words are what
-                    makes it a labelled control, so they are kept for a screen
-                    reader and dropped from a phone's header, where this is the
-                    least important thing on the band. */}
-                <span className="sr-only sm:not-sr-only">Dark mode</span>
-              </Button>
               <AccountControl />
             </div>
           </div>

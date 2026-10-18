@@ -156,6 +156,7 @@ export default function DashboardPage() {
       date,
       accountId: schedule.accountId,
       budgetId: schedule.budgetId,
+      scheduled: true,
     });
     if (!result.ok) return result;
 

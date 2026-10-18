@@ -4,18 +4,12 @@ import AddAccountModal from "../components/AddAccountModal";
 import AddBudgetModal from "../components/AddBudgetModal";
 import AddGroupModal from "../components/AddGroupModal";
 import AddIncomeSourceModal from "../components/AddIncomeSourceModal";
-import AssignIncomeModal from "../components/AssignIncomeModal";
-import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
-import BooksEncryptionPanel from "../components/BooksEncryptionPanel";
-import BooksFilePanel from "../components/BooksFilePanel";
 import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
 import DeleteCategoryModal from "../components/DeleteCategoryModal";
 import EmergencyFundPanel from "../components/EmergencyFundPanel";
 import ExpectedIncomeTable from "../components/ExpectedIncomeTable";
 import PageHeader from "../components/PageHeader";
-import PayeeList from "../components/PayeeList";
-import ScheduleList from "../components/ScheduleList";
 import PlanHealthSummary from "../components/PlanHealthSummary";
 import PaySchedulePanel from "../components/PaySchedulePanel";
 import { DEFAULT_SCOPE, isOffBudget, useAccounts } from "../contexts/AccountsContext";
@@ -29,7 +23,6 @@ import useEmergencyFund from "../hooks/useEmergencyFund";
 import useNetWorth from "../hooks/useNetWorth";
 import useNextPaycheck from "../hooks/useNextPaycheck";
 import usePlanHealth from "../hooks/usePlanHealth";
-import useStartingBalances from "../hooks/useStartingBalances";
 import { currentPeriod } from "../utils";
 
 /**
@@ -77,7 +70,6 @@ export default function ConfigurationPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showAddIncomeSourceModal, setShowAddIncomeSourceModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
-  const [showAssignStartingModal, setShowAssignStartingModal] = useState(false);
   // The group a category is being added to, and the group being renamed. Held
   // separately: adding files the new category under a heading, renaming edits
   // the heading itself.
@@ -116,7 +108,6 @@ export default function ConfigurationPage() {
 
   const health = usePlanHealth();
   const fund = useEmergencyFund();
-  const { period: startingPeriod, poolCentsOverride: startingPoolCents } = useStartingBalances();
   const paycheck = useNextPaycheck();
   // What each account holds as things stand. On-budget figures are the
   // ledger's own arithmetic, so they belong on a page with no month on it in a
@@ -365,15 +356,7 @@ export default function ConfigurationPage() {
         </div>
 
         <div>
-          <ColumnHeading title="Accounts">
-            {/* Onboarding's door into the assign flow: an opening balance is
-                money the household already had, and it wants a home in the
-                categories below before the month it happens to be entered in
-                claims it as new income. See `startingBalancePeriod`. */}
-            <Button variant="outline" size="sm" onClick={() => setShowAssignStartingModal(true)}>
-              Assign starting balances
-            </Button>
-          </ColumnHeading>
+          <ColumnHeading title="Accounts" />
           <AccountList
             accounts={accounts}
             balanceById={balanceById}
@@ -403,52 +386,6 @@ export default function ConfigurationPage() {
         />
       </div>
 
-      {/* Below both columns and closed by default. Backfilling an account's past
-          is a one-off — it happens once, when the books are set up from real
-          statements — and it wants the full width of the page when it happens,
-          so it sits at the foot of the page rather than squeezed into the
-          accounts column or opened on top of it as a modal. The month a figure
-          belongs to is on its own row, which is why a grid of months can live on
-          a page that deliberately has no month in its corner. */}
-      <div className="mt-4">
-        <BalanceHistoryPanel />
-      </div>
-
-      {/* Above the payee list and closed like it, because a schedule is written
-          down once and then left alone — nearer to setting the household up than
-          the list below it, which fills itself. What is *due* is read on the
-          dashboard; what a schedule *is* is stated here, on the page that holds
-          every other standing fact and deliberately carries no month. */}
-      <div className="mt-4">
-        <ScheduleList />
-      </div>
-
-      {/* Between the two, and closed like both. A payee list is a standing fact
-          like the accounts above it and belongs to no month, which is what lets it
-          sit on a page with none in its corner — but it fills itself as
-          transactions are entered, so it is opened to tidy up rather than to set
-          anything up, and that puts it below the things this page exists for. */}
-      <div className="mt-4">
-        <PayeeList />
-      </div>
-
-      {/* Last on the page, and closed like the panel above it. Exporting is read
-          twice a year and restoring perhaps once ever, so neither belongs above
-          the things this page is actually opened to do — but the books being a
-          file the household owns is the answer to "what happens if this laptop
-          dies", and that question has to be answerable from inside the app. */}
-      <div className="mt-4">
-        <BooksFilePanel />
-      </div>
-
-      {/* Beside the panel above and closed the same way. It renders nothing
-          on a build with no account server to seal anything for — see the
-          panel's own doc comment — so it costs nothing to mount
-          unconditionally here. */}
-      <div className="mt-4">
-        <BooksEncryptionPanel />
-      </div>
-
       <AddBudgetModal
         show={showAddBudgetModal}
         defaultGroupId={addToGroupId}
@@ -474,13 +411,6 @@ export default function ConfigurationPage() {
         account={editingAccount}
         defaultScope={addAccountScope}
         handleClose={() => setShowAddAccountModal(false)}
-      />
-      <AssignIncomeModal
-        show={showAssignStartingModal}
-        period={startingPeriod}
-        poolCentsOverride={startingPoolCents}
-        title="Assign starting balances"
-        handleClose={() => setShowAssignStartingModal(false)}
       />
     </>
   );

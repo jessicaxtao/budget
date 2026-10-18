@@ -524,7 +524,6 @@ export default function RewardsPage() {
     trips,
     updateBalance,
     deleteBalance,
-    setValuation,
     deleteTrip,
     deleteOffer,
     updateOffer,
@@ -540,7 +539,6 @@ export default function RewardsPage() {
   const [offerModal, setOfferModal] = useState({ show: false, offer: null, seed: null });
   const [rateModal, setRateModal] = useState({ show: false, rate: null, accountId: null });
   const [balanceError, setBalanceError] = useState(null);
-  const [valueError, setValueError] = useState(null);
   const [cardError, setCardError] = useState(null);
   const [offerError, setOfferError] = useState(null);
 
@@ -548,7 +546,6 @@ export default function RewardsPage() {
     () => summariseRewards({ balances, valuations, trips }),
     [balances, valuations, trips]
   );
-  const heldPoints = new Map(summary.programs.map((row) => [row.program.id, row.points]));
   const resolve = (programId) =>
     summary.programs.find((row) => row.program.id === programId)?.valuePer100Cents ??
     programById(programId)?.valuePer100Cents ??
@@ -557,11 +554,6 @@ export default function RewardsPage() {
   function handlePoints(balance, typed) {
     const result = updateBalance({ id: balance.id, points: typed });
     setBalanceError(result.ok ? null : result.error);
-  }
-
-  function handleValue(program, typed) {
-    const result = setValuation({ programId: program.id, value: typed });
-    setValueError(result.ok ? null : `${program.name}: ${result.error}`);
   }
 
   /**
@@ -818,15 +810,6 @@ export default function RewardsPage() {
           )}
         </Panel>
 
-        <Panel id="rewards-valuations" title="What a point is worth" note="Cents per point">
-          <p className="border-b border-edge px-4 py-3 font-sans text-row text-chalk-soft">
-            The catalog value is a typical figure for spending points well. Yours is what you
-            actually get — leave it blank to use the catalog's. A trip that earns more per point
-            than your value is a good use of the points.
-          </p>
-          <ValuationsTable valuations={valuations} heldPoints={heldPoints} onValue={handleValue} />
-          <ErrorLine message={valueError} />
-        </Panel>
       </div>
 
       <AddRewardBalanceModal
@@ -852,5 +835,32 @@ export default function RewardsPage() {
         handleClose={() => setTripModal({ show: false, trip: null })}
       />
     </>
+  );
+}
+
+export function RewardsValuationsPanel() {
+  const { balances, valuations, trips, setValuation } = useRewards();
+  const [error, setError] = useState(null);
+  const summary = useMemo(
+    () => summariseRewards({ balances, valuations, trips }),
+    [balances, valuations, trips]
+  );
+  const heldPoints = new Map(summary.programs.map((row) => [row.program.id, row.points]));
+
+  function handleValue(program, typed) {
+    const result = setValuation({ programId: program.id, value: typed });
+    setError(result.ok ? null : `${program.name}: ${result.error}`);
+  }
+
+  return (
+    <Panel id="rewards-valuations" title="What a point is worth" note="Cents per point">
+      <p className="border-b border-edge px-4 py-3 font-sans text-row text-chalk-soft">
+        The catalog value is a typical figure for spending points well. Yours is what you
+        actually get. Leave it blank to use the catalog's value. A trip that earns more per point
+        than your value is a good use of the points.
+      </p>
+      <ValuationsTable valuations={valuations} heldPoints={heldPoints} onValue={handleValue} />
+      <ErrorLine message={error} />
+    </Panel>
   );
 }

@@ -330,7 +330,7 @@ export default function useSpendingReport(
         // reason the drill-in's `monthly` is: two walks can disagree about the
         // refund rule or about which month a record falls in, and nothing
         // downstream would be in a position to notice.
-        { period, incomeCents: 0, spentCents: 0, refundCents: 0, byBucket: new Map() },
+        { period, incomeCents: 0, spentCents: 0, refundCents: 0, scheduledSpentCents: 0, scheduledRefundCents: 0, otherSpentCents: 0, otherRefundCents: 0, byBucket: new Map() },
       ])
     );
 
@@ -461,6 +461,8 @@ export default function useSpendingReport(
         const entry = categoryEntry(budgetId);
         const field = inflow ? "refundCents" : "spentCents";
         month[field] += amountCents;
+        const scheduleField = `${transaction.scheduled ? "scheduled" : "other"}${inflow ? "Refund" : "Spent"}Cents`;
+        month[scheduleField] += amountCents;
         entry[field] += amountCents;
         entry.months.add(period);
 
@@ -541,6 +543,8 @@ export default function useSpendingReport(
       return {
         ...month,
         netSpentCents,
+        scheduledNetSpentCents: month.scheduledSpentCents - month.scheduledRefundCents,
+        otherNetSpentCents: month.otherSpentCents - month.otherRefundCents,
         // Signed, and it is cash: what came in less what went out, for this
         // month alone. Nothing carries forward — that is the balance's job.
         netCents: month.incomeCents - netSpentCents,
@@ -565,6 +569,8 @@ export default function useSpendingReport(
     const totalSpentCents = series.reduce((sum, month) => sum + month.spentCents, 0);
     const totalRefundCents = series.reduce((sum, month) => sum + month.refundCents, 0);
     const netSpentCents = totalSpentCents - totalRefundCents;
+    const scheduledNetSpentCents = series.reduce((sum, month) => sum + month.scheduledNetSpentCents, 0);
+    const otherNetSpentCents = series.reduce((sum, month) => sum + month.otherNetSpentCents, 0);
 
     // Every category that moved money in the window, biggest first.
     //
@@ -675,6 +681,8 @@ export default function useSpendingReport(
       totalSpentCents,
       totalRefundCents,
       netSpentCents,
+      scheduledNetSpentCents,
+      otherNetSpentCents,
       // The identity: income less what spending actually cost, which is also
       // every inflow less every outflow in the window.
       netCents: totalIncomeCents - netSpentCents,

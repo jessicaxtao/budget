@@ -5,9 +5,9 @@ import CashflowChart from "../components/CashflowChart";
 import CashflowSankey from "../components/CashflowSankey";
 import CategoryDetailPanel from "../components/CategoryDetailPanel";
 import PageHeader from "../components/PageHeader";
-import Placeholder from "../components/Placeholder";
 import PlanVsActualChart from "../components/PlanVsActualChart";
 import ReportSummary from "../components/ReportSummary";
+import ReportWidgetLayout from "../components/ReportWidgetLayout";
 import SegmentedControl from "../components/SegmentedControl";
 import SpendingByCategoryTable from "../components/SpendingByCategoryTable";
 import { useAccounts } from "../contexts/AccountsContext";
@@ -262,7 +262,28 @@ export default function ReportsPage() {
         </section>
       ) : (
         <div className="space-y-4">
-          <ReportSummary report={report} />
+          <ReportWidgetLayout>
+          <div data-widget-id="summary"><ReportSummary report={report} /></div>
+          <section data-widget-id="scheduled" className="border border-edge bg-panel">
+            <div className="border-b border-edge px-4 py-3">
+              <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
+                Scheduled and other spending
+              </h2>
+            </div>
+            <dl className="grid gap-px bg-edge sm:grid-cols-2">
+              <div className="bg-panel px-4 py-3">
+                <dt className="font-mono text-label uppercase text-chalk-soft">Recorded from a schedule</dt>
+                <dd className="mt-1 font-mono text-lg tabular-nums text-chalk">{formatCents(report.scheduledNetSpentCents)}</dd>
+              </div>
+              <div className="bg-panel px-4 py-3">
+                <dt className="font-mono text-label uppercase text-chalk-soft">Other spending</dt>
+                <dd className="mt-1 font-mono text-lg tabular-nums text-chalk">{formatCents(report.otherNetSpentCents)}</dd>
+              </div>
+            </dl>
+            <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
+              The scheduled figure counts payments recorded from a schedule reminder; other spending includes discretionary purchases and recurring charges recorded another way. Existing ledger entries are not reclassified. Schedule reminders do not debit accounts automatically.
+            </p>
+          </section>
 
           {(coverage || report.undatedCount > 0) && (
             <div className="space-y-2">
@@ -297,7 +318,7 @@ export default function ReportsPage() {
             </div>
           )}
 
-          <section className="border border-edge bg-panel">
+          <section data-widget-id="month" className="border border-edge bg-panel">
             {/* No span of months in the corner, unlike the net-worth chart's
                 header: there the summary above is one month and the chart is a
                 window, so the window has to be named. Here the summary *is* the
@@ -416,7 +437,7 @@ export default function ReportsPage() {
               the ranking below is the category axis; this is the one view of
               the whole window at once, and the only one that shows each answer
               as a share of everything that came in. */}
-          <section className="border border-edge bg-panel">
+          <section data-widget-id="flows" className="border border-edge bg-panel">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Where it came from, where it went
@@ -498,7 +519,7 @@ export default function ReportsPage() {
               be comfortably in the black and still be nothing like the plan it
               was supposed to be, which is precisely the month a budget exists
               to catch. */}
-          <section className="border border-edge bg-panel">
+          <section data-widget-id="plan" className="border border-edge bg-panel">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Against the plan
@@ -643,11 +664,12 @@ export default function ReportsPage() {
             </details>
           </section>
 
-          <SpendingByCategoryTable
-            report={report}
-            selectedBudgetId={selectedBudgetId}
-            onSelectCategory={toggleCategory}
-          />
+          <div data-widget-id="categories">
+            <SpendingByCategoryTable
+              report={report}
+              selectedBudgetId={selectedBudgetId}
+              onSelectCategory={toggleCategory}
+            />
 
           {selectedRow && (
             <CategoryDetailPanel
@@ -660,14 +682,10 @@ export default function ReportsPage() {
               onClose={() => setSelectedBudgetId(null)}
             />
           )}
+          </div>
 
-          <Placeholder
-            title="Still to come"
-            items={[
-              "Filter by whether a transaction is recurring",
-              "Export the underlying rows as CSV",
-            ]}
-          />
+          </ReportWidgetLayout>
+
         </div>
       )}
     </>

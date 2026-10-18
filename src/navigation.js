@@ -7,6 +7,7 @@ import NetWorthPage from "./pages/NetWorthPage";
 import RetirementPage from "./pages/RetirementPage";
 import SavingsGoalsPage from "./pages/SavingsGoalsPage";
 import RewardsPage from "./pages/RewardsPage";
+import SettingsPage from "./pages/SettingsPage";
 
 // Single source of truth for both the route table (App.js) and the tab bar
 // (AppShell.js). Adding a page means adding one entry here.
@@ -61,5 +62,10 @@ export const navigation = [
     path: "/rewards",
     label: "Rewards",
     Component: RewardsPage,
+  },
+  {
+    path: "/settings",
+    label: "Settings",
+    Component: SettingsPage,
   },
 ];

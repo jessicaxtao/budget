@@ -4,7 +4,6 @@ import AddDonationModal from "../components/AddDonationModal";
 import AddOrganizationModal from "../components/AddOrganizationModal";
 import Button from "../components/Button";
 import DonationList from "../components/DonationList";
-import GivingCategoriesPanel from "../components/GivingCategoriesPanel";
 import GivingGoalPanel from "../components/GivingGoalPanel";
 import GivingSummary from "../components/GivingSummary";
 import OrganizationList from "../components/OrganizationList";
@@ -12,7 +11,6 @@ import PageHeader from "../components/PageHeader";
 import Placeholder from "../components/Placeholder";
 import YearStepper from "../components/YearStepper";
 import { useDonations } from "../contexts/DonationsContext";
-import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import useGiving from "../hooks/useGiving";
 import { deleteReceipt, openReceipt, saveReceipt } from "../receipts";
@@ -57,16 +55,13 @@ export default function DonationsPage() {
 
   const {
     recipients,
-    givingSettings,
     recordDonation,
     updateDonation,
     removeDonation,
     deleteRecipient,
     setGivingGoal,
-    setGivingCategories,
     setGiftExcluded,
   } = useDonations();
-  const { budgets } = useBudgets();
   const giving = useGiving(year);
   // Names for the gift rows. `useGiving` passes the reference through and stops
   // there — it is a hook about what was given, and a payee's name is not a figure —
@@ -268,12 +263,6 @@ export default function DonationsPage() {
               goal={giving.goal}
               error={goalError}
               onChange={handleGoalChange}
-            />
-            <GivingCategoriesPanel
-              budgets={budgets}
-              selectedIds={giving.givingBudgetIds}
-              stated={Array.isArray(givingSettings.budgetIds)}
-              onChange={setGivingCategories}
             />
             <OrganizationList
               year={year}

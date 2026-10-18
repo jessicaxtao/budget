@@ -388,6 +388,10 @@ function migrateTransactions(stored) {
         // from; on an inflow it is the category the money went back to, which is
         // a refund. An inflow without one is income.
         budgetId: transaction.budgetId ?? null,
+        // True when this entry was confirmed from a recurring schedule. Kept
+        // as a fact about how it was recorded, without linking it to a schedule
+        // whose cursor can later change independently.
+        ...(transaction.scheduled === true ? { scheduled: true } : {}),
         // How the whole was divided, or null for the ordinary undivided record.
         // Additive like `toAccountId` and safe to re-run for the same reason:
         // nothing written before splits existed can have one.
@@ -601,6 +605,7 @@ export const TransactionsProvider = ({ children }) => {
       toAccountId,
       budgetId,
       splits,
+      scheduled = false,
     }) => {
       const id = uuidV4();
       const transaction = {
@@ -621,6 +626,7 @@ export const TransactionsProvider = ({ children }) => {
         // "no category" is worth here. The two must not be confused, or an
         // inflow would be a refund against a category with no name.
         budgetId: budgetId || null,
+        ...(scheduled === true ? { scheduled: true } : {}),
         // How the whole is divided, or null. Normalised here rather than in the
         // form so that the two forms which can write one — the entry modal and
         // the split editor — cannot come to disagree about what an empty part is.
