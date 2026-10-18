@@ -651,3 +651,60 @@ create policy "receipts member delete"
       or (storage.foldername(name))[1] = auth.uid()::text
     )
   );
+
+-- ---------------------------------------------------------------------------
+-- Activity log
+-- ---------------------------------------------------------------------------
+-- A chronological log of household mutations, so members can see what their
+-- partner did. The `action_type` column (e.g. "transaction.created") is
+-- plaintext and server-visible — it carries no amounts or names. The
+-- human-readable description and entity IDs live in `payload`, which is an
+-- encrypted envelope in the same { v, kid, iv, ct } shape as app_state.value,
+-- sealed under the household's master key. The server therefore learns "some
+-- member added a transaction at 3pm" and nothing about what it was.
+--
+-- Entries are immutable — there are no update or delete policies. The feed
+-- shows the last 50, loaded client-side.
+
+create table if not exists public.activity_log (
+  id           uuid        primary key default gen_random_uuid(),
+  household_id uuid        not null references public.households (id) on delete cascade,
+  -- Null if the user row is deleted; the feed shows "Former member" in that case.
+  user_id      uuid        references auth.users (id) on delete set null,
+  -- Coarse category, server-visible. Never contains amounts or entity names.
+  -- Values: transaction.created · transaction.updated · transaction.deleted ·
+  --         assignment.set · assignment.moved · assignment.bulk
+  action_type  text        not null check (char_length(action_type) between 1 and 50),
+  -- Encrypted envelope { v, kid, iv, ct } — same shape as app_state.value.
+  payload      jsonb       not null,
+  created_at   timestamptz not null default now()
+);
+
+alter table public.activity_log enable row level security;
+
+-- Any household member may read the log.
+drop policy if exists "activity_log read" on public.activity_log;
+create policy "activity_log read"
+  on public.activity_log for select to authenticated
+  using (is_member(household_id));
+
+-- Owners and editors may append entries; viewers may not.
+drop policy if exists "activity_log insert" on public.activity_log;
+create policy "activity_log insert"
+  on public.activity_log for insert to authenticated
+  with check (member_role(household_id) in ('owner', 'editor'));
+
+-- Publish to Realtime so partners see new entries live.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'activity_log'
+  ) then
+    alter publication supabase_realtime add table public.activity_log;
+  end if;
+end
+$$;

@@ -7,6 +7,7 @@ import MoveMoneyModal from "../components/MoveMoneyModal";
 import PageHeader from "../components/PageHeader";
 import PayOffCardModal from "../components/PayOffCardModal";
 import ReconcileModal from "../components/ReconcileModal";
+import ActivityFeed from "../components/ActivityFeed";
 import ReconciliationList from "../components/ReconciliationList";
 import UpcomingBills from "../components/UpcomingBills";
 import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
@@ -331,6 +332,7 @@ export default function DashboardPage() {
             onConfirm={(account) => reconcileAccount({ id: account.id, date: today })}
             onReorder={reorderAccounts}
           />
+          <ActivityFeed />
         </div>
       </div>
 
