@@ -3,6 +3,7 @@ import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
 import { readKey } from "../storage";
 import { useDonations } from "./DonationsContext";
+import { useActivity } from "./ActivityContext";
 import { isValidISODate, toCents, todayISO } from "../utils";
 
 /**
@@ -540,6 +541,7 @@ export const TransactionsProvider = ({ children }) => {
     migrateTransactions
   );
   const { removeDonation } = useDonations();
+  const { logActivity } = useActivity() ?? {};
 
   // The two literal kinds, and a transfer is in neither: it is money the household
   // moved rather than money it earned or spent, and what the *budget* makes of one
@@ -642,9 +644,16 @@ export const TransactionsProvider = ({ children }) => {
       if (!result.ok) return result;
 
       setTransactions((prevTransactions) => [...prevTransactions, transaction]);
+      logActivity?.("transaction.created", {
+        amountCents: transaction.amountCents,
+        kind: transaction.kind,
+        payeeId: transaction.payeeId ?? null,
+        budgetId: isSplit(transaction) ? null : (transaction.budgetId ?? null),
+        date: transaction.date,
+      });
       return { ok: true, id };
     },
-    [setTransactions]
+    [setTransactions, logActivity]
   );
 
   /**
@@ -714,9 +723,16 @@ export const TransactionsProvider = ({ children }) => {
       setTransactions((prevTransactions) =>
         prevTransactions.map((transaction) => (transaction.id === current.id ? next : transaction))
       );
+      logActivity?.("transaction.updated", {
+        amountCents: next.amountCents,
+        kind: next.kind,
+        payeeId: next.payeeId ?? null,
+        budgetId: isSplit(next) ? null : (next.budgetId ?? null),
+        date: next.date,
+      });
       return { ok: true, id: current.id };
     },
-    [transactions, setTransactions]
+    [transactions, setTransactions, logActivity]
   );
 
   /**
@@ -731,12 +747,21 @@ export const TransactionsProvider = ({ children }) => {
    */
   const deleteTransaction = useCallback(
     ({ id }) => {
+      const tx = transactions.find((t) => t.id === id);
       setTransactions((prevTransactions) =>
         prevTransactions.filter((transaction) => transaction.id !== id)
       );
       removeDonation({ transactionId: id });
+      if (tx) {
+        logActivity?.("transaction.deleted", {
+          amountCents: tx.amountCents,
+          kind: tx.kind,
+          payeeId: tx.payeeId ?? null,
+          date: tx.date,
+        });
+      }
     },
-    [setTransactions, removeDonation]
+    [transactions, setTransactions, removeDonation, logActivity]
   );
 
   /**

@@ -112,14 +112,17 @@ export default function AppShell({ children }) {
  * accessibility tree at every width, since a media query is only a paint-time
  * fact and nothing in the DOM says which of the two is the live one.
  *
- * **"Ask" is the third door, and the desktop app's alone**: a sentence read by
- * a model on this computer (`AskModal`), which opens one of the two ordinary
- * forms already filled in — this one, or `MoveMoneyModal`. Desktop only because
- * the model is Ollama on the household's own machine, which is the only place
- * the promise that nothing leaves it can be kept; the button is absent in a
- * browser rather than present and refusing.
+ * **"Ask" is the third door**: a sentence read by a model (`AskModal`), which
+ * opens one of the two ordinary forms already filled in — this one, or
+ * `MoveMoneyModal`. On the desktop the model is Ollama on the household's own
+ * machine, where nothing leaves it; in a browser it is the account's hosted
+ * model, reached through the app's own server, so the door opens only for a
+ * signed-in household and is absent — rather than present and refusing — for a
+ * local-only or guest browser that has no model to ask.
  */
 function QuickEntry() {
+  const { status } = useAuth() ?? {};
+  const canAsk = isDesktop() || status === AUTH_STATUS.SIGNED_IN;
   const [kind, setKind] = useState(null);
   const [asking, setAsking] = useState(false);
   // What the assistant read, waiting in the form it belongs to. Held as the
@@ -149,7 +152,7 @@ function QuickEntry() {
           <span aria-hidden="true">⇄</span>
           Transfer
         </Button>
-        {isDesktop() && (
+        {canAsk && (
           <Button
             variant="canopy"
             className="flex-1 rounded-full py-2.5 sm:flex-none sm:py-2"

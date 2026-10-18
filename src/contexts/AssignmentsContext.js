@@ -4,6 +4,7 @@ import useSyncedState from "../hooks/useSyncedState";
 import { isSplit, readStoredLedger, TRANSACTION_KINDS } from "./TransactionsContext";
 import { TO_BE_ASSIGNED, UNCATEGORIZED_BUDGET_ID } from "./constants";
 import { currentPeriod, periodLTE, toCents, toPeriod } from "../utils";
+import { useActivity } from "./ActivityContext";
 
 /**
  * What the user actually put into each category, month by month.
@@ -123,6 +124,7 @@ export const AssignmentsProvider = ({ children }) => {
     seedFromExistingSpend,
     migrateAssignments
   );
+  const { logActivity } = useActivity() ?? {};
 
   // One pass, so a grid of categories does not rescan the whole array per row.
   // Deliberately not shaped like getPlannedCents, which filters *and sorts*
@@ -158,9 +160,10 @@ export const AssignmentsProvider = ({ children }) => {
       if (toPeriod(period) == null) return { ok: false, error: "Enter a valid period." };
 
       setAssignments((prevAssignments) => upsert(prevAssignments, budgetId, period, cents));
+      logActivity?.("assignment.set", { budgetId, period, amountCents: cents });
       return { ok: true };
     },
-    [setAssignments]
+    [setAssignments, logActivity]
   );
 
   /**
@@ -191,9 +194,10 @@ export const AssignmentsProvider = ({ children }) => {
           prevAssignments
         )
       );
+      logActivity?.("assignment.bulk", { period, count: validated.length });
       return { ok: true };
     },
-    [setAssignments]
+    [setAssignments, logActivity]
   );
 
   /**
@@ -254,9 +258,10 @@ export const AssignmentsProvider = ({ children }) => {
           ? withdrawn
           : upsert(withdrawn, toBudgetId, period, assignedOn(toBudgetId) + cents);
       });
+      logActivity?.("assignment.moved", { fromBudgetId, toBudgetId, period, amountCents: cents });
       return { ok: true };
     },
-    [setAssignments]
+    [setAssignments, logActivity]
   );
 
   /**

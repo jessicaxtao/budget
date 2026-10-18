@@ -5,7 +5,8 @@ import { useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { useTransactions } from "../contexts/TransactionsContext";
-import { askAssistant, assistStatus } from "../desktop";
+import { askAssistant, assistStatus } from "../assistantBridge";
+import { isDesktop } from "../storage";
 import { ASSIST_ACTIONS, buildAssistRequest, resolveReading } from "../assistant";
 import { orderPayeesByUse } from "../payeeSearch";
 import { formatCents, formatDateMedium, todayISO } from "../utils";
@@ -52,15 +53,17 @@ const EXAMPLES = [
 /**
  * Say what happened, in a sentence, and the app opens the form for it.
  *
- * **Desktop only, and the model is the household's own** — Ollama, on this
- * computer, asked through the main process (see `electron/assist.js`). The
- * model reads the sentence into names; `src/assistant.js` turns the names into
- * ids against the live books; and what the household sees next is the
- * ordinary form — `AddTransactionModal` or `MoveMoneyModal` — already filled
- * in, which the host opens through `onDraft` / `onMove`. **Nothing is written
- * from here except a refile**, and that one is shown row by row with each row
- * ticked or not before anything moves, because refiling twenty receipts
- * through twenty forms would be the opposite of help.
+ * **The model reads; the app decides and the household saves.** On the desktop
+ * it is Ollama on this computer, asked through the main process; in a browser
+ * it is the account's hosted model, reached through the app's own server
+ * (`src/assistantBridge.js` chooses, `electron/assist.js` and `api/assist.js`
+ * answer). Either way the model reads the sentence into names; `src/assistant.js`
+ * turns the names into ids against the live books; and what the household sees
+ * next is the ordinary form — `AddTransactionModal` or `MoveMoneyModal` —
+ * already filled in, which the host opens through `onDraft` / `onMove`.
+ * **Nothing is written from here except a refile**, and that one is shown row
+ * by row with each row ticked or not before anything moves, because refiling
+ * twenty receipts through twenty forms would be the opposite of help.
  *
  * Mounted only while open, `QuickEntry`'s rule, so there is nothing to
  * re-seed.
@@ -96,9 +99,13 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
       setStatus({ state: "unavailable", reason: result.reason });
       return;
     }
-    setStatus({ state: "ready", models: result.models });
-    // The remembered model if it is still installed, else the first that is.
-    setModel((current) => (result.models.includes(current) ? current : result.models[0] ?? null));
+    const models = result.models ?? [];
+    setStatus({ state: "ready", models, hosted: Boolean(result.hosted) });
+    // Desktop picks a model; the hosted path has one and offers no choice.
+    if (!result.hosted) {
+      // The remembered model if it is still installed, else the first that is.
+      setModel((current) => (models.includes(current) ? current : models[0] ?? null));
+    }
   }, []);
 
   useEffect(() => {
@@ -109,10 +116,12 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
     if (status.state === "ready") inputRef.current?.focus();
   }, [status.state]);
 
+  const hosted = status.state === "ready" && status.hosted;
+
   async function handleSubmit(e) {
     e.preventDefault();
     const text = inputRef.current.value.trim();
-    if (!text || !model || busy) return;
+    if (!text || busy || (!model && !hosted)) return;
 
     setBusy(true);
     setError(null);
@@ -126,9 +135,15 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
     if (!answer.ok) {
       setError(
         answer.reason === "unreachable"
-          ? "Ollama stopped answering. Check that it is still running, then try again."
+          ? hosted
+            ? "The assistant couldn't be reached just now. Try again in a moment."
+            : "Ollama stopped answering. Check that it is still running, then try again."
           : answer.reason === "timeout"
-          ? "The model took too long to answer. A smaller model may be quicker."
+          ? hosted
+            ? "That took too long. Try again, or say it more simply."
+            : "The model took too long to answer. A smaller model may be quicker."
+          : answer.reason === "signed-out"
+          ? "Your session has expired. Sign in again to use the assistant."
           : answer.error ?? "The model's answer could not be read. Try saying it another way."
       );
       return;
@@ -157,7 +172,7 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
     <Dialog show handleClose={handleClose} title="Ask" wide={refile != null}>
       {status.state === "checking" && (
         <p role="status" className="font-sans text-row text-chalk-soft">
-          Looking for Ollama on this computer…
+          {isDesktop() ? "Looking for Ollama on this computer…" : "Getting ready…"}
         </p>
       )}
 
@@ -165,7 +180,7 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
         <Unavailable reason={status.reason} onRetry={check} />
       )}
 
-      {status.state === "ready" && status.models.length === 0 && (
+      {status.state === "ready" && !status.hosted && status.models.length === 0 && (
         <div className="font-sans text-row text-chalk-soft">
           <p className="mb-3">
             Ollama is running, but it has no models yet. Pull one from a terminal, then try again:
@@ -179,7 +194,7 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
         </div>
       )}
 
-      {status.state === "ready" && status.models.length > 0 && (
+      {status.state === "ready" && (status.hosted || status.models.length > 0) && (
         <>
           <form onSubmit={handleSubmit}>
             <label className="mb-2 block">
@@ -197,32 +212,39 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
               />
             </label>
             <p id="ask-help" className="mb-5 font-sans text-label text-chalk-soft">
-              Read by {model} on this computer — nothing is sent anywhere. You'll see the form
-              filled in before anything is saved.
+              {hosted
+                ? "Read by Claude, through this app's own server. Only your sentence and your category, account, and payee names are sent — never your amounts, balances, or dates. You'll see the form filled in before anything is saved."
+                : `Read by ${model} on this computer — nothing is sent anywhere. You'll see the form filled in before anything is saved.`}
             </p>
             {error && (
               <p role="alert" className="mb-5 font-sans text-row text-vermilion">
                 {error}
               </p>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 font-mono text-label uppercase text-chalk-soft">
-                Model
-                <select
-                  value={model ?? ""}
-                  onChange={(e) => {
-                    setModel(e.target.value);
-                    saveModel(e.target.value);
-                  }}
-                  className="border border-edge bg-panel px-2 py-1 font-mono text-label normal-case text-chalk outline-none focus:border-azure"
-                >
-                  {status.models.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div
+              className={`flex flex-wrap items-center gap-3 ${
+                hosted ? "justify-end" : "justify-between"
+              }`}
+            >
+              {!hosted && (
+                <label className="flex items-center gap-2 font-mono text-label uppercase text-chalk-soft">
+                  Model
+                  <select
+                    value={model ?? ""}
+                    onChange={(e) => {
+                      setModel(e.target.value);
+                      saveModel(e.target.value);
+                    }}
+                    className="border border-edge bg-panel px-2 py-1 font-mono text-label normal-case text-chalk outline-none focus:border-azure"
+                  >
+                    {status.models.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <Button variant="primary" type="submit" disabled={busy}>
                 {busy ? "Reading…" : "Fill in the form"}
               </Button>
@@ -260,6 +282,33 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
 
 /** Why there is nothing to ask, and the one thing to do about it. */
 function Unavailable({ reason, onRetry }) {
+  // In a browser the model is the account's, reached through the app's server —
+  // so what can be missing is an account, or the server, never Ollama.
+  if (!isDesktop()) {
+    if (reason === "signed-out") {
+      return (
+        <p className="font-sans text-row text-chalk-soft">
+          Sign in to use the assistant — it reads your sentence with your account's model.
+        </p>
+      );
+    }
+    if (reason === "unconfigured") {
+      return (
+        <p className="font-sans text-row text-chalk-soft">
+          The assistant isn't set up for this app.
+        </p>
+      );
+    }
+    return (
+      <div className="font-sans text-row text-chalk-soft">
+        <p className="mb-4">The assistant couldn't be reached just now.</p>
+        <Button type="button" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   if (reason === "unsupported") {
     return (
       <p className="font-sans text-row text-chalk-soft">
