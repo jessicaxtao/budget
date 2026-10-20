@@ -217,6 +217,20 @@ describe("what it commits", () => {
     expect(onCommit).toHaveBeenCalledWith({ payeeId: null, name: "Ace Hardware" });
   });
 
+  test("a clicked option is not undone by the blur that follows it", () => {
+    const { field, onCommit } = renderField();
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "cos" } });
+    fireEvent.click(screen.getByRole("option", { name: /Costco Gas/ }));
+    fireEvent.blur(field);
+
+    // The click was the answer. The letters that led to it are not a second
+    // one, and committing them on the way out would replace the pick with a
+    // new payee called "cos".
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith({ payeeId: "p2", name: "Costco Gas" });
+  });
+
   test("clearing it is a real answer", () => {
     const { field, onCommit } = renderField({ value: "p1" });
     fireEvent.focus(field);
