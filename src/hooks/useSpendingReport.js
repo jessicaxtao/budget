@@ -7,7 +7,7 @@ import {
 import { insideBudget, useAccounts } from "../contexts/AccountsContext";
 import { budgetLegs, TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
-import { toSections } from "../planLayout";
+import { toSections } from "../domain/planLayout";
 import { addMonths, currentPeriod, formatPeriod, periodLTE, toPeriod } from "../utils";
 
 /**

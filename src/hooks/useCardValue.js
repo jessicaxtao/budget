@@ -14,7 +14,7 @@ import {
   offerOverlaps,
   programById,
   rankCardsFor,
-} from "../rewards";
+} from "../domain/rewards";
 
 /**
  * **A household does not hold one card, and the cards it holds are not the same

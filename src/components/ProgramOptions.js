@@ -1,4 +1,4 @@
-import { CATALOG, PROGRAM_KIND_LABELS, PROGRAM_KIND_ORDER } from "../rewards";
+import { CATALOG, PROGRAM_KIND_LABELS, PROGRAM_KIND_ORDER } from "../domain/rewards";
 
 /**
  * The built-in catalog as `<option>`s, grouped by kind — card points, airline

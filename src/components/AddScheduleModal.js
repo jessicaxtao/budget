@@ -9,8 +9,8 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { SCHEDULE_KINDS, useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
-import { orderPayeesByUse } from "../payeeSearch";
-import { DEFAULT_RECURRENCE, RECURRENCE_KEYS, RECURRENCES } from "../recurrence";
+import { orderPayeesByUse } from "../domain/payeeSearch";
+import { DEFAULT_RECURRENCE, RECURRENCE_KEYS, RECURRENCES } from "../domain/recurrence";
 import { amountEditing, todayISO } from "../utils";
 
 /**

@@ -11,7 +11,7 @@ import {
   annualBenefitCents,
   claimShareBps,
   socialSecurityEvent,
-} from "../socialSecurity";
+} from "../domain/socialSecurity";
 import { amountEditing, formatBps, formatCents, toCents } from "../utils";
 
 /**

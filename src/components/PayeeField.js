@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { normalizePayeeName } from "../contexts/PayeesContext";
-import { matchPayees } from "../payeeSearch";
+import { matchPayees } from "../domain/payeeSearch";
 
 /**
  * Naming a payee by typing at it: the matching payees appear as the letters go

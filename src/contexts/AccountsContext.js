@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { reorderSubset } from "../reorder";
+import { reorderSubset } from "../domain/reorder";
 import { useTransactions } from "./TransactionsContext";
 import { formatPeriod, isValidISODate, toBps, toCents, todayISO, toPeriod } from "../utils";
 

@@ -10,7 +10,7 @@ import {
   lineRuns,
   movingAverage,
   radiusFor,
-} from "../chartAxis";
+} from "../domain/chartAxis";
 import {
   formatCents,
   formatCompactCents,

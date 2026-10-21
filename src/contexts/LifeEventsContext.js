@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { LIFE_EVENT_KINDS } from "../netWorthProjection";
+import { LIFE_EVENT_KINDS } from "../domain/netWorthProjection";
 import { MAX_AGE, MAX_RATE_BPS, MIN_AGE } from "./RetirementContext";
 import { toBps, toCents } from "../utils";
 

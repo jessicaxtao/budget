@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
 import { TRANSACTION_KINDS } from "./TransactionsContext";
-import { isRecurring, recurrence } from "../recurrence";
+import { isRecurring, recurrence } from "../domain/recurrence";
 import { isValidISODate, toCents } from "../utils";
 
 /**

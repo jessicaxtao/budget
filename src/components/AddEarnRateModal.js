@@ -6,7 +6,7 @@ import ProgramOptions from "./ProgramOptions";
 import SpendingMapFields, { toggleId } from "./SpendingMapFields";
 import { ACCOUNT_SCOPES, spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useRewards } from "../contexts/RewardsContext";
-import { EARN_MODES, EARN_MODE_LABELS, formatMultiplier } from "../rewards";
+import { EARN_MODES, EARN_MODE_LABELS, formatMultiplier } from "../domain/rewards";
 import { formatBps } from "../utils";
 
 const blankRow = () => ({ rate: "", multiplier: "", allSpending: false, budgetIds: [], payeeIds: [] });

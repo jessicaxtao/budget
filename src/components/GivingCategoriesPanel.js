@@ -1,3 +1,6 @@
+import Button from "./Button";
+import Dialog from "./Dialog";
+
 /**
  * Which categories are giving. Spending filed under any of them appears on the
  * Donations page as a gift without being tagged one.
@@ -61,5 +64,44 @@ export default function GivingCategoriesPanel({ budgets, selectedIds, stated, on
         </ul>
       )}
     </section>
+  );
+}
+
+export function GivingCategoriesModal({ show, handleClose, budgets, selectedIds, onChange }) {
+  function toggle(budgetId, checked) {
+    const rest = [...selectedIds].filter((id) => id !== budgetId);
+    onChange(checked ? [...rest, budgetId] : rest);
+  }
+
+  return (
+    <Dialog show={show} handleClose={handleClose} title="Giving categories">
+      <p className="mb-4 font-sans text-row text-chalk-soft">
+        Spending filed under these categories appears on the Donations page as a gift, matched to
+        the organization named like its payee. You can always change this in Household setup.
+      </p>
+      {budgets.length === 0 ? (
+        <p className="mb-4 font-sans text-row text-chalk-soft">No categories yet.</p>
+      ) : (
+        <ul className="mb-4 max-h-56 overflow-y-auto">
+          {budgets.map((budget) => (
+            <li key={budget.id}>
+              <label className="flex items-center gap-2 py-0.5 font-sans text-row text-chalk">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(budget.id)}
+                  onChange={(event) => toggle(budget.id, event.target.checked)}
+                />
+                {budget.name}
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex justify-end">
+        <Button variant="primary" onClick={handleClose}>
+          Done
+        </Button>
+      </div>
+    </Dialog>
   );
 }

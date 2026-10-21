@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import Button from "./Button";
 import YearStepper from "./YearStepper";
 import { usePayees } from "../contexts/PayeesContext";
-import { donationsCsv } from "../donationsExport";
+import { donationsCsv } from "../domain/donationsExport";
 import useGiving from "../hooks/useGiving";
 import { todayISO } from "../utils";
 

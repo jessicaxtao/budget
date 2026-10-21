@@ -1,4 +1,4 @@
-import { apportion } from "./utils";
+import { apportion } from "../utils";
 
 /**
  * A payee's remembered division of a receipt — "Costco is 70% groceries, 30%

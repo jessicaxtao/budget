@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { reorderSubset } from "../reorder";
+import { reorderSubset } from "../domain/reorder";
 import { readKey } from "../storage";
 import { useAssignments } from "./AssignmentsContext";
 import { useTransactions } from "./TransactionsContext";

@@ -1,5 +1,5 @@
-import { TRANSACTION_KINDS } from "./contexts/TransactionsContext";
-import { daysBetween, isValidISODate } from "./utils";
+import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
+import { daysBetween, isValidISODate } from "../utils";
 
 /**
  * How far apart two dates can be and still be the same movement of money. A

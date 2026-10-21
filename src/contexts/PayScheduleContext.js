@@ -5,7 +5,7 @@ import {
   cadenceForDays,
   isPayDay,
   payCadence,
-} from "../paySchedule";
+} from "../domain/paySchedule";
 import { isValidISODate } from "../utils";
 
 /**

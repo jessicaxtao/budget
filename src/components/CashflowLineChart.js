@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import useChartWidth from "../hooks/useChartWidth";
-import { axisLabels, axisTicks, chartFrame, labelBudget, lineRuns } from "../chartAxis";
+import { axisLabels, axisTicks, chartFrame, labelBudget, lineRuns } from "../domain/chartAxis";
 import {
   formatCents,
   formatCompactCents,

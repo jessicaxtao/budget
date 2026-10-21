@@ -6,7 +6,7 @@ import ProgramOptions from "./ProgramOptions";
 import SpendingMapFields, { toggleId } from "./SpendingMapFields";
 import { ACCOUNT_SCOPES, spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useRewards } from "../contexts/RewardsContext";
-import { OFFER_KINDS, OFFER_KIND_LABELS, PROGRESS_SOURCES } from "../rewards";
+import { OFFER_KINDS, OFFER_KIND_LABELS, PROGRESS_SOURCES } from "../domain/rewards";
 import { amountEditing, formatBps, todayISO } from "../utils";
 
 /**

@@ -10,7 +10,7 @@ import { isDesktop } from "../storage";
 import { ASSIST_ACTIONS, buildAssistRequest, resolveReading } from "../assistant";
 import { PROVIDERS, PROVIDER_IDS } from "../assistantProviders";
 import { loadAssistConfig, saveAssistConfig } from "../assistantSettings";
-import { orderPayeesByUse } from "../payeeSearch";
+import { orderPayeesByUse } from "../domain/payeeSearch";
 import { formatCents, formatDateMedium, todayISO } from "../utils";
 
 /**

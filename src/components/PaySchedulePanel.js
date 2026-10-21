@@ -6,7 +6,7 @@ import {
   PAY_CADENCE_KEYS,
   defaultPayDay,
   payCadence,
-} from "../paySchedule";
+} from "../domain/paySchedule";
 import { formatDateMedium, formatDayDelta } from "../utils";
 
 /**

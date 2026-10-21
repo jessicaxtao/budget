@@ -1,5 +1,5 @@
 import Button from "./Button";
-import { OFFER_KINDS, OFFER_STATUS, PROGRESS_SOURCES, nextOfferWindow } from "../rewards";
+import { OFFER_KINDS, OFFER_STATUS, PROGRESS_SOURCES, nextOfferWindow } from "../domain/rewards";
 import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium, formatDayDelta } from "../utils";
 
 const formatPoints = (points) => points.toLocaleString("en-US");

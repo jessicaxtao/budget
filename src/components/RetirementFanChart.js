@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import useChartWidth from "../hooks/useChartWidth";
-import { ageLabeller, chartFrame } from "../chartAxis";
+import { ageLabeller, chartFrame } from "../domain/chartAxis";
 import { formatCents, formatCompactCents } from "../utils";
 
 /**

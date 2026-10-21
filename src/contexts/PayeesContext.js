@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
 import { TRANSACTION_KINDS, useTransactions } from "./TransactionsContext";
-import { describeDefaultSplitProblem } from "../payeeDefaults";
+import { describeDefaultSplitProblem } from "../domain/payeeDefaults";
 
 /**
  * Who the money went to, as a record rather than as a string typed again on

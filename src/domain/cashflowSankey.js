@@ -1,4 +1,4 @@
-import { BUCKET_SERIES } from "./hooks/useSpendingReport";
+import { BUCKET_SERIES } from "../hooks/useSpendingReport";
 
 /**
  * The arithmetic behind the cashflow diagram: which flows there are, how big

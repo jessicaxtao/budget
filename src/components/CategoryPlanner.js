@@ -19,7 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Button from "./Button";
 import { PLAN_BUCKET_LABELS, PLAN_BUCKET_ORDER } from "../contexts/BudgetsContext";
-import { toLayout } from "../planLayout";
+import { toLayout } from "../domain/planLayout";
 import { amountEditing, formatCents, toCents } from "../utils";
 
 /**

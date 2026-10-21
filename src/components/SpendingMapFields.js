@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
-import { toSections } from "../planLayout";
+import { toSections } from "../domain/planLayout";
 
 const legend = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
 const chipBase =

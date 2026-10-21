@@ -16,11 +16,11 @@ import { usePayees } from "../contexts/PayeesContext";
 import { useRewards } from "../contexts/RewardsContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
-import { orderPayeesByUse } from "../payeeSearch";
+import { orderPayeesByUse } from "../domain/payeeSearch";
 import useCardOffers from "../hooks/useCardOffers";
-import { OFFER_KINDS, offerNudges, rankCardsFor } from "../rewards";
-import { cashbackCents } from "../cashback";
-import { findDuplicates } from "../duplicates";
+import { OFFER_KINDS, offerNudges, rankCardsFor } from "../domain/rewards";
+import { cashbackCents } from "../domain/cashback";
+import { findDuplicates } from "../domain/duplicates";
 import useRecordCashback from "../hooks/useRecordCashback";
 import {
   describeShares,
@@ -28,7 +28,7 @@ import {
   partsForTotal,
   sameShares,
   sharesFromSplits,
-} from "../payeeDefaults";
+} from "../domain/payeeDefaults";
 import {
   amountAtRest,
   currentPeriod,

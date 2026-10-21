@@ -1,5 +1,5 @@
-import { TRANSACTION_KINDS } from "./contexts/TransactionsContext";
-import { apportion, formatBps, formatCents } from "./utils";
+import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
+import { apportion, formatBps, formatCents } from "../utils";
 
 /**
  * Cash back that a card pays straight onto its own balance — a prepaid card

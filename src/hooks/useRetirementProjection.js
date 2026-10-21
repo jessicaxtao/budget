@@ -10,8 +10,8 @@ import {
   useRetirement,
 } from "../contexts/RetirementContext";
 import useNetWorth, { HOLDING_CLASSES } from "./useNetWorth";
-import { projectNetWorth, retirementOutlook } from "../netWorthProjection";
-import { runHistoricalBacktest, runMonteCarlo } from "../retirementSimulation";
+import { projectNetWorth, retirementOutlook } from "../domain/netWorthProjection";
+import { runHistoricalBacktest, runMonteCarlo } from "../domain/retirementSimulation";
 import { currentPeriod, fromBps } from "../utils";
 
 /**

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AccountList from "../components/AccountList";
 import AddAccountModal from "../components/AddAccountModal";
 import AddBudgetModal from "../components/AddBudgetModal";
@@ -127,6 +127,23 @@ export default function ConfigurationPage() {
   for (const row of netWorthRows) {
     if (isOffBudget(row.account)) balanceById.set(row.account.id, row.valueCents);
   }
+
+  // First-time setup: open the add account modal automatically when the
+  // household has nothing at all — no accounts, no income, no categories.
+  // An account is the prerequisite for everything else, so it is the natural
+  // first step. Running once on mount is the intent; the deps are captured in
+  // a ref so no re-trigger happens when accounts are later added or removed.
+  useEffect(() => {
+    if (
+      accounts.length === 0 &&
+      health.sourceCount === 0 &&
+      health.categoryCount === 0 &&
+      health.groupCount === 0
+    ) {
+      setShowAddAccountModal(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The store validates; the page has to say so. Silently swallowing a rejected
   // figure would leave the row showing an amount the plan is not using.

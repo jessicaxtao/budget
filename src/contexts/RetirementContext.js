@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { INCOME_SOURCES } from "../netWorthProjection";
+import { INCOME_SOURCES } from "../domain/netWorthProjection";
 import { toBps, toCents } from "../utils";
 
 /**

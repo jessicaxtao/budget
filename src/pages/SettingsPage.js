@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const { period: startingPeriod, poolCentsOverride: startingPoolCents } = useStartingBalances();
   const { theme, toggleTheme } = useTheme();
   const dark = theme === THEMES.DARK;
+  const stated = Array.isArray(givingSettings.budgetIds);
 
   return (
     <>
@@ -52,13 +53,6 @@ export default function SettingsPage() {
             Use {dark ? "light" : "dark"} mode
           </Button>
         </section>
-        <RewardsValuationsPanel />
-        <GivingCategoriesPanel
-          budgets={budgets}
-          selectedIds={giving.givingBudgetIds}
-          stated={Array.isArray(givingSettings.budgetIds)}
-          onChange={setGivingCategories}
-        />
         <ScheduleList />
         <PayeeList />
         <TransactionsExportPanel />
@@ -66,6 +60,13 @@ export default function SettingsPage() {
         <BalanceHistoryPanel />
         <BooksFilePanel />
         <BooksEncryptionPanel />
+        <RewardsValuationsPanel />
+        <GivingCategoriesPanel
+          budgets={budgets}
+          selectedIds={giving.givingBudgetIds}
+          stated={stated}
+          onChange={setGivingCategories}
+        />
         <HouseholdPanel />
       </div>
       <AssignIncomeModal

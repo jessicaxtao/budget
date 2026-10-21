@@ -9,7 +9,7 @@ import {
   radiusFor,
   smoothPath,
   stackPaths as stackedColumn,
-} from "../chartAxis";
+} from "../domain/chartAxis";
 import { HOLDING_CLASSES } from "../hooks/useNetWorth";
 import { formatCents, formatCompactCents, formatPeriod, formatPeriodShort } from "../utils";
 

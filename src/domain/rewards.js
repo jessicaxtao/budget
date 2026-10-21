@@ -24,7 +24,7 @@
  * about this month's bonus or last month's devaluation.
  */
 
-import { daysBetween, todayISO } from "./utils";
+import { daysBetween, todayISO } from "../utils";
 
 export const PROGRAM_KINDS = {
   BANK: "bank",

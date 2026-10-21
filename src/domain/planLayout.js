@@ -1,4 +1,4 @@
-import { DEFAULT_BUCKET, UNGROUPED_ID } from "./contexts/BudgetsContext";
+import { DEFAULT_BUCKET, UNGROUPED_ID } from "../contexts/BudgetsContext";
 
 /**
  * Categories arranged under the headings they are filed under.

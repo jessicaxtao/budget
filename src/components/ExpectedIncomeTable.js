@@ -1,4 +1,4 @@
-import { cadenceLabel, paymentsPerYear } from "../cadence";
+import { cadenceLabel, paymentsPerYear } from "../domain/cadence";
 import { formatCents } from "../utils";
 import { SortableList, useSortableItem } from "./Sortable";
 import Button from "./Button";

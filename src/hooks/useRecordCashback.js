@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useAccounts } from "../contexts/AccountsContext";
 import { useTransactions } from "../contexts/TransactionsContext";
-import { cashbackFor } from "../cashback";
+import { cashbackFor } from "../domain/cashback";
 
 /**
  * Write the cash back a purchase earns on its account, if any — the second

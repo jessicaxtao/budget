@@ -4,7 +4,7 @@ import Field, { SelectField } from "./Field";
 import Button from "./Button";
 import ProgramOptions from "./ProgramOptions";
 import { useRewards } from "../contexts/RewardsContext";
-import { CATALOG, isCashProgram } from "../rewards";
+import { CATALOG, isCashProgram } from "../domain/rewards";
 import { amountEditing, todayISO } from "../utils";
 
 /**
@@ -21,7 +21,7 @@ import { amountEditing, todayISO } from "../utils";
  * program is, the way `AddOfferModal` mirrors its kind select, so the one
  * field can swap what it asks for without becoming two fields.
  */
-export default function AddRewardBalanceModal({ show, balance, handleClose }) {
+export default function AddRewardBalanceModal({ show, balance, onAdded, handleClose }) {
   const formRef = useRef();
   const programRef = useRef();
   const holderRef = useRef();
@@ -62,6 +62,7 @@ export default function AddRewardBalanceModal({ show, balance, handleClose }) {
       setError(result.error);
       return;
     }
+    if (!editing) onAdded?.(fields.programId);
     handleClose();
   }
 

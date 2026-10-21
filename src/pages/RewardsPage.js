@@ -6,6 +6,7 @@ import AddTripModal from "../components/AddTripModal";
 import Button from "../components/Button";
 import CardOfferList from "../components/CardOfferList";
 import CardValueList, { rateText } from "../components/CardValueList";
+import Dialog from "../components/Dialog";
 import PageHeader from "../components/PageHeader";
 import { useRewards } from "../contexts/RewardsContext";
 import useCardOffers from "../hooks/useCardOffers";
@@ -23,7 +24,7 @@ import {
   summariseRewards,
   toPoints,
   valueOfPointsCents,
-} from "../rewards";
+} from "../domain/rewards";
 import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium, todayISO } from "../utils";
 
 /**
@@ -541,6 +542,13 @@ export default function RewardsPage() {
   const [balanceError, setBalanceError] = useState(null);
   const [cardError, setCardError] = useState(null);
   const [offerError, setOfferError] = useState(null);
+  const [showValuationsSetup, setShowValuationsSetup] = useState(false);
+
+  function handleBalanceAdded(programId) {
+    if (!isCashProgram(programId) && Object.keys(valuations).length === 0) {
+      setShowValuationsSetup(true);
+    }
+  }
 
   const summary = useMemo(
     () => summariseRewards({ balances, valuations, trips }),
@@ -814,6 +822,7 @@ export default function RewardsPage() {
       <AddRewardBalanceModal
         show={balanceModal.show}
         balance={balanceModal.balance}
+        onAdded={handleBalanceAdded}
         handleClose={() => setBalanceModal({ show: false, balance: null })}
       />
       <AddOfferModal
@@ -832,6 +841,10 @@ export default function RewardsPage() {
         show={tripModal.show}
         trip={tripModal.trip}
         handleClose={() => setTripModal({ show: false, trip: null })}
+      />
+      <SetupValuationsModal
+        show={showValuationsSetup}
+        handleClose={() => setShowValuationsSetup(false)}
       />
     </>
   );
@@ -861,5 +874,36 @@ export function RewardsValuationsPanel() {
       <ValuationsTable valuations={valuations} heldPoints={heldPoints} onValue={handleValue} />
       <ErrorLine message={error} />
     </Panel>
+  );
+}
+
+export function SetupValuationsModal({ show, handleClose }) {
+  const { balances, valuations, trips, setValuation } = useRewards();
+  const [error, setError] = useState(null);
+  const summary = useMemo(
+    () => summariseRewards({ balances, valuations, trips }),
+    [balances, valuations, trips]
+  );
+  const heldPoints = new Map(summary.programs.map((row) => [row.program.id, row.points]));
+
+  function handleValue(program, typed) {
+    const result = setValuation({ programId: program.id, value: typed });
+    setError(result.ok ? null : `${program.name}: ${result.error}`);
+  }
+
+  return (
+    <Dialog show={show} handleClose={handleClose} title="What is a point worth?" wide>
+      <p className="mb-4 font-sans text-row text-chalk-soft">
+        The catalog value is a typical figure for spending points well. Yours is what you actually
+        get. Leave blank to use the catalog's value. You can always change these in Household setup.
+      </p>
+      <ValuationsTable valuations={valuations} heldPoints={heldPoints} onValue={handleValue} />
+      <ErrorLine message={error} />
+      <div className="mt-4 flex justify-end">
+        <Button variant="primary" onClick={handleClose}>
+          Done
+        </Button>
+      </div>
+    </Dialog>
   );
 }

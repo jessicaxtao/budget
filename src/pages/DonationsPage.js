@@ -4,11 +4,13 @@ import AddDonationModal from "../components/AddDonationModal";
 import AddOrganizationModal from "../components/AddOrganizationModal";
 import Button from "../components/Button";
 import DonationList from "../components/DonationList";
+import { GivingCategoriesModal } from "../components/GivingCategoriesPanel";
 import GivingGoalPanel from "../components/GivingGoalPanel";
 import GivingSummary from "../components/GivingSummary";
 import OrganizationList from "../components/OrganizationList";
 import PageHeader from "../components/PageHeader";
 import YearStepper from "../components/YearStepper";
+import { useBudgets } from "../contexts/BudgetsContext";
 import { useDonations } from "../contexts/DonationsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import useGiving from "../hooks/useGiving";
@@ -58,6 +60,8 @@ export default function DonationsPage() {
 
   const {
     recipients,
+    givingSettings,
+    setGivingCategories,
     recordDonation,
     updateDonation,
     removeDonation,
@@ -65,7 +69,18 @@ export default function DonationsPage() {
     setGivingGoal,
     setGiftExcluded,
   } = useDonations();
+  const { budgets } = useBudgets();
   const giving = useGiving(year);
+
+  // Show the setup prompt only if giving categories were never explicitly set
+  // AND the name heuristic found nothing — if "Giving" or "Donations" is already
+  // a category name, the heuristic already works and no prompt is needed.
+  const [showGivingSetup, setShowGivingSetup] = useState(
+    () =>
+      !Array.isArray(givingSettings.budgetIds) &&
+      giving.givingBudgetIds.size === 0 &&
+      budgets.length > 0
+  );
   // Names for the gift rows. `useGiving` passes the reference through and stops
   // there — it is a hook about what was given, and a payee's name is not a figure —
   // so the join happens here, the same seam `ReportsPage` keeps for its drill-in.
@@ -286,6 +301,13 @@ export default function DonationsPage() {
         show={showOrganizationModal}
         organization={editingOrganization}
         handleClose={() => setShowOrganizationModal(false)}
+      />
+      <GivingCategoriesModal
+        show={showGivingSetup}
+        handleClose={() => setShowGivingSetup(false)}
+        budgets={budgets}
+        selectedIds={giving.givingBudgetIds}
+        onChange={setGivingCategories}
       />
     </>
   );

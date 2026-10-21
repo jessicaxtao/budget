@@ -1,4 +1,4 @@
-import { addDays, daysBetween, isValidISODate, todayISO } from "./utils";
+import { addDays, daysBetween, isValidISODate, todayISO } from "../utils";
 
 /**
  * When the paycheques land — the calendar arithmetic behind the countdown.

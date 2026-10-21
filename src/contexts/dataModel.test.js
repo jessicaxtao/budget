@@ -19,8 +19,8 @@ import { useSavingsGoalAssignments } from "./SavingsGoalAssignmentsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
 import useEnvelopes from "../hooks/useEnvelopes";
 import usePlanHealth from "../hooks/usePlanHealth";
-import { monthlyCents } from "../cadence";
-import { toSections } from "../planLayout";
+import { monthlyCents } from "../domain/cadence";
+import { toSections } from "../domain/planLayout";
 import {
   addMonths,
   currentPeriod,

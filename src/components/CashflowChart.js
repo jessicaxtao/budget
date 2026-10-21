@@ -9,7 +9,7 @@ import {
   lineRuns,
   radiusFor,
   stackPaths,
-} from "../chartAxis";
+} from "../domain/chartAxis";
 import {
   formatCents,
   formatCompactCents,

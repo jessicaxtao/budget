@@ -11,7 +11,7 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { useTransactions } from "../contexts/TransactionsContext";
 import useEnvelopes from "../hooks/useEnvelopes";
-import { orderPayeesByUse } from "../payeeSearch";
+import { orderPayeesByUse } from "../domain/payeeSearch";
 import { currentPeriod, toPeriod } from "../utils";
 
 /**

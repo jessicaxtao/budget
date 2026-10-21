@@ -1,0 +1,120 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e126]:
+    - link "Skip to content" [ref=f5e127] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f5e128]:
+      - generic [ref=f5e129]:
+        - generic [ref=f5e130]:
+          - generic [ref=f5e131]: Canopy Budget
+          - generic [ref=f5e148]:
+            - generic [ref=f5e149]:
+              - button "Add transaction" [ref=f5e150] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f5e151]: +
+                - text: Add transaction
+              - button "Transfer" [ref=f5e152] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f5e153]: ⇄
+                - text: Transfer
+            - generic [ref=f5e154]:
+              - generic "Your books are in this browser. Nothing is sent anywhere." [ref=f5e155]: On this browser
+              - button "Turn on sync" [ref=f5e156] [cursor=pointer]
+        - navigation "Sections" [ref=f5e157]:
+          - link "Configuration" [ref=f5e158] [cursor=pointer]:
+            - /url: /plan
+          - link "Dashboard" [ref=f5e159] [cursor=pointer]:
+            - /url: /
+          - link "Transactions" [ref=f5e160] [cursor=pointer]:
+            - /url: /transactions
+          - link "Reports" [ref=f5e161] [cursor=pointer]:
+            - /url: /reports
+          - link "Donations" [ref=f5e162] [cursor=pointer]:
+            - /url: /donations
+          - link "Net worth" [ref=f5e163] [cursor=pointer]:
+            - /url: /net-worth
+          - link "Retirement" [ref=f5e164] [cursor=pointer]:
+            - /url: /retirement
+          - link "Savings goals" [ref=f5e165] [cursor=pointer]:
+            - /url: /savings-goals
+          - link "Rewards" [ref=f5e166] [cursor=pointer]:
+            - /url: /rewards
+          - link "Settings" [ref=f5e167] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f5e168]:
+      - generic [ref=f5e169]:
+        - generic [ref=f5e170]:
+          - heading "Donations" [level=1] [ref=f5e171]
+          - paragraph [ref=f5e172]: Review gifts, recipients, and deductible amounts by year.
+        - generic [ref=f5e173]:
+          - generic [ref=f5e174]:
+            - button "Previous year" [ref=f5e175] [cursor=pointer]: ‹
+            - generic [ref=f5e176]: "2026"
+            - button "Next year" [ref=f5e177] [cursor=pointer]: ›
+          - button "Record a gift" [ref=f5e178] [cursor=pointer]
+      - generic [ref=f5e179]:
+        - region "Giving summary" [ref=f5e180]:
+          - generic [ref=f5e181]:
+            - heading "2026" [level=2] [ref=f5e182]
+            - generic [ref=f5e183]: 0 gifts · 0 organizations
+          - generic [ref=f5e184]:
+            - generic [ref=f5e185]:
+              - term [ref=f5e186]: Given
+              - definition [ref=f5e187]: $0
+              - definition [ref=f5e188]: In 2026
+            - generic [ref=f5e189]:
+              - term [ref=f5e190]: Tax deductible
+              - definition [ref=f5e191]: $0
+              - definition [ref=f5e192]: All of it deductible
+            - generic [ref=f5e193]:
+              - term [ref=f5e194]: Share of income
+              - definition [ref=f5e195]: —
+              - definition [ref=f5e196]: No income recorded
+            - generic [ref=f5e197]:
+              - term [ref=f5e198]: Goal
+              - definition [ref=f5e199]: —
+              - definition [ref=f5e200]: No goal set for 2026
+          - paragraph [ref=f5e202]: No goal set for 2026. Naming one — a figure, or a share of what comes in — is what turns the total above into something to read against.
+        - generic [ref=f5e203]:
+          - generic [ref=f5e205]:
+            - generic [ref=f5e206]:
+              - heading "Gifts in 2026" [level=2] [ref=f5e207]
+              - generic [ref=f5e208]: Written acknowledgment wanted from $250
+            - paragraph [ref=f5e209]:
+              - text: Nothing recorded in 2026.
+              - button "Record the first one" [ref=f5e210] [cursor=pointer]
+              - text: — it goes on the register like any other expense, and appears here with the part that is deductible.
+            - paragraph [ref=f5e211]:
+              - text: The organization, the deductible part and the receipt — ticked, with the charity’s letter attached if you have it as a file — are set here. The amount, the date and what it was for belong to the money itself —
+              - link "correct those on the register" [ref=f5e212] [cursor=pointer]:
+                - /url: /transactions
+              - text: . Untagging leaves the expense where it is; it only says this was not a gift.
+          - generic [ref=f5e213]:
+            - region "Giving goal" [ref=f5e214]:
+              - generic [ref=f5e215]:
+                - heading "Goal for 2026" [level=2] [ref=f5e216]
+                - generic [ref=f5e217]: Not set
+              - group "How the goal for the year is worked out" [ref=f5e219]:
+                - generic [ref=f5e221] [cursor=pointer]:
+                  - radio "A figure for the year" [checked] [ref=f5e222]
+                  - generic [ref=f5e223]: A figure for the year
+                - generic [ref=f5e224] [cursor=pointer]:
+                  - radio "A share of what I earn" [ref=f5e225]
+                  - generic [ref=f5e226]: A share of what I earn
+              - generic [ref=f5e227]:
+                - generic [ref=f5e228]:
+                  - generic [ref=f5e229]: Goal for the year
+                  - textbox "Goal for the year" [ref=f5e230]:
+                    - /placeholder: No goal
+                - paragraph [ref=f5e231]: What you intend to give in 2026, whatever the year earns. Leave it blank for no goal.
+            - region "Organizations" [ref=f5e232]:
+              - generic [ref=f5e233]:
+                - generic [ref=f5e234]:
+                  - heading "Organizations" [level=2] [ref=f5e235]
+                  - paragraph [ref=f5e236]: Given in 2026, per organization.
+                - button "Add organization" [ref=f5e237] [cursor=pointer]
+              - paragraph [ref=f5e238]: No organizations yet. Add the first one — a gift is filed under the organization that received it, and whether gifts to it are deductible is what a new gift starts on.
+  - iframe [ref=f5e239]:
+    - generic [ref=f10e2]:
+      - generic [ref=f10e3]: "Uncaught runtime errors:"
+      - button "Dismiss" [ref=f10e4] [cursor=pointer]: ×
+      - generic [ref=f10e6]:
+        - generic [ref=f10e7]: ERROR
+        - generic [ref=f10e8]: "_s is not a function TypeError: _s is not a function at useBudgets (http://localhost:3000/main.67b7eb5a847f7ab44bdd.hot-update.js:18398:3) at DonationsPage (http://localhost:3000/main.d36a1164b82dcc48b56a.hot-update.js:113:76) at renderWithHooks (http://localhost:3000/static/js/bundle.js:113331:22) at mountIndeterminateComponent (http://localhost:3000/static/js/bundle.js:116616:17) at beginWork (http://localhost:3000/static/js/bundle.js:117912:20) at beginWork$1 (http://localhost:3000/static/js/bundle.js:122871:18) at performUnitOfWork (http://localhost:3000/static/js/bundle.js:122141:16) at workLoopSync (http://localhost:3000/static/js/bundle.js:122064:9) at renderRootSync (http://localhost:3000/static/js/bundle.js:122037:11) at recoverFromConcurrentError (http://localhost:3000/static/js/bundle.js:121529:24)"

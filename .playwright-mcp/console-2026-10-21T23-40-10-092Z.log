@@ -1,0 +1,2 @@
+[     140ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/static/js/bundle.js:124917
+[     154ms] [INFO] [demo books] Seeded a household into local mode. Edits survive a reload; demoBooks.seed() starts over and demoBooks.clear() empties it. @ http://localhost:3000/static/js/bundle.js:59607

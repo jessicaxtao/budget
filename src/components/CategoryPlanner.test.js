@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import CategoryPlanner from "./CategoryPlanner";
 import { PLAN_BUCKETS } from "../contexts/BudgetsContext";
-import { toSections } from "../planLayout";
+import { toSections } from "../domain/planLayout";
 
 /**
  * The planner takes its rows as a prop and writes through callbacks, so these

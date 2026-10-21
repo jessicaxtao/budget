@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import PaySchedulePanel from "./PaySchedulePanel";
 import { EMPTY_SCHEDULE } from "../contexts/PayScheduleContext";
-import { nextPayday, describeSchedule, isScheduleConfigured } from "../paySchedule";
+import { nextPayday, describeSchedule, isScheduleConfigured } from "../domain/paySchedule";
 
 /**
  * Props in, patches out — the same contract `CategoryPlanner.test.js` covers,

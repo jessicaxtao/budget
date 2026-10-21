@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { sankeyFlows } from "../cashflowSankey";
+import { sankeyFlows } from "../domain/cashflowSankey";
 import CashflowChart from "../components/CashflowChart";
 import CashflowLineChart from "../components/CashflowLineChart";
 import CashflowSankey from "../components/CashflowSankey";

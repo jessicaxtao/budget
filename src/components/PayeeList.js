@@ -7,7 +7,7 @@ import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
-import { describeShares } from "../payeeDefaults";
+import { describeShares } from "../domain/payeeDefaults";
 
 /**
  * The payee list, and the three things only this panel can do to it: rename,

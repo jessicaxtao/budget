@@ -1,7 +1,7 @@
 import { TO_BE_ASSIGNED, UNCATEGORIZED_BUDGET_ID } from "./contexts/constants";
 import { normalizePayeeName } from "./contexts/PayeesContext";
 import { spendsThroughBudget } from "./contexts/AccountsContext";
-import { matchPayees, searchKey } from "./payeeSearch";
+import { matchPayees, searchKey } from "./domain/payeeSearch";
 import { addDays, isValidISODate, toCents, todayISO } from "./utils";
 
 /**

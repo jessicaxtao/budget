@@ -7,7 +7,7 @@ import {
   chartFrame,
   radiusFor,
   stackPaths,
-} from "../chartAxis";
+} from "../domain/chartAxis";
 import { formatCents, formatCompactCents } from "../utils";
 
 /**

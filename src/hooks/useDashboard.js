@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useBudgets } from "../contexts/BudgetsContext";
-import { toSections } from "../planLayout";
+import { toSections } from "../domain/planLayout";
 import useEnvelopes from "./useEnvelopes";
 
 /**

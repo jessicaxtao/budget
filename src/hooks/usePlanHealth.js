@@ -5,10 +5,10 @@ import {
   PLAN_BUCKETS,
   useBudgets,
 } from "../contexts/BudgetsContext";
-import { monthlyCents } from "../cadence";
+import { monthlyCents } from "../domain/cadence";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
 import { useRetirement } from "../contexts/RetirementContext";
-import { toSections } from "../planLayout";
+import { toSections } from "../domain/planLayout";
 import { apportion } from "../utils";
 
 /**

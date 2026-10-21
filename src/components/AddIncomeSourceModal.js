@@ -3,7 +3,7 @@ import Dialog from "./Dialog";
 import Field, { SelectField } from "./Field";
 import Button from "./Button";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
-import { CADENCE_KEYS, CADENCES, DEFAULT_CADENCE, monthlyCents } from "../cadence";
+import { CADENCE_KEYS, CADENCES, DEFAULT_CADENCE, monthlyCents } from "../domain/cadence";
 import { formatCents, toCents } from "../utils";
 
 /**

@@ -7,7 +7,7 @@ import {
   nextPayday,
   payCadenceLabel,
   payDaysFor,
-} from "../paySchedule";
+} from "../domain/paySchedule";
 import { daysBetween, todayISO } from "../utils";
 
 /**

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { bucketTone } from "../bucketTones";
-import { sankeyFlows, sankeyLayout } from "../cashflowSankey";
+import { sankeyFlows, sankeyLayout } from "../domain/cashflowSankey";
 import useChartWidth from "../hooks/useChartWidth";
 import { formatCents, formatCompactCents } from "../utils";
 

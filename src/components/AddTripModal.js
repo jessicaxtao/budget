@@ -4,7 +4,7 @@ import Field, { SelectField } from "./Field";
 import Button from "./Button";
 import ProgramOptions from "./ProgramOptions";
 import { useRewards } from "../contexts/RewardsContext";
-import { CATALOG } from "../rewards";
+import { CATALOG } from "../domain/rewards";
 import { amountEditing } from "../utils";
 
 /**

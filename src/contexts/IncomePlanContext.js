@@ -1,8 +1,8 @@
 import React, { useCallback, useContext, useMemo } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
-import { reorderSubset } from "../reorder";
-import { CADENCES, monthlyCents } from "../cadence";
+import { reorderSubset } from "../domain/reorder";
+import { CADENCES, monthlyCents } from "../domain/cadence";
 import { toCents } from "../utils";
 
 /**

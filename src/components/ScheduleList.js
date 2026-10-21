@@ -7,7 +7,7 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
-import { describeRecurrence, nextOccurrence } from "../recurrence";
+import { describeRecurrence, nextOccurrence } from "../domain/recurrence";
 import { addDays, formatCents, formatDateMedium } from "../utils";
 
 /**

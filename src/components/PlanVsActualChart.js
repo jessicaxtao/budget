@@ -8,7 +8,7 @@ import {
   labelBudget,
   radiusFor,
   stackPaths,
-} from "../chartAxis";
+} from "../domain/chartAxis";
 import { bucketTone } from "../bucketTones";
 import {
   formatCents,

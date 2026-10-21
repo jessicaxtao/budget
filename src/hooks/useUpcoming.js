@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
-import { occurrencesBetween, upcomingThrough, UPCOMING_DAYS } from "../recurrence";
+import { occurrencesBetween, upcomingThrough, UPCOMING_DAYS } from "../domain/recurrence";
 import { addDays, daysBetween, todayISO } from "../utils";
 
 /**

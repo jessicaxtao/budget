@@ -1,6 +1,6 @@
 import { projectNetWorth } from "./netWorthProjection";
 import { historicalReturnAt, HISTORICAL_RETURNS } from "./historicalReturns";
-import { fromBps } from "./utils";
+import { fromBps } from "../utils";
 
 /**
  * The deterministic walk's answer is one line: what the plan comes to if the

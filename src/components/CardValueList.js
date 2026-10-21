@@ -1,5 +1,5 @@
 import Button from "./Button";
-import { EARN_MODES, formatMultiplier } from "../rewards";
+import { EARN_MODES, formatMultiplier } from "../domain/rewards";
 import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium } from "../utils";
 
 const formatPoints = (points) => points.toLocaleString("en-US");

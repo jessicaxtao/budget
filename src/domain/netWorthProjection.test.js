@@ -7,7 +7,7 @@ import {
   retirementOutlook,
   takeHomeAt,
 } from "./netWorthProjection";
-import { projectRetirement, requiredNestEgg } from "./hooks/useRetirementProjection";
+import { projectRetirement, requiredNestEgg } from "../hooks/useRetirementProjection";
 
 /**
  * The whole-balance-sheet projection as the pure function it is.

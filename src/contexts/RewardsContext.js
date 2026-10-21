@@ -12,7 +12,7 @@ import {
   toPoints,
   toPointsPer100Dollars,
   toValuePer100Cents,
-} from "../rewards";
+} from "../domain/rewards";
 
 /**
  * Credit card rewards: the points and miles the household holds, what they say

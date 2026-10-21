@@ -1,4 +1,4 @@
-import { fromBps } from "./utils";
+import { fromBps } from "../utils";
 
 /**
  * The whole balance sheet walked forward a year at a time, from today to the

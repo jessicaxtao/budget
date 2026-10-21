@@ -11,7 +11,7 @@ import {
   programById,
   resolvedValuePer100Cents,
   valueOfPointsCents,
-} from "../rewards";
+} from "../domain/rewards";
 
 /** Active first, then the ones not yet open, then finished; soonest deadline first within each. */
 const STATUS_ORDER = {
