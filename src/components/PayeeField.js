@@ -301,7 +301,11 @@ export default function PayeeField({
         onBlur={() => {
           // Options cancel their own mousedown so focus never leaves the field,
           // which is what makes a blur here unambiguously "the user has moved on".
-          commitText(query);
+          // Only while editing, though: an option clicked, or Enter, Tab or
+          // Escape pressed, has already given the field's answer and closed it,
+          // and `query` still holds the letters typed on the way there. Committing
+          // them again would replace a picked payee with a new one named "cos".
+          if (editing) commitText(query);
           close();
         }}
         onKeyDown={handleKeyDown}
