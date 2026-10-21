@@ -82,9 +82,8 @@ export default function NetWorthPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Position"
         title="Net worth"
-        description="What you own, what you owe, and how the gap between them moves. Record what each account was worth at the end of the month; anything you leave blank falls back to the ledger for the accounts you spend through, and to its last figure for the ones you value by hand. Step back a month to fill in one you missed, or fill in a run of past months on the budget plan."
+        description="Track what you own and owe over time."
         actions={
           <>
             <PeriodStepper period={period} onChange={setPeriod} />
@@ -100,7 +99,7 @@ export default function NetWorthPage() {
       />
 
       {!hasAccounts ? (
-        <section className="border border-edge bg-panel">
+        <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
           <p className="px-4 py-5 font-sans text-row text-chalk-soft">
             No accounts yet.{" "}
             <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">
@@ -115,7 +114,7 @@ export default function NetWorthPage() {
           <NetWorthSummary period={period} current={current} change={change} />
 
           {staleCount > 0 && (
-            <p className="border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
+            <p className="rounded-lg border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
               <span className="font-medium text-sulfur">
                 {staleCount} {staleCount === 1 ? "holding has" : "holdings have"} no figure for{" "}
                 {formatPeriod(period)}.
@@ -124,7 +123,7 @@ export default function NetWorthPage() {
             </p>
           )}
 
-          <section className="border border-edge bg-panel">
+          <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <div>
                 <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">

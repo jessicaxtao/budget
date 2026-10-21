@@ -85,27 +85,29 @@ function renderRegister({
   return change;
 }
 
-test("money in and money out get a column each, and the month totals both", () => {
+test("one colored amount shows each row and the month totals both directions", () => {
   renderRegister();
 
   // Money at rest, not the raw number: `type="number"` would render $78.40 as
   // "78.4" and a column of figures would never line up on its decimal point.
-  expect(screen.getByLabelText("In for Trader Joe's")).toHaveValue("");
-  expect(screen.getByLabelText("Out for Trader Joe's")).toHaveValue("$78.40");
-  expect(screen.getByLabelText("In for Acme Payroll")).toHaveValue("$2,140");
-  expect(screen.getByLabelText("Out for Acme Payroll")).toHaveValue("");
+  expect(screen.getByRole("columnheader", { name: "Amount" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Amount for Trader Joe's")).toHaveValue("$78.40");
+  expect(screen.getByLabelText("Amount for Acme Payroll")).toHaveValue("$2,140");
+  expect(screen.queryByRole("button", { name: /Change Trader Joe's to money/ })).not.toBeInTheDocument();
 
   const footer = within(screen.getByRole("row", { name: /August 2026/ }));
+  expect(footer.getByText(/^Out\s*$/i)).toBeInTheDocument();
+  expect(footer.getByText(/^In\s*$/i)).toBeInTheDocument();
   expect(footer.getByText("$2,140")).toBeInTheDocument();
   expect(footer.getByText("$78.40")).toBeInTheDocument();
 });
 
 test("a cell hands over the plain figure to edit and takes the symbol back", () => {
   const onChange = renderRegister();
-  const cell = screen.getByLabelText("Out for Trader Joe's");
+  const cell = screen.getByLabelText("Amount for Trader Joe's");
 
   fireEvent.focus(cell);
-  expect(cell).toHaveValue("78.40");
+  expect(cell).toHaveValue("-78.40");
 
   // Whatever the field wrote, it has to accept back — a user who edits around
   // the formatting rather than through it is typing something valid.
@@ -114,24 +116,20 @@ test("a cell hands over the plain figure to edit and takes the symbol back", () 
 
   expect(onChange).toHaveBeenCalledWith({
     id: "t1",
-    kind: TRANSACTION_KINDS.OUTFLOW,
     amountCents: 120450,
   });
 });
 
-test("a figure typed into the other column moves the row across", () => {
+test("a typed sign changes the direction without replacing the row", () => {
   const onChange = renderRegister();
 
-  // The register's whole answer to "I filed this the wrong way round": no
-  // delete, no re-entry, and everything else on the row survives.
-  const inCell = screen.getByLabelText("In for Trader Joe's");
-  fireEvent.change(inCell, { target: { value: "78.40" } });
-  fireEvent.blur(inCell);
+  const amount = screen.getByLabelText("Amount for Trader Joe's");
+  fireEvent.change(amount, { target: { value: "+78.40" } });
+  fireEvent.blur(amount);
 
   expect(onChange).toHaveBeenCalledWith({
     id: "t1",
     kind: TRANSACTION_KINDS.INFLOW,
-    amountCents: 7840,
   });
 });
 
@@ -141,7 +139,7 @@ test("clearing a cell is an abandoned edit, not a value", () => {
   // A blank amount is not a transaction of nothing, and a blank date does not
   // un-date a record. Both put back what is stored, which is what leaves
   // select-all-and-retype free to pass through an empty state.
-  const outCell = screen.getByLabelText("Out for Trader Joe's");
+  const outCell = screen.getByLabelText("Amount for Trader Joe's");
   fireEvent.change(outCell, { target: { value: "" } });
   fireEvent.blur(outCell);
 
@@ -223,7 +221,7 @@ test("no repeat of a value the store already holds", () => {
   fireEvent.change(description, { target: { value: "  weekly shop  " } });
   fireEvent.blur(description);
 
-  const outCell = screen.getByLabelText("Out for Trader Joe's");
+  const outCell = screen.getByLabelText("Amount for Trader Joe's");
   fireEvent.change(outCell, { target: { value: "78.40" } });
   fireEvent.blur(outCell);
 
@@ -472,20 +470,17 @@ describe("a transfer row", () => {
     expect(within(to).queryByRole("option", { name: "Everyday" })).not.toBeInTheDocument();
   });
 
-  test("the amount sits in Out, and In is not a field at all", () => {
+  test("the transfer amount has no direction toggle", () => {
     renderRegister({ transactions: [PAYMENT] });
 
-    expect(screen.getByLabelText("Out for Card payment")).toHaveValue("$200");
-    // Not an empty textbox: a figure typed into the other column is what flips an
-    // ordinary row's direction, and a transfer has no direction to flip — its
-    // direction is the pair of accounts above.
-    expect(screen.queryByLabelText("In for Card payment")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Amount for Card payment")).toHaveValue("$200");
+    expect(screen.queryByRole("button", { name: /Change Card payment to money/ })).not.toBeInTheDocument();
   });
 
   test("its figure commits without naming a direction", () => {
     const onChange = renderRegister({ transactions: [PAYMENT] });
 
-    const out = screen.getByLabelText("Out for Card payment");
+    const out = screen.getByLabelText("Amount for Card payment");
     fireEvent.change(out, { target: { value: "150" } });
     fireEvent.blur(out);
 
@@ -505,7 +500,7 @@ describe("a transfer row", () => {
     expect(screen.getByLabelText("Category of Contribution")).toHaveValue("b1");
   });
 
-  test("the month footings leave transfers out of both columns", () => {
+  test("the month totals leave transfers out", () => {
     renderRegister({ transactions: [SPEND, PAY, PAYMENT] });
 
     const footer = screen.getByRole("table").querySelector("tfoot");
@@ -545,20 +540,17 @@ describe("a divided row", () => {
     expect(onSplit).toHaveBeenCalledWith(RECEIPT);
   });
 
-  test("the figure opens the editor too, and the other column is not a field", () => {
+  test("the figure opens the editor without changing the split", () => {
     const onSplit = jest.fn();
     const onChange = renderRegister({ transactions: [RECEIPT], onSplit });
 
-    // The whole, in the column the row is going — the parts are what add up to
-    // it, so it cannot be retyped here without them.
-    const figure = screen.getByLabelText("Out for Costco — open the split to change it");
+    // The parts add up to the whole, so it cannot be retyped here without them.
+    const figure = screen.getByLabelText("Amount for Costco — open the split to change it");
     expect(figure).toHaveTextContent("$124");
     fireEvent.click(figure);
     expect(onSplit).toHaveBeenCalledWith(RECEIPT);
 
-    // A figure typed into In is what flips an ordinary row's direction, and a
-    // division cannot follow a flip — so there is nothing there to type into.
-    expect(screen.queryByLabelText("In for Costco")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Change Costco to money/ })).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
   });
 

@@ -72,7 +72,7 @@ function linePath(values, xOf, y) {
 
 function Readout({ row, retirementAge }) {
   return (
-    <div className="pointer-events-none w-max border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
+    <div className="pointer-events-none w-max rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
       <div className="font-mono text-label uppercase text-chalk-soft">
         Age {row.age} · {row.age < retirementAge ? "saving" : "retired"}
       </div>

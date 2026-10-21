@@ -124,7 +124,7 @@ export default function SocialSecurityModal({ show, handleClose }) {
             the one markup that gives the block a name every reader gets rather
             than only the ones using a screen reader. The chosen age leads it;
             the two anchors below are the argument for choosing differently. */}
-        <table className="mb-5 w-full border border-edge bg-panel-raised">
+        <table className="mb-5 w-full rounded-lg border border-edge bg-panel-raised">
           <caption className="mb-2 text-left font-mono text-label uppercase text-chalk-soft">
             What claiming at that age pays
           </caption>

@@ -153,7 +153,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           type="date"
         />
 
-        <div className="mb-5 border border-edge">
+        <div className="mb-5 overflow-hidden rounded-lg border border-edge">
           <div className="border-b border-edge px-4 py-3">
             <h3 className="font-sans text-row font-semibold text-chalk">
               Money already held for this goal (optional)

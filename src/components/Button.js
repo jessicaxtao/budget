@@ -35,9 +35,10 @@ const sizes = {
 };
 
 export default function Button({ variant = "outline", size = "md", className = "", ...props }) {
+  const radius = className.includes("rounded-") ? "" : "rounded-lg";
   return (
     <button
-      className={`inline-flex shrink-0 items-center justify-center gap-1.5 font-sans font-medium tracking-wide transition-colors disabled:opacity-40 ${sizes[size]} ${variants[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 ${radius} font-sans font-medium tracking-wide transition-colors disabled:opacity-40 ${sizes[size]} ${variants[variant]} ${className}`}
       {...props}
     />
   );

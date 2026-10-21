@@ -156,7 +156,7 @@ function SaveRecoveryCode({ code, onConfirmed }) {
       title="Save your recovery code"
       blurb="Shown once. If you ever forget your books password, this code is the only other way in — lose both and the server's copy of your books is gone for good."
     >
-      <p className="mb-4 border border-edge bg-ledger px-4 py-3 text-center font-mono text-lg tracking-wider text-chalk">
+      <p className="mb-4 rounded-lg border border-edge bg-ledger px-4 py-3 text-center font-mono text-lg tracking-wider text-chalk">
         {code}
       </p>
       <div className="mb-6 flex flex-wrap gap-2">

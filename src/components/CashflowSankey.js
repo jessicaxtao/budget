@@ -98,7 +98,7 @@ function Readout({ node, graph, byId }) {
   const listed = rows.length > 1 ? rows : [];
 
   return (
-    <div className="pointer-events-none w-max max-w-[20rem] border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
+    <div className="pointer-events-none w-max max-w-[20rem] rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
       <div className="font-mono text-label uppercase text-chalk-soft">{node.label}</div>
       <div className="mt-0.5 font-sans text-base font-semibold tabular-nums text-chalk">
         {formatCents(node.valueCents)}

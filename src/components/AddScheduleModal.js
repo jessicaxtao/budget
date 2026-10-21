@@ -226,7 +226,7 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
       {/* Outside the form: it is a mode, not a field, and `form.reset()` would
           fight the state that drives it — the entry form's rule for the same
           control. */}
-      <div className="mb-5 grid grid-cols-2 border border-edge">
+      <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-lg border border-edge">
         {[
           { value: TRANSACTION_KINDS.OUTFLOW, label: "Money out", tone: "bg-vermilion" },
           { value: TRANSACTION_KINDS.INFLOW, label: "Money in", tone: "bg-verdant" },

@@ -127,7 +127,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
   const submitLabel = fromPool ? "Assign it" : toPool ? "Return it" : "Move it";
 
   const selectClass =
-    "w-full border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors focus:border-azure";
+    "w-full rounded-lg border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors focus:border-azure";
   const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
 
   return (
@@ -191,7 +191,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
               id="move-amount"
               name="amount"
               placeholder="$0.00"
-              className="w-40 border border-edge bg-panel-raised px-3 py-2 font-mono text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure"
+              className="w-40 rounded-lg border border-edge bg-panel-raised px-3 py-2 font-mono text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure"
             />
           </div>
 
@@ -200,7 +200,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
               opens this with is whether the source can spare it. */}
           <div
             role="status"
-            className="mt-5 min-h-[4.5rem] border border-edge bg-panel-raised px-4 py-3"
+            className="mt-5 min-h-[4.5rem] rounded-lg border border-edge bg-panel-raised px-4 py-3"
           >
             {showPreview ? (
               <>

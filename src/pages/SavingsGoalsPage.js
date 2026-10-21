@@ -63,9 +63,8 @@ export default function SavingsGoalsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Planning ahead"
         title="Savings goals"
-        description="Medium-term goals expected to exceed the normal budget — a new camera, a wedding, a special event — planned for on purpose instead of blowing through an envelope's estimate."
+        description="Plan and track purchases that need more than one month's budget."
         actions={
           <Button variant="primary" onClick={handleAdd}>
             Add goal

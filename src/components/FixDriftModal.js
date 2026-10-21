@@ -94,7 +94,7 @@ export default function FixDriftModal({ show, row, period, handleClose }) {
 
   const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
   const inputClass =
-    "w-full border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
+    "w-full rounded-lg border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
 
   return (
     <Dialog show={show} handleClose={handleClose} title="Settle the difference">
@@ -104,7 +104,7 @@ export default function FixDriftModal({ show, row, period, handleClose }) {
         </p>
       ) : (
         <form ref={formRef} onSubmit={handleSubmit}>
-          <dl className="border border-edge bg-panel-raised px-4 py-3">
+          <dl className="rounded-lg border border-edge bg-panel-raised px-4 py-3">
             <Line label={`${row.account.name}, as entered`} cents={row.valueCents} />
             <Line label="What the books make it" cents={row.derivedCents} />
             <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-edge pt-2">

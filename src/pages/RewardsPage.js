@@ -74,7 +74,7 @@ const formatPoints = (points) => points.toLocaleString("en-US");
 
 function Panel({ id, title, note, actions, children }) {
   return (
-    <section className="border border-edge bg-panel" aria-labelledby={id}>
+    <section className="overflow-hidden rounded-2xl border border-edge bg-panel" aria-labelledby={id}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 id={id} className="font-sans text-base font-semibold tracking-tight text-chalk">
           {title}
@@ -614,9 +614,8 @@ export default function RewardsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Rewards & travel"
         title="Points and miles"
-        description="Which card to reach for, what each one earns against what it costs a year, the offers and credits you are working through, and what your points and miles are worth on the trips you are saving them for. Cash back and points are compared on one figure, at your own valuation — every program starts on a catalog value, and every total follows yours wherever you type one. None of this counts towards your budget or net worth."
+        description="Compare cards, track rewards, and value points for trips. Rewards stay outside your budget and net worth."
         actions={
           <>
             <Button variant="primary" onClick={() => setBalanceModal({ show: true, balance: null })}>
@@ -636,7 +635,7 @@ export default function RewardsPage() {
       />
 
       <div className="space-y-6">
-        <section aria-label="What your rewards are worth" className="overflow-hidden border border-edge">
+        <section aria-label="What your rewards are worth" className="overflow-hidden rounded-2xl border border-edge">
           {/* The total takes two columns so the five kinds divide the rest
               evenly — a sixth kind arriving must not leave a ragged row. */}
           <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-7">

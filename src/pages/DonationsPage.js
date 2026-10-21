@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AddDonationModal from "../components/AddDonationModal";
 import AddOrganizationModal from "../components/AddOrganizationModal";
 import Button from "../components/Button";
@@ -8,7 +8,6 @@ import GivingGoalPanel from "../components/GivingGoalPanel";
 import GivingSummary from "../components/GivingSummary";
 import OrganizationList from "../components/OrganizationList";
 import PageHeader from "../components/PageHeader";
-import Placeholder from "../components/Placeholder";
 import YearStepper from "../components/YearStepper";
 import { useDonations } from "../contexts/DonationsContext";
 import { usePayees } from "../contexts/PayeesContext";
@@ -39,9 +38,13 @@ import { formatCents, todayISO } from "../utils";
  * the organizations are who it goes to — a standing list that outlives any year.
  */
 export default function DonationsPage() {
+  const location = useLocation();
   // Read once, so the year on screen and the year everything is filed under come
   // from the same reading of the calendar.
-  const [year, setYear] = useState(() => todayISO().slice(0, 4));
+  const [year, setYear] = useState(() => {
+    const requested = new URLSearchParams(location.search).get("year");
+    return /^\d{4}$/.test(requested ?? "") ? requested : todayISO().slice(0, 4);
+  });
   const [showDonationModal, setShowDonationModal] = useState(false);
   const [showOrganizationModal, setShowOrganizationModal] = useState(false);
   // The organization being amended, held apart from the add button: adding names
@@ -158,9 +161,8 @@ export default function DonationsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Giving"
         title="Donations"
-        description="What was given, who it went to, and how much of it is tax deductible — read a year at a time, because that is the unit a return is filed in. A gift is an ordinary expense on the register; what is added here is the part the ledger has no field for. The deductible amount is per gift, so a gala ticket can be part deductible and a raffle ticket none of it."
+        description="Review gifts, recipients, and deductible amounts by year."
         actions={
           <>
             <YearStepper year={year} onChange={setYear} />
@@ -177,7 +179,7 @@ export default function DonationsPage() {
         {error && (
           <p
             role="alert"
-            className="border border-vermilion/60 bg-panel px-4 py-3 font-sans text-row text-vermilion"
+            className="rounded-lg border border-vermilion/60 bg-panel px-4 py-3 font-sans text-row text-vermilion"
           >
             {error}
           </p>
@@ -188,7 +190,7 @@ export default function DonationsPage() {
             left to be spotted down a column, because the fix — asking the
             charity — has a deadline the page cannot see. */}
         {giving.awaitingCount > 0 && (
-          <p className="border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
+          <p className="rounded-lg border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
             <span className="font-medium text-sulfur">
               {giving.awaitingCount}{" "}
               {giving.awaitingCount === 1 ? "gift needs" : "gifts need"} a written acknowledgment
@@ -203,7 +205,7 @@ export default function DonationsPage() {
             refuses to invent — but a figure missing from a total that is going on
             a return has to be visible as missing. */}
         {giving.undatedCount > 0 && (
-          <p className="border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
+          <p className="rounded-lg border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
             <span className="font-medium text-sulfur">
               {giving.undatedCount} {giving.undatedCount === 1 ? "gift has" : "gifts have"} no date
             </span>{" "}
@@ -243,7 +245,7 @@ export default function DonationsPage() {
                 records start later rather than left wondering whether the page
                 is broken. */}
             {giving.rows.length === 0 && giving.firstYear != null && (
-              <p className="mt-3 border border-edge bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
+              <p className="mt-3 rounded-lg border border-edge bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
                 The first gift on the books is in{" "}
                 <button
                   type="button"
@@ -274,15 +276,6 @@ export default function DonationsPage() {
           </div>
         </div>
 
-        <Placeholder
-          title="Still to come"
-          items={[
-            "Non-cash gifts — goods donated, which move no money through an account",
-            "A year against the ones before it, so a habit is visible rather than a total",
-            "Pledges: what has been promised against what has been paid",
-            "Export the year's gifts as CSV, for whoever prepares the return",
-          ]}
-        />
       </div>
 
       <AddDonationModal

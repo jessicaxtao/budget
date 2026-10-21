@@ -79,7 +79,7 @@ export default function TransactionsExportPanel() {
   }
 
   return (
-    <section className="flex flex-wrap items-center justify-between gap-4 border border-edge bg-panel px-4 py-3">
+    <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-panel px-4 py-3">
       <div>
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Export transactions</h2>
         <p className="mt-1 font-sans text-row text-chalk-soft">

@@ -287,7 +287,7 @@ function NewRecoveryCode({ code, onDone }) {
       <p className="mb-3 font-sans text-row leading-relaxed text-chalk-soft">
         Shown once. The code you saved before this no longer works.
       </p>
-      <p className="mb-4 border border-edge bg-ledger px-4 py-3 text-center font-mono text-lg tracking-wider text-chalk">
+      <p className="mb-4 rounded-lg border border-edge bg-ledger px-4 py-3 text-center font-mono text-lg tracking-wider text-chalk">
         {code}
       </p>
       <div className="mb-4 flex flex-wrap gap-2">

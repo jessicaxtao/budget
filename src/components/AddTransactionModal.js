@@ -965,7 +965,7 @@ export default function AddTransactionModal({
     <Dialog show={show} handleClose={handleClose} title="New transaction">
       {/* Outside the form: it is a mode, not a field, and putting it in the
           form would have `form.reset()` fighting the state that drives it. */}
-      <div className="mb-5 grid grid-cols-3 border border-edge">
+      <div className="mb-5 grid grid-cols-3 overflow-hidden rounded-lg border border-edge">
         {[
           { value: TRANSACTION_KINDS.OUTFLOW, label: "Money out", tone: "bg-vermilion" },
           { value: TRANSACTION_KINDS.INFLOW, label: "Money in", tone: "bg-verdant" },

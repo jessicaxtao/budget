@@ -84,7 +84,7 @@ describe("the list", () => {
 
     const row = within(rowOf("Landlord"));
     expect(row.getByText("monthly on the 15th")).toBeInTheDocument();
-    expect(row.getByText("$1,800")).toBeInTheDocument();
+    expect(row.getByText("−$1,800")).toBeInTheDocument();
     // Where it comes from and what it counts as, stacked under the name.
     expect(row.getByText("Everyday · Rent")).toBeInTheDocument();
   });

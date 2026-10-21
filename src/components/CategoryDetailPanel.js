@@ -63,14 +63,8 @@ function TransactionRow({ transaction, accounts, payeeById, striped }) {
       <td className="whitespace-nowrap px-3 py-2 font-sans text-row text-ink-soft">
         {account?.name ?? "—"}
       </td>
-      <td className={`${figureCell} text-ink`}>
-        {inflow ? "—" : formatCents(transaction.amountCents)}
-      </td>
-      {/* A refund reads in the income colour, the same as it does on the
-          register — this is the one figure on the row that is money coming
-          back rather than money going out. */}
-      <td className={`${figureCell} text-verdant`}>
-        {inflow ? formatCents(transaction.amountCents) : "—"}
+      <td className={`${figureCell} ${inflow ? "text-verdant" : "text-vermilion-ink"}`}>
+        {formatCents(transaction.amountCents)}
       </td>
     </tr>
   );
@@ -122,12 +116,12 @@ export default function CategoryDetailPanel({
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                {["Date", "Payee", "Account", "Out", "In"].map((label, index) => (
+                {["Date", "Payee", "Account", "Amount"].map((label, index) => (
                   <th
                     key={label}
                     scope="col"
                     className={`sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 font-mono text-label uppercase text-chalk ${
-                      index === 0 ? "px-4 text-left" : index >= 3 ? "text-right" : "text-left"
+                      index === 0 ? "px-4 text-left" : index === 3 ? "text-right" : "text-left"
                     }`}
                   >
                     {label}

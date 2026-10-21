@@ -90,7 +90,7 @@ export default function PayOffCardModal({ show, row, handleClose }) {
 
   const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
   const inputClass =
-    "w-full border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
+    "w-full rounded-lg border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
 
   return (
     <Dialog show={show} handleClose={handleClose} title={card ? `Pay off ${card.name}` : "Pay off"}>

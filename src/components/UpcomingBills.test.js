@@ -64,7 +64,7 @@ test("a row says who, what for, how much and when", () => {
   // The account and the category stacked under the name rather than in two more
   // columns — the register's payee cell, one panel over.
   expect(screen.getByText("Everyday · Rent")).toBeInTheDocument();
-  expect(screen.getByText("$1,800")).toBeInTheDocument();
+  expect(screen.getByText("−$1,800")).toBeInTheDocument();
   expect(screen.getByText(/in 2 days/)).toBeInTheDocument();
 });
 

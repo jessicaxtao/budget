@@ -182,12 +182,12 @@ export default function ScheduleList() {
                       </td>
                       <td
                         data-label="Amount"
-                        className="px-3 py-1.5 text-right font-mono text-row tabular-nums text-ink"
+                        className={`px-3 py-1.5 text-right font-mono text-row tabular-nums ${isInflow ? "text-verdant" : "text-vermilion-ink"}`}
                       >
                         {/* Signed, because there is one column and a scheduled
                             paycheque beside a scheduled bill has to be visibly the
                             other direction. */}
-                        {isInflow ? "+" : ""}
+                        {isInflow ? "+" : "−"}
                         {formatCents(row.schedule.amountCents)}
                       </td>
                       <td data-label="Next" className="px-3 py-1.5 font-mono text-row tabular-nums text-ink">

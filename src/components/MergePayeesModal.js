@@ -83,7 +83,7 @@ export default function MergePayeesModal({
             There is no other payee to merge in yet.
           </p>
         ) : (
-          <ul className="mb-4 max-h-64 overflow-y-auto border border-edge">
+          <ul className="mb-4 max-h-64 overflow-y-auto rounded-lg border border-edge">
             {others.map((payee, index) => {
               const count = countById.get(payee.id) ?? 0;
               return (

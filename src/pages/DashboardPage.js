@@ -237,9 +237,8 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Overview"
         title="Dashboard"
-        description="What is left to budget, what this month has done, what is due next, and when the next paycheck lands."
+        description="Your budget, bills, and account balances today."
         actions={
           <div className="text-right">
             <div className="font-mono text-label uppercase text-chalk-soft">Today</div>

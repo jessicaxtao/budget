@@ -103,7 +103,7 @@ export default function ImportBooksGate({ children }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-ledger px-6 py-12">
-      <div className="w-full max-w-lg border border-edge bg-panel p-7">
+      <div className="w-full max-w-lg rounded-2xl border border-edge bg-panel p-7">
         <h1 className="font-sans text-lg font-bold tracking-tight text-chalk">
           Bring this {deviceLabel()}'s books with you?
         </h1>

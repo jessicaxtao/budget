@@ -146,7 +146,7 @@ body {
 /**
  * The register, as cards, on a screen too narrow to be a register.
  *
- * Six columns of a ledger come to 712px of fixed widths and a phone has 343 —
+ * A ledger's fixed columns are wider than a phone —
  * and this is the one table that cannot be put in a `.scroll-x` box, because
  * paint containment would become the containing block for `PayeeField`'s
  * dropdown, which is fixed-positioned precisely so it can escape this table.
@@ -177,22 +177,13 @@ body {
   }
 
   /**
-   * Not a straight stack: seven cells one under another is a card the height of
-   * the screen, and a month of them is a scroll nobody finishes. Two lines, read
-   * the way a bank statement is: who and how much on the first, when and where
-   * from on the second. Twelve equal tracks rather than named columns, so each
-   * line can share the width out its own way — the payee takes the most of the
-   * first, the date, category and account a third each of the second.
-   *
-   * **Only the two figures keep a heading.** A date reads as a date and a
-   * category or account as its name, but an empty box beside "$45.00" says
-   * nothing about which way the money went — and both boxes stay, because typing
-   * into the other one is how a misfiled row is moved across, here as on the
-   * grid.
+   * Two lines keep each entry compact: payee and date first, then category,
+   * account and signed amount. The amount uses only the width it needs, up to
+   * half the row, and the two selectors share what remains.
    */
   table.reflow tbody tr {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) fit-content(50%);
     gap: 0 0.25rem;
     align-items: end;
     padding: 0.25rem 0.25rem 0.375rem;
@@ -207,51 +198,47 @@ body {
     text-align: left;
   }
 
-  /* The grid's 12px gutters, on a card a third of the width, are most of a
-     category's name. */
+  /* Keep cell padding small so names remain readable at phone widths. */
   table.reflow tbody td {
     padding: 0 0.125rem;
   }
 
   table.reflow td[data-label="Payee & note"] {
-    grid-column: 1 / 6;
+    grid-column: 1 / -1;
     grid-row: 1;
-  }
-
-  table.reflow td[data-label="In"] {
-    grid-column: 6 / 9;
-    grid-row: 1;
-  }
-
-  table.reflow td[data-label="Out"] {
-    grid-column: 9 / 12;
-    grid-row: 1;
-  }
-
-  table.reflow td[data-label="In"],
-  table.reflow td[data-label="Out"] {
-    text-align: right;
-  }
-
-  /* The remove button is the only unlabelled cell, and it ends the first line. */
-  table.reflow tbody td:not([data-label]):not([colspan]) {
-    grid-column: 12;
-    grid-row: 1;
-    justify-self: end;
+    padding-right: calc(min(8.5rem, 45%) + 0.25rem);
   }
 
   table.reflow td[data-label="Date"] {
-    grid-column: 1 / 5;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: end;
+    width: min(8.5rem, 45%);
+    text-align: right;
+  }
+
+  table.reflow td[data-label="Date"] input {
+    text-align: right;
+  }
+
+  table.reflow td[data-label="Amount"] {
+    grid-column: 3;
     grid-row: 2;
+    text-align: right;
+  }
+
+  /* Keep deletion in the desktop register; the mobile row is two content lines. */
+  table.reflow tbody td[data-action="remove"] {
+    display: none;
   }
 
   table.reflow td[data-label="Category"] {
-    grid-column: 5 / 9;
+    grid-column: 1;
     grid-row: 2;
   }
 
   table.reflow td[data-label="Account"] {
-    grid-column: 9 / -1;
+    grid-column: 2;
     grid-row: 2;
   }
 
@@ -267,18 +254,6 @@ body {
     grid-column: 1 / -1;
   }
 
-  table.reflow td[data-label="In"]::before,
-  table.reflow td[data-label="Out"]::before {
-    content: attr(data-label);
-    display: block;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 0.625rem;
-    letter-spacing: 0.08em;
-    line-height: 0.875rem;
-    text-transform: uppercase;
-    color: rgb(var(--c-ink-soft));
-  }
-
   /* The band and the month's footing keep their own shape: a label on the left
      and its figures after it, which is what they are for. */
   table.reflow tbody tr:has(> th[scope="colgroup"]),
@@ -287,6 +262,10 @@ body {
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0 0.75rem;
+  }
+
+  table.reflow tfoot th {
+    flex: 1 1 100%;
   }
 }
 

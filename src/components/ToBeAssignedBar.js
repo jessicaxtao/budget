@@ -66,7 +66,6 @@ export default function ToBeAssignedBar({
         <div className="flex items-center gap-3">
           {/* The label beside him says the same thing in words. */}
           <Elder mood={tone.mood} className="h-9 w-10" />
-          <span className="font-mono text-label uppercase text-chalk-soft">To be assigned</span>
           {/* No tabular-nums: equal-width digits make a large standalone figure
               look loose, and this one is not in a column of anything. */}
           <span className={`font-mono text-figure font-medium ${tone.text}`}>

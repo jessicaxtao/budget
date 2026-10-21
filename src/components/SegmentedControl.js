@@ -19,7 +19,7 @@
  */
 export default function SegmentedControl({ label, options, value, onChange, className = "" }) {
   return (
-    <div role="group" aria-label={label} className={`inline-flex border border-edge ${className}`}>
+    <div role="group" aria-label={label} className={`inline-flex overflow-hidden rounded-lg border border-edge ${className}`}>
       {options.map((option, index) => {
         const selected = option.value === value;
         return (

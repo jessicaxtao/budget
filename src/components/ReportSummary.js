@@ -61,11 +61,11 @@ function netTone(cents) {
 function Tile({ label, figure, tone = "text-chalk", note = null }) {
   return (
     <div className="bg-panel px-4 py-3">
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+      <dt className="font-sans text-xs font-medium text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-figure font-medium tabular-nums ${tone}`}>{figure}</dd>
       {/* Omitted rather than left empty: a tile with nothing to say under its
           figure says nothing, and an empty line still carries its own margin. */}
-      {note && <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>}
+      {note && <dd className="mt-0.5 font-sans text-xs text-chalk-soft">{note}</dd>}
     </div>
   );
 }

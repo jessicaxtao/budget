@@ -132,7 +132,7 @@ function MonthField({ id, label, value, min, max, onChange }) {
         min={min}
         max={max}
         onChange={(event) => onChange(event.target.value)}
-        className="border border-edge bg-panel-raised px-2 py-1 font-mono text-label uppercase text-chalk outline-none transition-colors focus:border-azure"
+        className="rounded-lg border border-edge bg-panel-raised px-2 py-1 font-mono text-label uppercase text-chalk outline-none transition-colors focus:border-azure"
       />
     </label>
   );
@@ -212,9 +212,8 @@ export default function ReportsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Analysis"
         title="Spending reports"
-        description="What came in, what went out, and where it went — read over a run of months rather than one. Per-month figures spread the whole window evenly, so a premium paid once a year sits beside the rent as the monthly rate it really is."
+        description="See income, spending, and category trends across months."
         actions={
           <div className="flex flex-col items-end gap-2">
             <SegmentedControl
@@ -251,7 +250,7 @@ export default function ReportsPage() {
       />
 
       {!report.hasLedger ? (
-        <section className="border border-edge bg-panel">
+        <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
           <p className="px-4 py-5 font-sans text-row text-chalk-soft">
             Nothing has been recorded yet.{" "}
             <Link
@@ -268,7 +267,7 @@ export default function ReportsPage() {
         <div className="space-y-4">
           <ReportWidgetLayout>
           <div data-widget-id="summary"><ReportSummary report={report} /></div>
-          <section data-widget-id="scheduled" className="border border-edge bg-panel">
+          <section data-widget-id="scheduled" className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Scheduled and other spending
@@ -292,7 +291,7 @@ export default function ReportsPage() {
           {(coverage || report.undatedCount > 0) && (
             <div className="space-y-2">
               {coverage && (
-                <p className="border border-edge bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
+                <p className="rounded-lg border border-edge bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
                   {coverage}
                 </p>
               )}
@@ -302,7 +301,7 @@ export default function ReportsPage() {
                   chart has to be visible as missing rather than left for the
                   reader to find against the register. */}
               {report.undatedCount > 0 && (
-                <p className="border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
+                <p className="rounded-lg border border-sulfur/50 bg-panel px-4 py-3 font-sans text-row text-chalk-soft">
                   <span className="font-medium text-sulfur">
                     {report.undatedCount}{" "}
                     {report.undatedCount === 1 ? "record has" : "records have"} no date
@@ -322,7 +321,7 @@ export default function ReportsPage() {
             </div>
           )}
 
-          <section data-widget-id="month" className="border border-edge bg-panel">
+          <section data-widget-id="month" className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Month by month
@@ -449,7 +448,7 @@ export default function ReportsPage() {
               the ranking below is the category axis; this is the one view of
               the whole window at once, and the only one that shows each answer
               as a share of everything that came in. */}
-          <section data-widget-id="flows" className="border border-edge bg-panel">
+          <section data-widget-id="flows" className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
@@ -546,7 +545,7 @@ export default function ReportsPage() {
               be comfortably in the black and still be nothing like the plan it
               was supposed to be, which is precisely the month a budget exists
               to catch. */}
-          <section data-widget-id="plan" className="border border-edge bg-panel">
+          <section data-widget-id="plan" className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Against the plan

@@ -4,6 +4,7 @@ import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
 import Button from "../components/Button";
 import BooksEncryptionPanel from "../components/BooksEncryptionPanel";
 import BooksFilePanel from "../components/BooksFilePanel";
+import DonationsTaxPanel from "../components/DonationsTaxPanel";
 import HouseholdPanel from "../components/HouseholdPanel";
 import GivingCategoriesPanel from "../components/GivingCategoriesPanel";
 import PageHeader from "../components/PageHeader";
@@ -30,9 +31,8 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Settings"
         title="Household setup"
-        description="Set reward point values and giving categories, manage recurring schedules and payees, export transactions, review account history, and manage your books file."
+        description="Manage household preferences, schedules, exports, and your books file."
         actions={
           <Button variant="outline" onClick={() => setShowAssignStartingModal(true)}>
             Assign starting balances
@@ -41,7 +41,7 @@ export default function SettingsPage() {
       />
 
       <div className="space-y-4">
-        <section className="flex flex-wrap items-center justify-between gap-4 border border-edge bg-panel px-4 py-3">
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-edge bg-panel px-4 py-3">
           <div>
             <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Appearance</h2>
             <p className="mt-1 font-sans text-row text-chalk-soft">
@@ -62,6 +62,7 @@ export default function SettingsPage() {
         <ScheduleList />
         <PayeeList />
         <TransactionsExportPanel />
+        <DonationsTaxPanel />
         <BalanceHistoryPanel />
         <BooksFilePanel />
         <BooksEncryptionPanel />

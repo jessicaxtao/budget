@@ -77,9 +77,8 @@ module.exports = {
         property: token("property"),
       },
       fontFamily: {
-        // Young Serif is for the few words that name a place — the app and each
-        // page title — and nothing that has to be scanned. DM Sans carries the
-        // structure, and the figures stay in Plex Mono.
+        // Young Serif marks the app's name. DM Sans carries page hierarchy and
+        // controls, and the figures stay in Plex Mono.
         display: ["'Young Serif'", "Georgia", "serif"],
         sans: ["'DM Sans'", "system-ui", "sans-serif"],
         mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],

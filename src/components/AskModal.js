@@ -238,7 +238,7 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
                       setModel(e.target.value);
                       saveModel(e.target.value);
                     }}
-                    className="border border-edge bg-panel px-2 py-1 font-mono text-label normal-case text-chalk outline-none focus:border-azure"
+                    className="rounded-lg border border-edge bg-panel px-2 py-1 font-mono text-label normal-case text-chalk outline-none focus:border-azure"
                   >
                     {status.models.map((name) => (
                       <option key={name} value={name}>
@@ -332,7 +332,7 @@ function SetupPanel({ config, onSaved, onCancel }) {
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
-          className="w-full border border-edge bg-panel px-2 py-1.5 font-sans text-row text-chalk outline-none focus:border-azure"
+          className="w-full rounded-lg border border-edge bg-panel px-2 py-1.5 font-sans text-row text-chalk outline-none focus:border-azure"
         >
           {options.map((id) => (
             <option key={id} value={id}>
@@ -353,7 +353,7 @@ function SetupPanel({ config, onSaved, onCancel }) {
               autoComplete="off"
               value={keys[provider] ?? ""}
               onChange={(e) => setKeys({ ...keys, [provider]: e.target.value })}
-              className="w-full border border-edge bg-panel px-2 py-1.5 font-mono text-row text-chalk outline-none focus:border-azure"
+              className="w-full rounded-lg border border-edge bg-panel px-2 py-1.5 font-mono text-row text-chalk outline-none focus:border-azure"
             />
           </label>
           <p className="mb-4 font-sans text-label text-chalk-soft">{meta.keyHint}</p>
@@ -368,7 +368,7 @@ function SetupPanel({ config, onSaved, onCancel }) {
               placeholder={meta.defaultModel}
               value={models[provider] ?? ""}
               onChange={(e) => setModels({ ...models, [provider]: e.target.value })}
-              className="w-full border border-edge bg-panel px-2 py-1.5 font-mono text-row text-chalk outline-none focus:border-azure"
+              className="w-full rounded-lg border border-edge bg-panel px-2 py-1.5 font-mono text-row text-chalk outline-none focus:border-azure"
             />
           </label>
           <p className="mb-5 font-sans text-label text-chalk-soft">
@@ -406,7 +406,7 @@ function Unavailable({ reason, onRetry, onUseHosted }) {
           ? "Ollama is running, but it has no models yet. Pull one from a terminal, then try again:"
           : "The local model (Ollama) isn't answering. Install it from ollama.com, pull a model, and leave it running:"}
       </p>
-      <pre className="mb-4 border border-edge bg-panel-raised px-3 py-2 font-mono text-row text-chalk">
+      <pre className="mb-4 rounded-lg border border-edge bg-panel-raised px-3 py-2 font-mono text-row text-chalk">
         ollama pull {SUGGESTED_MODEL}
       </pre>
       <div className="flex flex-wrap items-center gap-3">
@@ -502,7 +502,7 @@ function RefilePreview({ refile }) {
         </ul>
       )}
       {candidates.length > 0 && (
-        <div className="mb-4 max-h-64 overflow-y-auto border border-edge">
+        <div className="mb-4 max-h-64 overflow-y-auto rounded-lg border border-edge">
           <table className="w-full bg-sheet text-ink">
             <caption className="sr-only">
               Transactions from {payee.name} to refile

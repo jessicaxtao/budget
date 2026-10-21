@@ -79,10 +79,10 @@ function seed(data = {}) {
   }
 }
 
-function renderPage() {
+function renderPage(entry = "/donations") {
   return render(
     <AppProviders>
-      <MemoryRouter future={routerFuture}>
+      <MemoryRouter initialEntries={[entry]} future={routerFuture}>
         <DonationsPage />
       </MemoryRouter>
     </AppProviders>
@@ -382,6 +382,16 @@ describe("the goal", () => {
 });
 
 describe("the year", () => {
+  test("opens the year selected from the Settings review", () => {
+    const lastYear = gift(`${LAST_YEAR}-11-04`, 50000, "Winter appeal");
+    seed({ transactions: [lastYear], donations: [tag(lastYear.id, RED_CROSS.id, 50000)] });
+    renderPage(`/donations?year=${LAST_YEAR}`);
+
+    expect(screen.getByText("Winter appeal")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: `Gifts in ${LAST_YEAR}` })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Export .* CSV/ })).not.toBeInTheDocument();
+  });
+
   test("stepping back moves every figure on the page together", () => {
     const thisYear = gift(`${YEAR}-03-04`, 20000, "Spring appeal");
     const lastYear = gift(`${LAST_YEAR}-11-04`, 50000, "Winter appeal");

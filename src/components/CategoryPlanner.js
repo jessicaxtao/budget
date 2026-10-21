@@ -421,7 +421,7 @@ function CategoryRow({
  */
 function DraggedRow({ budget }) {
   return (
-    <div className={`${rowClass(0)} border border-azure shadow-lg`}>
+    <div className={`${rowClass(0)} rounded-lg border border-azure shadow-lg`}>
       <span className={`${handleClass} ${PLACE.handle}`}>
         <GripIcon />
       </span>

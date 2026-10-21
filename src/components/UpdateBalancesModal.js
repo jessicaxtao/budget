@@ -158,7 +158,7 @@ export default function UpdateBalancesModal({ show, period, tracked, handleClose
       title={`Update balances · ${formatPeriod(period)}`}
     >
       <form ref={formRef} onSubmit={handleSubmit} onChange={recompute}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border border-edge bg-panel-raised px-4 py-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge bg-panel-raised px-4 py-3">
           <div>
             <div className="font-mono text-label uppercase text-chalk-soft">
               Net worth, as entered

@@ -293,7 +293,7 @@ export default function AssignIncomeModal({
       actions={steppable ? <PeriodStepper period={month} onChange={setMonth} /> : null}
     >
       <form ref={formRef} onSubmit={handleSubmit} onChange={recompute}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border border-edge bg-panel-raised px-4 py-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge bg-panel-raised px-4 py-3">
           <div>
             <div className="font-mono text-label uppercase text-chalk-soft">Remaining to assign</div>
             {/* A status region, so the figure is announced as it changes

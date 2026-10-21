@@ -128,13 +128,15 @@ test("a date typed on the row files it into that month", () => {
   expect(entry("t1").date).toBe(`${PERIOD}-02`);
 });
 
-test("typing into the other column turns an expense into a refund, keeping the row", () => {
+test("a typed sign changes an expense into a refund without replacing its row", () => {
   seed();
   renderPage();
 
-  const inCell = screen.getByLabelText("In for Trader Joe's");
-  fireEvent.change(inCell, { target: { value: "78.40" } });
-  fireEvent.blur(inCell);
+  expect(screen.getByRole("columnheader", { name: "Amount" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Amount for Trader Joe's")).toHaveValue("$78.40");
+  const amount = screen.getByLabelText("Amount for Trader Joe's");
+  fireEvent.change(amount, { target: { value: "+78.40" } });
+  fireEvent.blur(amount);
 
   // Same category, same account, same date — an inflow filed against a
   // category is money going back into that envelope.
@@ -152,8 +154,8 @@ test("typing into the other column turns an expense into a refund, keeping the r
     splits: null,
     budgetId: "b1",
   });
-  expect(screen.getByLabelText("In for Trader Joe's")).toHaveValue("$78.40");
-  expect(screen.getByLabelText("Out for Trader Joe's")).toHaveValue("");
+  expect(screen.getByLabelText("Amount for Trader Joe's")).toHaveValue("$78.40");
+  expect(screen.queryByRole("button", { name: /Change Trader Joe's to money/ })).not.toBeInTheDocument();
 });
 
 test("a flip the books cannot take is refused on the row, not written", () => {
@@ -161,14 +163,14 @@ test("a flip the books cannot take is refused on the row, not written", () => {
   renderPage();
 
   // Income has no category, and an expense must name one. The store refuses it
-  // and the register says which cell has to be answered first.
-  const outCell = screen.getByLabelText("Out for Paycheck");
-  fireEvent.change(outCell, { target: { value: "2140" } });
-  fireEvent.blur(outCell);
+  // and the register says which field has to be answered first.
+  const amount = screen.getByLabelText("Amount for Paycheck");
+  fireEvent.change(amount, { target: { value: "-2140" } });
+  fireEvent.blur(amount);
 
   expect(screen.getByRole("alert")).toHaveTextContent(/category/i);
   expect(entry("t2").kind).toBe(TRANSACTION_KINDS.INFLOW);
-  expect(screen.getByLabelText("Out for Paycheck")).toHaveValue("");
+  expect(screen.getByLabelText("Amount for Paycheck")).toHaveValue("$2,140");
 });
 
 test("a legacy row can be corrected without being asked to invent the rest", () => {
@@ -345,7 +347,7 @@ describe("a transfer on the register", () => {
 
     expect(screen.getByText("$1,800")).toBeInTheDocument();
 
-    const out = screen.getByLabelText("Out for Card payment");
+    const out = screen.getByLabelText("Amount for Card payment");
     fireEvent.change(out, { target: { value: "250" } });
     fireEvent.blur(out);
 

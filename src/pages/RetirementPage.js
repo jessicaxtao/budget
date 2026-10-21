@@ -241,9 +241,8 @@ export default function RetirementPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Long range"
         title="Retirement planning"
-        description="What has to be there on the day you stop working, and whether you are on course for it. Every figure is in today's dollars — the target is a share of what you earn now, so the projection is deflated to match rather than being grown at a rate that would flatter it."
+        description="Check your retirement target and projected savings in today's dollars."
         actions={
           <Button variant="danger" onClick={resetRetirementPlan}>
             Reset plan
@@ -259,7 +258,7 @@ export default function RetirementPage() {
         />
 
         {projection.ready && (
-          <section className="border border-edge bg-panel">
+          <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Year by year
@@ -353,7 +352,7 @@ export default function RetirementPage() {
                     type="button"
                     onClick={runCurrentSimulation}
                     disabled={simulation.loading}
-                    className="border border-edge bg-panel-raised px-3 py-1.5 font-mono text-label uppercase text-chalk transition-colors hover:bg-edge disabled:opacity-50"
+                    className="rounded-lg border border-edge bg-panel-raised px-3 py-1.5 font-mono text-label uppercase text-chalk transition-colors hover:bg-edge disabled:opacity-50"
                   >
                     {simulation.loading ? "Running…" : "Run simulation"}
                   </button>

@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { formatCents, formatDateMedium, formatDayDelta, formatPeriod } from "../utils";
-import Elder, { ELDER_MOODS } from "./Elder";
 import TallyGauge from "./TallyGauge";
 
 /**
@@ -22,9 +21,9 @@ import TallyGauge from "./TallyGauge";
 // has read the Transactions page reads this one the same way: money with no job
 // yet needs a decision, money over-assigned is an error, and zero is the goal.
 function availableTone(cents) {
-  if (cents < 0) return { text: "text-vermilion", label: "Over-assigned", mood: ELDER_MOODS.CONCERNED };
-  if (cents > 0) return { text: "text-sulfur", label: "Unassigned", mood: ELDER_MOODS.PONDERING };
-  return { text: "text-verdant", label: "All assigned", mood: ELDER_MOODS.CONTENT };
+  if (cents < 0) return { text: "text-vermilion", label: "Over-assigned" };
+  if (cents > 0) return { text: "text-sulfur", label: "Unassigned" };
+  return { text: "text-verdant", label: "All assigned" };
 }
 
 /**
@@ -58,18 +57,13 @@ function budgetedTone(budgetedCents, plannedCents, categoryCount) {
   return { text: "text-azure", note: `Matches the ${formatCents(plannedCents)} plan` };
 }
 
-function Tile({ label, figure, tone = "text-chalk", note, mood }) {
+function Tile({ label, figure, tone = "text-chalk", note }) {
   return (
-    <div className={`relative bg-panel px-4 py-3 ${mood ? "pr-20" : ""}`}>
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+    <div className="bg-panel px-4 py-3">
+      <dt className="font-sans text-xs font-medium text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-figure font-medium tabular-nums ${tone}`}>{figure}</dd>
-      <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+      <dd className="mt-0.5 font-sans text-xs text-chalk-soft">
         {note}
-        {/* The Elder answers the dashboard's first question beside the figure
-            that states it, in the mood that figure's tone already says. Inside
-            a <dd> because a <dl>'s groups may hold nothing else; hidden from
-            assistive tech, so the note's text is still the whole of it. */}
-        {mood && <Elder mood={mood} className="absolute right-3 top-3 h-12 w-14" />}
       </dd>
     </div>
   );
@@ -97,7 +91,6 @@ export default function DashboardSummary({
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           {formatPeriod(period)}
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">This month</span>
       </div>
 
       {/* Hairline dividers drawn by the grid gap showing the edge colour through
@@ -126,7 +119,6 @@ export default function DashboardSummary({
               tone.label
             )
           }
-          mood={tone.mood}
         />
         <Tile
           label="Budgeted this month"
@@ -158,9 +150,9 @@ export default function DashboardSummary({
           />
         ) : (
           <div className="bg-panel px-4 py-3">
-            <dt className="font-mono text-label uppercase text-chalk-soft">Next paycheck</dt>
+            <dt className="font-sans text-xs font-medium text-chalk-soft">Next paycheck</dt>
             <dd className="mt-1 font-mono text-figure font-medium text-chalk-soft">—</dd>
-            <dd className="mt-0.5 font-sans text-row text-chalk-soft">
+            <dd className="mt-0.5 font-sans text-xs text-chalk-soft">
               <Link
                 to="/plan"
                 className="text-azure underline underline-offset-2 hover:text-chalk"
@@ -183,7 +175,7 @@ export default function DashboardSummary({
             max={fundedCents}
             label="Spent this month against the money sitting in envelopes"
           />
-          <span className="font-mono text-label uppercase text-chalk-soft">
+          <span className="font-sans text-xs text-chalk-soft">
             {formatCents(spentCents)} spent of {formatCents(fundedCents)} in envelopes
           </span>
         </div>

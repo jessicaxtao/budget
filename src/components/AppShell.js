@@ -39,6 +39,9 @@ export default function AppShell({ children }) {
 
   return (
     <div className="min-h-screen bg-ledger">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-panel focus:px-3 focus:py-2 focus:text-chalk">
+        Skip to content
+      </a>
       <header className="bg-canopy">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-4 sm:gap-x-4 sm:pt-5">
@@ -86,7 +89,7 @@ export default function AppShell({ children }) {
       {/* The bottom padding is for the entry bar that covers the foot of the
           page on a phone — without it the last row of every table sits under
           it. */}
-      <main className="mx-auto max-w-6xl px-4 py-6 pb-28 sm:px-6 sm:py-9 sm:pb-9">{children}</main>
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl px-4 pt-4 pb-28 sm:px-6 sm:py-9 sm:pb-9">{children}</main>
     </div>
   );
 }
@@ -131,6 +134,20 @@ function QuickEntry() {
   const [drafted, setDrafted] = useState(null);
   const [moving, setMoving] = useState(null);
 
+  const { user, status } = useAuth() ?? {};
+  // Ask is always available on desktop (Ollama), when there is no auth context
+  // (LOCAL_ONLY builds, the test environment), and while the session is still
+  // resolving (CHECKING — so no flash for flagged users on page load). On the
+  // web it is gated to the preview_testers group. The group is written into
+  // app_metadata.groups by the custom JWT claims hook in Supabase; adjust the
+  // field path here if the hook puts it somewhere else.
+  const canAsk =
+    isDesktop() ||
+    !status ||
+    status === AUTH_STATUS.LOCAL_ONLY ||
+    status === AUTH_STATUS.CHECKING ||
+    (user?.app_metadata?.groups?.includes("preview_testers") ?? false);
+
   return (
     <>
       <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-on-canopy-soft/30 bg-canopy px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0">
@@ -152,20 +169,22 @@ function QuickEntry() {
           <span aria-hidden="true">⇄</span>
           Transfer
         </Button>
-        <Button
-          variant="canopy"
-          className="flex-1 rounded-full py-2.5 sm:flex-none sm:py-2"
-          type="button"
-          onClick={() => setAsking(true)}
-        >
-          <span aria-hidden="true">✦</span>
-          Ask
-        </Button>
+        {canAsk && (
+          <Button
+            variant="canopy"
+            className="flex-1 rounded-full py-2.5 sm:flex-none sm:py-2"
+            type="button"
+            onClick={() => setAsking(true)}
+          >
+            <span aria-hidden="true">✦</span>
+            Ask
+          </Button>
+        )}
       </div>
       {kind != null && (
         <AddTransactionModal show defaultKind={kind} handleClose={() => setKind(null)} />
       )}
-      {asking && (
+      {asking && canAsk && (
         <AskModal
           handleClose={() => setAsking(false)}
           onDraft={(resolved) => {
@@ -275,7 +294,7 @@ function AccountControl() {
           stay as its accessible name, and `title` says them on hover. */}
       <Button
         variant="canopy"
-        className="gap-2 rounded-full max-sm:px-2.5 sm:rounded-none sm:px-2 sm:py-1 sm:text-label"
+        className="gap-2 rounded-full max-sm:px-2.5 sm:rounded-lg sm:px-2 sm:py-1 sm:text-label"
         type="button"
         title="Sign out"
         onClick={signOut}
@@ -330,7 +349,7 @@ function SyncBadge({ state }) {
         title={`Your edits are safe ${
           isDesktop() ? "on this computer" : "in this browser"
         } and will be sent when the connection is back.`}
-        className={`col-start-1 row-start-1 text-center sm:border sm:border-on-canopy-rust/60 sm:px-2 sm:py-0.5 font-mono text-label uppercase text-on-canopy-rust ${
+        className={`col-start-1 row-start-1 text-center sm:rounded-lg sm:border sm:border-on-canopy-rust/60 sm:px-2 sm:py-0.5 font-mono text-label uppercase text-on-canopy-rust ${
           offline ? "" : "invisible"
         }`}
       >

@@ -59,9 +59,9 @@ export default function Dialog({ show, handleClose, title, actions, wide, childr
       ref={dialogRef}
       aria-label={title}
       onClick={handleBackdropClick}
-      className={`mb-0 mt-auto max-h-[92vh] w-full max-w-none rounded-t-2xl border border-edge bg-panel p-0 font-sans text-chalk shadow-2xl shadow-black/50 backdrop:bg-black/60 sm:my-auto sm:max-h-[85vh] sm:rounded-none ${
+      className={`mb-0 mt-auto max-h-[92vh] w-full max-w-none rounded-t-2xl border border-edge bg-panel p-0 font-sans text-chalk shadow-2xl shadow-black/50 backdrop:bg-black/60 sm:my-auto sm:max-h-[85vh] sm:rounded-2xl ${
         wide ? "sm:max-w-2xl" : "sm:max-w-lg"
-      } overflow-y-auto`}
+      } overflow-y-auto overscroll-contain`}
     >
       <div className="p-4 sm:p-6">
         <div className="sticky -top-4 z-10 mb-5 flex items-start justify-between gap-4 border-b border-edge bg-panel pb-4 pt-4 sm:static sm:pt-0">
@@ -72,7 +72,7 @@ export default function Dialog({ show, handleClose, title, actions, wide, childr
               type="button"
               aria-label="Close"
               onClick={() => dialogRef.current.close()}
-              className="flex h-8 w-8 shrink-0 items-center justify-center border border-edge text-base leading-none text-chalk-soft transition-colors hover:border-azure hover:text-azure sm:h-7 sm:w-7"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-edge text-base leading-none text-chalk-soft transition-colors hover:border-azure hover:text-azure sm:h-7 sm:w-7"
             >
               &times;
             </button>

@@ -84,7 +84,7 @@ export default function EnterScheduledModal({ show, row, name, filing, onEnter, 
               fields: a disabled input reads as something that could have been
               edited and was taken away, where this reads as what it is — the part
               of the answer the schedule already gave. */}
-          <dl className="mb-5 border border-edge">
+          <dl className="mb-5 overflow-hidden rounded-lg border border-edge">
             {[
               { term: isInflow ? "From" : "To", value: name },
               { term: "Account and category", value: filing },

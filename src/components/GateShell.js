@@ -19,7 +19,7 @@ export default function GateShell({ title, blurb, children, footer }) {
           Canopy Budget
         </div>
 
-        <div className="border border-edge bg-panel p-7">
+        <div className="rounded-2xl border border-edge bg-panel p-7">
           <h1 className="font-sans text-lg font-bold tracking-tight text-chalk">{title}</h1>
           <p className="mb-7 mt-2 font-sans text-sm leading-relaxed text-chalk-soft">{blurb}</p>
           {children}

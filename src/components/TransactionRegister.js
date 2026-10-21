@@ -10,18 +10,12 @@ import { amountAtRest, amountEditing, formatCents, formatPeriod, toCents } from 
  * The ledger as a register: one row per movement of money, every field on it
  * editable where it sits.
  *
- * This is the shape a household already knows — the columns of a chequebook
- * stub, or of the spreadsheet this app replaced. Money in and money out get a
- * **column each** rather than one signed figure, which is how a register has
- * always told them apart, and it is also how the direction is edited: type a
- * figure into the other column and the row changes sides. Filing a paycheque as
- * an expense is the mistake that used to cost a delete and a full re-entry.
+ * A single colored amount shows direction at a glance. On ordinary transactions,
+ * a sign while editing changes direction without losing the rest of the row.
  *
- * **A transfer row is the one that does not work that way.** It has no direction
- * to change sides on — its direction is its pair of accounts — so it takes the Out
- * column, its In cell is a dash rather than an empty input, and both of its
- * accounts sit stacked in the Account cell where the other rows carry one. Whether
- * it has a category to file is not the user's choice either: only a transfer
+ * **A transfer row is the one that does not work that way.** Its direction is
+ * its pair of accounts, stacked in the Account cell. Whether it has a category
+ * to file is not the user's choice either: only a transfer
  * leaving the budget comes out of an envelope, so the rest show a dash there too.
  * Both rules are read off `insideBudget`, the same predicate
  * `AddTransactionModal` and `budgetLegs` ask, so no two screens can disagree about
@@ -32,18 +26,15 @@ import { amountAtRest, amountEditing, formatCents, formatPeriod, toCents } from 
  * cell can be edited where it sits: a part typed down on its own would leave the
  * division short of the whole, and the store would refuse it every time. Both
  * cells become buttons onto `SplitTransactionModal`, where the total and the
- * parts move together and commit at once. The column it is not in is a dash, for
- * the transfer's reason — a figure typed there would be asking for a direction
- * change the parts cannot follow.
+ * parts move together and commit at once.
  *
  * **The Payee column holds two fields, not one.** Who the money went to is the
  * row's subject and is named through `PayeeField`, which searches the payee list
  * as the letters go in and offers to create one that is not there yet; the note
  * beside it is what the single free-text column used to be, and is where every
  * row written before payees existed still carries its text. They share one column
- * because the six fixed widths already come to 712px and the grid has to stay
- * inside its container at 768px — the same arithmetic that put both ends of a
- * transfer in the Account cell. Naming a payee here **never** re-files the row's
+ * to preserve room for the amount and stay inside the container — the same
+ * arithmetic that put both ends of a transfer in the Account cell. Naming a payee here **never** re-files the row's
  * category, even where the payee has a default one: that default seeds a new
  * transaction, and money already filed is not moved because a name was corrected.
  *
@@ -89,19 +80,17 @@ import { amountAtRest, amountEditing, formatCents, formatPeriod, toCents } from 
 // the column actually holds: a date, a category name, an account name, a figure.
 // Description names no width and so takes whatever is left.
 const COLUMNS = [
-  { key: "date", label: "Date", width: "w-36" },
   // Two fields in one column, which is the transfer's own precedent applied
-  // again: the six fixed widths already come to 712px and the grid has to stay
-  // inside its container at 768px, so a seventh column is not available. The
+  // again: the fixed columns have to stay inside the container. The
   // payee leads because it identifies the row; the note is the mark after it.
   { key: "payee", label: "Payee & note" },
+  { key: "date", label: "Date", width: "w-36" },
   { key: "budgetId", label: "Category", width: "w-40" },
   { key: "accountId", label: "Account", width: "w-36" },
-  { key: "in", label: "In", width: "w-28", numeric: true },
-  { key: "out", label: "Out", width: "w-28", numeric: true },
+  { key: "amount", label: "Amount", width: "w-40", numeric: true },
 ];
 
-// Everything to the left of the two amount columns, which is what a subtotal
+// Everything to the left of the amount column, which is what a subtotal
 // label spans. Derived rather than written as a number, so reordering the list
 // above cannot leave a stale colspan behind.
 const LEAD_SPAN = COLUMNS.findIndex((column) => column.numeric);
@@ -162,7 +151,7 @@ function NoteIcon({ filled }) {
 // shorter way to hide it and the wrong one: a hidden element cannot be reached
 // by the keyboard, and this is the only route to the note on a named row.
 const noteMark =
-  "shrink-0 self-center rounded-sm p-0.5 text-ink-soft transition-colors hover:text-ink focus-visible:text-ink";
+  "shrink-0 self-center rounded-sm p-0.5 text-ink-soft transition-colors hover:text-ink focus-visible:text-ink max-sm:flex max-sm:min-h-8 max-sm:min-w-8 max-sm:items-center max-sm:justify-center";
 const noteMarkQuiet = "sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100";
 
 /**
@@ -184,13 +173,10 @@ const nameOf = (transaction, payeeById) =>
 const START_SPLIT = "__split__";
 
 /**
- * The two totals a set of rows adds up to, kept apart the way the columns are.
+ * Income and spending totals, shown by color and order in one column.
  *
- * **A transfer is in neither.** These footings are what came into the household
- * and what left it; a transfer did neither, and counting it would put a
- * credit-card payment in the same column as the groceries it paid for — the month
- * would read as having spent that money twice, and the total would reconcile
- * against nothing else in the app.
+ * A transfer is in neither: it moved money between accounts, not into or out
+ * of the household.
  */
 function totalsOf(transactions) {
   return transactions.reduce(
@@ -204,70 +190,51 @@ function totalsOf(transactions) {
   );
 }
 
-/**
- * One direction's amount for a row.
- *
- * Blank in the column that is not this row's direction — which is what makes
- * the register readable at a glance, and what makes typing into that blank the
- * gesture that moves the row across. Keyed on the direction *and* the figure so
- * a commit to either remounts both cells: after a row changes sides, whatever
- * was left in the column it came from has to go with it.
- *
- * **Formatted at rest, raw under the caret** — the spreadsheet's own contract
- * for a money column, and the app's, which is why the two faces come from
- * `amountAtRest` / `amountEditing` rather than from formatting written here. A
- * `<input type="number">` can wear neither: it refuses "$1,234.56" outright and
- * renders $78.40 as "78.4", so a column never lines up on its decimal point.
- * Text plus `inputMode` gets the numeric keypad without the rendering, and
- * `toCents` takes back whatever the field wrote — symbol, separators and all.
- */
-function AmountCell({ transaction, label, kind, onCommit, onSplit }) {
-  const transfer = isTransfer(transaction);
-  const split = isSplit(transaction);
-  // **A transfer only ever uses the Out column**, because money leaving the
-  // account the row names is what it is. The In cell is a dash rather than an
-  // empty input, which is what stops a figure typed there from doing what it does
-  // on every other row — turning the record into an inflow. A transfer's
-  // direction is its pair of accounts, and that is edited in the Account cell.
-  if (transfer && kind === TRANSACTION_KINDS.INFLOW) {
+function FlowTotals({ totals, onPanel = false }) {
+  if (onPanel) {
     return (
-      <td
-        data-label="In"
-        className="px-3 py-1 text-right font-mono text-row text-ink-soft"
-        aria-hidden="true"
-      >
-        —
-      </td>
+      <div className="flex w-max max-w-full flex-wrap items-center justify-end gap-x-3 gap-y-1 leading-tight">
+        <span className="whitespace-nowrap text-vermilion">
+          <span className="text-label uppercase">Out </span>
+          {formatCents(totals.outCents)}
+        </span>
+        <span className="whitespace-nowrap text-verdant">
+          <span className="text-label uppercase">In </span>
+          {formatCents(totals.inCents)}
+        </span>
+      </div>
     );
   }
 
-  const active = transfer || transaction.kind === kind;
-  const column = kind === TRANSACTION_KINDS.INFLOW ? "In" : "Out";
+  return (
+    <div className="flex flex-col items-end leading-tight">
+      <span className="text-verdant">
+        <span className="sr-only">Money in </span>
+        {formatCents(totals.inCents)}
+      </span>
+      <span className="text-vermilion-ink">
+        <span className="sr-only">Money out </span>
+        {formatCents(totals.outCents)}
+      </span>
+    </div>
+  );
+}
 
-  // A divided receipt's figure is the one its parts add up to, so it can only
-  // move where they can move with it. The cell keeps the look of the ones around
-  // it — the same rule under the pointer, the same azure box under the caret —
-  // because it is still the way this row's figure is changed; it just opens the
-  // editor rather than taking a number.
+/** A colored figure; a leading sign while editing changes an ordinary row's direction. */
+function AmountCell({ transaction, label, onCommit, onSplit }) {
+  const transfer = isTransfer(transaction);
+  const split = isSplit(transaction);
+  const inflow = transaction.kind === TRANSACTION_KINDS.INFLOW;
+  const tone = inflow ? "text-verdant" : "text-vermilion-ink";
+
   if (split) {
-    if (!active) {
-      return (
-        <td
-          data-label={column}
-          className="px-3 py-1 text-right font-mono text-row text-ink-soft"
-          aria-hidden="true"
-        >
-          —
-        </td>
-      );
-    }
     return (
-      <td data-label={column} className="px-3 py-1">
+      <td data-label="Amount" className="px-3 py-1">
         <button
           type="button"
-          aria-label={`${column} for ${label} — open the split to change it`}
+          aria-label={`Amount for ${label} — open the split to change it`}
           onClick={() => onSplit(transaction)}
-          className={`${cellBase} bg-transparent text-right font-mono tabular-nums`}
+          className={`${cellBase} bg-transparent text-right font-mono tabular-nums ${tone}`}
         >
           {amountAtRest(transaction.amountCents)}
         </button>
@@ -275,42 +242,57 @@ function AmountCell({ transaction, label, kind, onCommit, onSplit }) {
     );
   }
 
-  const display = active ? amountAtRest(transaction.amountCents) : "";
-  const editable = active ? amountEditing(transaction.amountCents) : "";
+  const display = amountAtRest(transaction.amountCents);
+  const editable = transfer
+    ? amountEditing(transaction.amountCents)
+    : `${inflow ? "+" : "-"}${amountEditing(transaction.amountCents)}`;
 
   function handleBlur(e) {
-    const raw = e.target.value.trim();
-    const cents = raw === "" ? null : toCents(raw);
-
-    // A blank is an abandoned edit, not a transaction of nothing, and a figure
-    // the store already holds is not an edit at all.
-    if (cents != null && !(active && cents === transaction.amountCents)) {
-      // Naming the column's own direction is what turns an expense filed the
-      // wrong way round into the refund it was, and back — but a transfer has no
-      // direction to name, so its figure is sent alone.
-      onCommit(transaction, transfer ? { amountCents: cents } : { kind, amountCents: cents });
+    const raw = e.target.value.trim().replace(/^−/, "-");
+    const parsed = raw === "" ? null : toCents(raw);
+    if (parsed != null) {
+      const amountCents = Math.abs(parsed);
+      const kind = transfer
+        ? transaction.kind
+        : raw.startsWith("+")
+          ? TRANSACTION_KINDS.INFLOW
+          : raw.startsWith("-")
+            ? TRANSACTION_KINDS.OUTFLOW
+            : transaction.kind;
+      const patch = {};
+      if (amountCents !== transaction.amountCents) patch.amountCents = amountCents;
+      if (kind !== transaction.kind) patch.kind = kind;
+      if (Object.keys(patch).length > 0) onCommit(transaction, patch);
     }
-    // Whatever happened — committed, refused or abandoned — the cell goes back
-    // to reading as money. A successful change remounts it anyway; this is what
-    // covers the three cases that do not.
     e.target.value = display;
   }
 
   return (
-    <td data-label={column} className="px-3 py-1">
-      <input
-        type="text"
-        inputMode="decimal"
-        key={`${transaction.kind}:${transaction.amountCents}`}
-        defaultValue={display}
-        aria-label={`${column} for ${label}`}
-        onFocus={(e) => {
-          e.target.value = editable;
-          e.target.select();
-        }}
-        onBlur={handleBlur}
-        className={figureInput}
-      />
+    <td data-label="Amount" className="px-3 py-1">
+      <div className={`flex items-center justify-end font-mono tabular-nums ${tone}`}>
+        <input
+          type="text"
+          inputMode={transfer ? "decimal" : "text"}
+          key={`${transaction.kind}:${transaction.amountCents}`}
+          defaultValue={display}
+          aria-label={`Amount for ${label}`}
+          aria-description={transfer ? undefined : "Type a leading plus for money in or minus for money out."}
+          style={{ width: `${display.length}ch` }}
+          onFocus={(e) => {
+            e.target.value = editable;
+            e.target.style.width = `${Math.max(display.length, editable.length)}ch`;
+            e.target.select();
+          }}
+          onChange={(e) => {
+            e.target.style.width = `${Math.max(display.length, e.target.value.length)}ch`;
+          }}
+          onBlur={(e) => {
+            handleBlur(e);
+            e.target.style.width = `${display.length}ch`;
+          }}
+          className={`${figureInput} ${tone}`}
+        />
+      </div>
     </td>
   );
 }
@@ -463,16 +445,6 @@ function RegisterRow({
       {/* `group` is what lets the note's mark appear with the pointer: it is the
           only thing on the row that is not drawn at rest. */}
       <tr className={`group ${rowBg(index)}`}>
-        <td data-label="Date" className="px-3 py-1">
-          <input
-            type="date"
-            key={transaction.date ?? "undated"}
-            defaultValue={transaction.date ?? ""}
-            aria-label={`Date of ${label}`}
-            onBlur={handleDateBlur}
-            className={`${cellInput} font-mono`}
-          />
-        </td>
         {/* The payee, with the note as the mark after it — or the note alone,
             where no payee names the row. A transfer is always the second case: it
             moves money between the household's own accounts and has no other end
@@ -544,6 +516,16 @@ function RegisterRow({
               {noteField(false)}
             </>
           )}
+        </td>
+        <td data-label="Date" className="px-3 py-1">
+          <input
+            type="date"
+            key={transaction.date ?? "undated"}
+            defaultValue={transaction.date ?? ""}
+            aria-label={`Date of ${label}`}
+            onBlur={handleDateBlur}
+            className={`${cellInput} font-mono`}
+          />
         </td>
         <td data-label="Category" className="px-3 py-1">
           {wantsCategory && split ? (
@@ -628,18 +610,10 @@ function RegisterRow({
         <AmountCell
           transaction={transaction}
           label={label}
-          kind={TRANSACTION_KINDS.INFLOW}
           onCommit={onCommit}
           onSplit={onSplit}
         />
-        <AmountCell
-          transaction={transaction}
-          label={label}
-          kind={TRANSACTION_KINDS.OUTFLOW}
-          onCommit={onCommit}
-          onSplit={onSplit}
-        />
-        <td className="px-1 py-1 text-right">
+        <td data-action="remove" className="px-1 py-1 text-right">
           <Button
             variant="row"
             size="sm"
@@ -676,11 +650,8 @@ function Band({ name, totals }) {
       >
         {name}
       </th>
-      <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono text-label tabular-nums text-ink">
-        {formatCents(totals.inCents)}
-      </td>
-      <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono text-label tabular-nums text-ink">
-        {formatCents(totals.outCents)}
+      <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono text-label tabular-nums">
+        <FlowTotals totals={totals} />
       </td>
       <td />
     </tr>
@@ -761,13 +732,6 @@ export default function TransactionRegister({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
-        <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Register</h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
-          {dated.length} {dated.length === 1 ? "entry" : "entries"} in {formatPeriod(period)}
-        </span>
-      </div>
-
       {transactions.length === 0 ? (
         <p className="px-4 py-5 font-sans text-row text-chalk-soft">
           Nothing recorded in {formatPeriod(period)}.{" "}
@@ -785,7 +749,7 @@ export default function TransactionRegister({
           {/* No `min-width` floor under the grid, tempting as one is: Chrome
               counts a table's min-width against the *document's* scroll width
               even inside an `overflow-x-auto` box, so a floor wide enough to
-              keep six columns apart puts a scrollbar under the whole page. The
+              keep the columns apart puts a scrollbar under the whole page. The
               fixed layout already holds the columns steady; below the width they
               need, they shrink together rather than the page sliding sideways. */}
           <table className="reflow w-full table-fixed border-collapse">
@@ -795,7 +759,7 @@ export default function TransactionRegister({
                   <th
                     key={column.key}
                     scope="col"
-                    className={`whitespace-nowrap px-3 py-2 font-mono text-label uppercase text-chalk ${
+                    className={`whitespace-nowrap px-3 py-2 font-mono text-xs uppercase tracking-wide text-chalk ${
                       column.width ?? ""
                     } ${column.numeric ? "text-right" : "text-left"}`}
                   >
@@ -820,26 +784,22 @@ export default function TransactionRegister({
               </tbody>
             )}
 
-            {/* Back on the dark chrome, bookending the header: this is the
-                month's total, not another band inside the sheet. The two
-                accents are the ones tuned for it — on the light rows above,
-                the columns themselves carry the direction. */}
+            {/* Give the month and both totals the whole footing width, so the
+                figures can stay together until the screen actually runs out. */}
             <tfoot>
               <tr className="bg-panel-raised">
                 <th
                   scope="row"
-                  colSpan={LEAD_SPAN}
+                  colSpan={FULL_SPAN}
                   className="px-3 py-2 text-left font-mono text-label uppercase text-chalk"
                 >
-                  {formatPeriod(period)}
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <span>{formatPeriod(period)}</span>
+                    <div className="font-medium normal-case tracking-normal text-row">
+                      <FlowTotals totals={totals} onPanel />
+                    </div>
+                  </div>
                 </th>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-verdant">
-                  {formatCents(totals.inCents)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-vermilion">
-                  {formatCents(totals.outCents)}
-                </td>
-                <td />
               </tr>
             </tfoot>
           </table>

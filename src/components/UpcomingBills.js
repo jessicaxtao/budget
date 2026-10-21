@@ -75,12 +75,8 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip }) {
       </div>
 
       <div className="shrink-0 text-right">
-        <div className="font-mono text-row font-medium tabular-nums text-ink">
-          {/* Money in is signed here, where the register gives each direction a
-              column of its own: there is one column on this panel, and the sign is
-              the channel because the accents that mean income and expense are
-              tuned for the dark chrome and cannot carry text on this surface. */}
-          {isInflow ? "+" : ""}
+        <div className={`font-mono text-row font-medium tabular-nums ${isInflow ? "text-verdant" : "text-vermilion-ink"}`}>
+          {isInflow ? "+" : "−"}
           {formatCents(row.schedule.amountCents)}
         </div>
         <div className={`whitespace-nowrap font-mono text-label uppercase ${status.tone}`}>

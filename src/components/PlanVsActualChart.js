@@ -206,7 +206,7 @@ function Readout({ entry, plannedCents, coverageStartPeriod, coverageEndPeriod }
   const verdict = verdictOf(entry, plannedCents, coverageStartPeriod, coverageEndPeriod);
 
   return (
-    <div className="pointer-events-none w-max max-w-[18rem] border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
+    <div className="pointer-events-none w-max max-w-[18rem] rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
       <div className="font-mono text-label uppercase text-chalk-soft">
         {formatPeriod(entry.period)}
       </div>

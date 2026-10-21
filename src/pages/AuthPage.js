@@ -441,7 +441,7 @@ function LocalDoor({ onChoose }) {
   // on a raised surface loses its border almost entirely. The gap does the
   // separating, which is what keeps this to one card style instead of two.
   return (
-    <div className="mt-5 border border-edge bg-panel p-5">
+    <div className="mt-5 rounded-2xl border border-edge bg-panel p-5">
       {/* The heading names what this is and the button names what it does. Both
           saying "keep everything on this computer" made the card read as though
           it were asking twice. */}

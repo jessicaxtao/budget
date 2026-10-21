@@ -237,9 +237,8 @@ export default function ConfigurationPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Configuration"
         title="Budget plan"
-        description="Set what you expect to earn, what each category is expected to need in a typical month, and the accounts your money sits in. Rename a category by typing over it. Drag categories to file them under a group or change their order — the Transactions page follows the arrangement you set here. Each category counts as essentials, fun, savings, or retirement, starting on its group's default. Give a category a goal and the balance it is saving towards appears beside it on the dashboard; leave the field blank for one that is not saving towards anything."
+        description="Set monthly estimates, organize categories, and manage accounts."
       />
 
       {/* The verdict leads. It is the answer the rest of the page is working
@@ -261,7 +260,7 @@ export default function ConfigurationPage() {
       {error && (
         <p
           role="alert"
-          className="mb-4 border border-vermilion/60 bg-panel px-4 py-3 font-sans text-row text-vermilion"
+          className="mb-4 rounded-lg border border-vermilion/60 bg-panel px-4 py-3 font-sans text-row text-vermilion"
         >
           {error}
         </p>
@@ -330,7 +329,7 @@ export default function ConfigurationPage() {
               headings before filling them — so the page only takes over with an
               empty state when there is nothing at all to arrange. */}
           {health.categoryCount === 0 && health.groupCount === 0 ? (
-            <section className="border border-edge bg-panel">
+            <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
               <p className="px-4 py-5 font-sans text-row text-chalk-soft">
                 No categories yet. Add one to start planning, then fund it from the Transactions
                 page.
