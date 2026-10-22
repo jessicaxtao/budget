@@ -75,12 +75,17 @@ export default function DonationsPage() {
   // Show the setup prompt only if giving categories were never explicitly set
   // AND the name heuristic found nothing — if "Giving" or "Donations" is already
   // a category name, the heuristic already works and no prompt is needed.
-  const [showGivingSetup, setShowGivingSetup] = useState(
-    () =>
+  // Dismissal is persisted so navigating away and back does not re-open it.
+  const [showGivingSetup, setShowGivingSetup] = useState(() => {
+    try {
+      if (window.localStorage.getItem("givingSetupModalDismissed") === "true") return false;
+    } catch {}
+    return (
       !Array.isArray(givingSettings.budgetIds) &&
       giving.givingBudgetIds.size === 0 &&
       budgets.length > 0
-  );
+    );
+  });
   // Names for the gift rows. `useGiving` passes the reference through and stops
   // there — it is a hook about what was given, and a payee's name is not a figure —
   // so the join happens here, the same seam `ReportsPage` keeps for its drill-in.
@@ -303,7 +308,10 @@ export default function DonationsPage() {
       />
       <GivingCategoriesModal
         show={showGivingSetup}
-        handleClose={() => setShowGivingSetup(false)}
+        handleClose={() => {
+          try { window.localStorage.setItem("givingSetupModalDismissed", "true"); } catch {}
+          setShowGivingSetup(false);
+        }}
         budgets={budgets}
         selectedIds={giving.givingBudgetIds}
         onChange={setGivingCategories}

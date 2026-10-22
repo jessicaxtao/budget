@@ -1,0 +1,217 @@
+- generic [ref=f34e3]:
+  - link "Skip to content" [ref=f34e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f34e5]:
+    - generic [ref=f34e6]:
+      - generic [ref=f34e7]:
+        - generic [ref=f34e8]: Canopy Budget
+        - generic [ref=f34e25]:
+          - generic [ref=f34e26]:
+            - button "Add transaction" [ref=f34e27] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f34e28]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f34e29] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f34e30]: ⇄
+              - text: Transfer
+          - button "Turn on sync" [ref=f34e31] [cursor=pointer]
+      - navigation "Sections" [ref=f34e32]:
+        - link "Configuration" [ref=f34e33] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f34e34] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f34e35] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f34e36] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f34e37] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f34e38] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f34e39] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f34e40] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f34e41] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f34e42] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f34e43]:
+    - generic [ref=f34e44]:
+      - generic [ref=f34e45]:
+        - heading "Retirement planning" [level=1] [ref=f34e46]
+        - paragraph [ref=f34e47]: Start with your timeline, savings, and spending. See how they shape your retirement.
+      - button "Reset plan" [ref=f34e49] [cursor=pointer]
+    - generic [ref=f34e50]:
+      - generic [ref=f34e51]:
+        - region "Build your retirement plan" [ref=f34e52]:
+          - generic [ref=f34e53]:
+            - heading "Build your plan" [level=2] [ref=f34e54]
+            - paragraph [ref=f34e55]: Start with these three steps. Your projection updates when you leave a field.
+          - group [ref=f34e56]:
+            - generic "1. Your timeline Age 36 today · retire at 55" [ref=f34e57] [cursor=pointer]:
+              - text: 1. Your timeline
+              - generic [ref=f34e58]: Age 36 today · retire at 55
+            - generic [ref=f34e59]:
+              - heading "When would you like to retire?" [level=3] [ref=f34e61]
+              - generic [ref=f34e63]:
+                - generic [ref=f34e65]:
+                  - generic [ref=f34e66]: Age today
+                  - spinbutton "Age today" [ref=f34e67]: "36"
+                - generic [ref=f34e69]:
+                  - generic [ref=f34e70]: Retire at
+                  - spinbutton "Retire at" [ref=f34e71]: "55"
+                - generic [ref=f34e72]:
+                  - generic [ref=f34e73]:
+                    - generic [ref=f34e74]: Money lasts to
+                    - spinbutton "Money lasts to" [ref=f34e75]: "95"
+                  - paragraph [ref=f34e76]: 40 years of retirement to pay for
+            - 'button "Next: your savings" [ref=f34e78] [cursor=pointer]':
+              - text: "Next: your savings"
+              - generic [aria-hidden] [ref=f34e79]: →
+          - group [ref=f34e80]:
+            - generic "2. Your savings $140,368.11 set aside · $20,996/year" [ref=f34e81] [cursor=pointer]:
+              - text: 2. Your savings
+              - generic [ref=f34e82]: $140,368.11 set aside · $20,996/year
+            - text: Value Value Value Value Value Value Value
+          - group [ref=f34e83]:
+            - generic "3. Retirement spending $75,293.03/year in today's dollars" [ref=f34e84] [cursor=pointer]:
+              - text: 3. Retirement spending
+              - generic [ref=f34e85]: $75,293.03/year in today's dollars
+        - generic [ref=f34e86]:
+          - region "Retirement outlook" [ref=f34e87]:
+            - generic [ref=f34e88]:
+              - generic [ref=f34e89]:
+                - generic [ref=f34e90]: At 55 · today’s dollars
+                - generic [ref=f34e91]: $1,950,320.02
+                - generic [ref=f34e92]: projected cash and investments at retirement
+              - generic [ref=f34e93]:
+                - generic [ref=f34e94]:
+                  - term [ref=f34e95]: You will need
+                  - definition [ref=f34e96]: $1,604,862.18
+                - generic [ref=f34e97]:
+                  - term [ref=f34e98]: Spare
+                  - definition [ref=f34e99]: $345,457.83
+            - generic [ref=f34e100]:
+              - progressbar "100 percent of the target funded" [ref=f34e101]
+              - paragraph [ref=f34e126]: On course, with $1,123,071.36 still in hand at the end. Putting away $12,050.37 a year would be enough to reach the target exactly.
+            - group [ref=f34e127]:
+              - 'generic "Plan figures: spending, contributions, and savings" [ref=f34e128] [cursor=pointer]'
+          - generic [ref=f34e129]:
+            - generic [ref=f34e130]:
+              - heading "Your savings over time" [level=2] [ref=f34e131]
+              - group "How to project the plan" [ref=f34e132]:
+                - button "Projection" [pressed] [ref=f34e133] [cursor=pointer]
+                - button "Monte Carlo" [ref=f34e134] [cursor=pointer]
+                - button "Historical" [ref=f34e135] [cursor=pointer]
+            - generic [ref=f34e136]: Age 36 to 95 · 7.32% then 2.93% real
+            - generic [ref=f34e138]:
+              - generic [ref=f34e139]:
+                - generic [ref=f34e140]: Savings
+                - generic [ref=f34e143]: Needed at 55
+              - group "Retirement savings by age, from 36 to 95" [ref=f34e148]:
+                - generic [ref=f34e149]: $0
+                - generic [ref=f34e151]: $500K
+                - generic [ref=f34e153]: $1M
+                - generic [ref=f34e155]: $1.5M
+                - generic [ref=f34e157]: $2M
+                - generic [ref=f34e161]: $1.6M
+                - generic [ref=f34e162]: RETIRE AT 55
+                - generic [ref=f34e165]: $1.1M
+                - generic [ref=f34e166]: "36"
+                - generic [ref=f34e167]: "50"
+                - generic [ref=f34e168]: "60"
+                - generic [ref=f34e169]: "70"
+                - generic [ref=f34e170]: "80"
+                - generic [ref=f34e171]: "90"
+                - generic [ref=f34e172]: "95"
+                - 'img "Age 36: $172,111.11" [ref=f34e173] [cursor=pointer]'
+                - 'img "Age 37: $223,602.48" [ref=f34e174] [cursor=pointer]'
+                - 'img "Age 38: $253,989.84" [ref=f34e175] [cursor=pointer]'
+                - 'img "Age 39: $295,469.71" [ref=f34e176] [cursor=pointer]'
+                - 'img "Age 40: $341,254.27" [ref=f34e177] [cursor=pointer]'
+                - 'img "Age 41: $391,572.48" [ref=f34e178] [cursor=pointer]'
+                - 'img "Age 42: $446,671.29" [ref=f34e179] [cursor=pointer]'
+                - 'img "Age 43: $506,816.90" [ref=f34e180] [cursor=pointer]'
+                - 'img "Age 44: $572,296.16" [ref=f34e181] [cursor=pointer]'
+                - 'img "Age 45: $661,418.02" [ref=f34e182] [cursor=pointer]'
+                - 'img "Age 46: $756,515.15" [ref=f34e183] [cursor=pointer]'
+                - 'img "Age 47: $857,945.60" [ref=f34e184] [cursor=pointer]'
+                - 'img "Age 48: $966,094.66" [ref=f34e185] [cursor=pointer]'
+                - 'img "Age 49: $1,081,376.83" [ref=f34e186] [cursor=pointer]'
+                - 'img "Age 50: $1,204,237.90" [ref=f34e187] [cursor=pointer]'
+                - 'img "Age 51: $1,335,157.22" [ref=f34e188] [cursor=pointer]'
+                - 'img "Age 52: $1,474,650.14" [ref=f34e189] [cursor=pointer]'
+                - 'img "Age 53: $1,623,270.62" [ref=f34e190] [cursor=pointer]'
+                - 'img "Age 54: $1,781,613.99" [ref=f34e191] [cursor=pointer]'
+                - 'img "Age 55: $1,950,320.02, the most this plan is ever worth" [ref=f34e192] [cursor=pointer]'
+                - 'img "Age 56: $1,907,766.03" [ref=f34e193] [cursor=pointer]'
+                - 'img "Age 57: $1,867,003.33" [ref=f34e194] [cursor=pointer]'
+                - 'img "Age 58: $1,832,575.44" [ref=f34e195] [cursor=pointer]'
+                - 'img "Age 59: $1,808,715.06" [ref=f34e196] [cursor=pointer]'
+                - 'img "Age 60: $1,784,156.33" [ref=f34e197] [cursor=pointer]'
+                - 'img "Age 61: $1,758,878.82" [ref=f34e198] [cursor=pointer]'
+                - 'img "Age 62: $1,732,861.47" [ref=f34e199] [cursor=pointer]'
+                - 'img "Age 63: $1,706,082.64" [ref=f34e200] [cursor=pointer]'
+                - 'img "Age 64: $1,669,129.86" [ref=f34e201] [cursor=pointer]'
+                - 'img "Age 65: $1,629,917.98" [ref=f34e202] [cursor=pointer]'
+                - 'img "Age 66: $1,589,558.43" [ref=f34e203] [cursor=pointer]'
+                - 'img "Age 67: $1,548,017.63" [ref=f34e204] [cursor=pointer]'
+                - 'img "Age 68: $1,538,010.44" [ref=f34e205] [cursor=pointer]'
+                - 'img "Age 69: $1,527,710.36" [ref=f34e206] [cursor=pointer]'
+                - 'img "Age 70: $1,517,108.82" [ref=f34e207] [cursor=pointer]'
+                - 'img "Age 71: $1,506,196.99" [ref=f34e208] [cursor=pointer]'
+                - 'img "Age 72: $1,494,965.78" [ref=f34e209] [cursor=pointer]'
+                - 'img "Age 73: $1,483,405.86" [ref=f34e210] [cursor=pointer]'
+                - 'img "Age 74: $1,471,507.60" [ref=f34e211] [cursor=pointer]'
+                - 'img "Age 75: $1,459,261.09" [ref=f34e212] [cursor=pointer]'
+                - 'img "Age 76: $1,446,656.16" [ref=f34e213] [cursor=pointer]'
+                - 'img "Age 77: $1,433,682.29" [ref=f34e214] [cursor=pointer]'
+                - 'img "Age 78: $1,420,328.71" [ref=f34e215] [cursor=pointer]'
+                - 'img "Age 79: $1,406,584.29" [ref=f34e216] [cursor=pointer]'
+                - 'img "Age 80: $1,392,437.59" [ref=f34e217] [cursor=pointer]'
+                - 'img "Age 81: $1,377,876.84" [ref=f34e218] [cursor=pointer]'
+                - 'img "Age 82: $1,362,889.92" [ref=f34e219] [cursor=pointer]'
+                - 'img "Age 83: $1,347,464.37" [ref=f34e220] [cursor=pointer]'
+                - 'img "Age 84: $1,331,587.33" [ref=f34e221] [cursor=pointer]'
+                - 'img "Age 85: $1,315,245.60" [ref=f34e222] [cursor=pointer]'
+                - 'img "Age 86: $1,298,425.57" [ref=f34e223] [cursor=pointer]'
+                - 'img "Age 87: $1,281,113.26" [ref=f34e224] [cursor=pointer]'
+                - 'img "Age 88: $1,263,294.23" [ref=f34e225] [cursor=pointer]'
+                - 'img "Age 89: $1,244,953.68" [ref=f34e226] [cursor=pointer]'
+                - 'img "Age 90: $1,226,076.33" [ref=f34e227] [cursor=pointer]'
+                - 'img "Age 91: $1,206,646.47" [ref=f34e228] [cursor=pointer]'
+                - 'img "Age 92: $1,186,647.94" [ref=f34e229] [cursor=pointer]'
+                - 'img "Age 93: $1,166,064.08" [ref=f34e230] [cursor=pointer]'
+                - 'img "Age 94: $1,144,877.76" [ref=f34e231] [cursor=pointer]'
+                - 'img "Age 95: $1,123,071.36" [ref=f34e232] [cursor=pointer]'
+            - group [ref=f34e233]:
+              - generic "Show these figures as a table" [ref=f34e234] [cursor=pointer]
+          - paragraph [ref=f34e235]:
+            - text: "Assumed returns: 10% while saving and 5.5% once retired. Inflation: 2.5%. All results are in today's dollars."
+            - link "Review assumptions below" [ref=f34e236] [cursor=pointer]:
+              - /url: "#retirement-details"
+            - text: .
+      - generic [ref=f34e237]:
+        - heading "Make it your own" [level=2] [ref=f34e238]
+        - paragraph [ref=f34e239]: Once the basics look right, add detail and explore what could change.
+      - group [ref=f34e240]:
+        - generic "Investment returns & inflation Review the rates behind your projection or model a stock and bond mix." [ref=f34e241] [cursor=pointer]:
+          - text: Investment returns & inflation
+          - generic [ref=f34e242]: Review the rates behind your projection or model a stock and bond mix.
+      - group [ref=f34e243]:
+        - generic "Net worth by age See cash, investments, property, and debt across your lifetime." [ref=f34e244] [cursor=pointer]:
+          - text: Net worth by age
+          - generic [ref=f34e245]: See cash, investments, property, and debt across your lifetime.
+      - group [ref=f34e246]:
+        - generic "Life events & retirement income Add Social Security, a pension, a move, or other changes to the plan." [ref=f34e247] [cursor=pointer]:
+          - text: Life events & retirement income
+          - generic [ref=f34e248]: Add Social Security, a pension, a move, or other changes to the plan.
+      - group [ref=f34e249]:
+        - generic "Income, taxes & other assets Review salary growth, taxes, property, cash returns, and debt payments." [ref=f34e250] [cursor=pointer]:
+          - text: Income, taxes & other assets
+          - generic [ref=f34e251]: Review salary growth, taxes, property, cash returns, and debt payments.
+      - group [ref=f34e252]:
+        - generic "Compare scenarios Save alternatives and see how changes in returns or inflation affect the result." [ref=f34e253] [cursor=pointer]:
+          - text: Compare scenarios
+          - generic [ref=f34e254]: Save alternatives and see how changes in returns or inflation affect the result.
+        - text: Retire at Net worth then Against the need Money lasts to At the end Retire at Net worth then Against the need Money lasts to At the end Retire at Net worth then Against the need Money lasts to At the end

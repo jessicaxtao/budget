@@ -1,0 +1,125 @@
+- generic [ref=f35e3]:
+  - link "Skip to content" [ref=f35e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f35e5]:
+    - generic [ref=f35e6]:
+      - generic [ref=f35e7]:
+        - generic [ref=f35e8]: Canopy Budget
+        - generic [ref=f35e25]:
+          - generic [ref=f35e26]:
+            - button "Add transaction" [ref=f35e27] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f35e28]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f35e29] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f35e30]: ⇄
+              - text: Transfer
+          - button "Turn on sync" [ref=f35e31] [cursor=pointer]
+      - navigation "Sections" [ref=f35e32]:
+        - link "Configuration" [ref=f35e33] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f35e34] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f35e35] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f35e36] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f35e37] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f35e38] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f35e39] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f35e40] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f35e41] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f35e42] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f35e43]:
+    - generic [ref=f35e44]:
+      - heading "Savings goals" [level=1] [ref=f35e46]
+      - button "Add goal" [ref=f35e48] [cursor=pointer]
+    - generic [ref=f35e49]:
+      - paragraph [ref=f35e50]: To be assigned $875 — money not yet assigned to a category or a goal.
+      - region "Savings goals" [ref=f35e51]:
+        - heading "Goals" [level=2] [ref=f35e53]
+        - table [ref=f35e55]:
+          - rowgroup [ref=f35e56]:
+            - row [ref=f35e57]:
+              - rowheader "Wedding By Dec 12, 2027" [ref=f35e58]:
+                - text: Wedding
+                - generic [ref=f35e59]: By Dec 12, 2027
+              - cell "Target $25,000" [ref=f35e60]
+              - cell "Saved $7,200 29" [ref=f35e61]:
+                - text: Saved
+                - generic [ref=f35e62]:
+                  - generic [ref=f35e63]: $7,200
+                  - progressbar "29 percent of the way to Wedding" [ref=f35e65]
+              - cell "Remaining $17,800" [ref=f35e90]
+              - cell "Pace $1,271.43/mo 14 months left" [ref=f35e91]:
+                - text: Pace
+                - generic [ref=f35e92]:
+                  - generic [ref=f35e93]: $1,271.43/mo
+                  - generic [ref=f35e94]: 14 months left
+              - cell "This month —" [ref=f35e95]
+              - cell "Add" [ref=f35e96]:
+                - text: Add
+                - textbox "Add to Wedding" [ref=f35e97]:
+                  - /placeholder: $0
+              - cell [ref=f35e98]:
+                - generic [ref=f35e99]:
+                  - 'button "Edit goal: Wedding" [ref=f35e100] [cursor=pointer]': Edit
+                  - 'button "Remove goal: Wedding" [ref=f35e101] [cursor=pointer]': Remove
+            - row [ref=f35e102]:
+              - rowheader "Camera kit By Mar 1, 2027" [ref=f35e103]:
+                - text: Camera kit
+                - generic [ref=f35e104]: By Mar 1, 2027
+              - cell "Target $3,200" [ref=f35e105]
+              - cell "Saved $2,400 75" [ref=f35e106]:
+                - text: Saved
+                - generic [ref=f35e107]:
+                  - generic [ref=f35e108]: $2,400
+                  - progressbar "75 percent of the way to Camera kit" [ref=f35e110]
+              - cell "Remaining $800" [ref=f35e135]
+              - cell "Pace $160/mo 5 months left" [ref=f35e136]:
+                - text: Pace
+                - generic [ref=f35e137]:
+                  - generic [ref=f35e138]: $160/mo
+                  - generic [ref=f35e139]: 5 months left
+              - cell "This month —" [ref=f35e140]
+              - cell "Add" [ref=f35e141]:
+                - text: Add
+                - textbox "Add to Camera kit" [ref=f35e142]:
+                  - /placeholder: $0
+              - cell [ref=f35e143]:
+                - generic [ref=f35e144]:
+                  - 'button "Edit goal: Camera kit" [ref=f35e145] [cursor=pointer]': Edit
+                  - 'button "Remove goal: Camera kit" [ref=f35e146] [cursor=pointer]': Remove
+            - row [ref=f35e147]:
+              - rowheader "Roof replacement" [ref=f35e148]
+              - cell "Target $12,000" [ref=f35e149]
+              - cell "Saved $3,600 30" [ref=f35e150]:
+                - text: Saved
+                - generic [ref=f35e151]:
+                  - generic [ref=f35e152]: $3,600
+                  - progressbar "30 percent of the way to Roof replacement" [ref=f35e154]
+              - cell "Remaining $8,400" [ref=f35e179]
+              - cell "Pace —" [ref=f35e180]:
+                - text: Pace
+                - generic [ref=f35e181]: —
+              - cell "This month —" [ref=f35e182]
+              - cell "Add" [ref=f35e183]:
+                - text: Add
+                - textbox "Add to Roof replacement" [ref=f35e184]:
+                  - /placeholder: $0
+              - cell [ref=f35e185]:
+                - generic [ref=f35e186]:
+                  - 'button "Edit goal: Roof replacement" [ref=f35e187] [cursor=pointer]': Edit
+                  - 'button "Remove goal: Roof replacement" [ref=f35e188] [cursor=pointer]': Remove
+    - status:
+      - generic [ref=f35e189]:
+        - paragraph [ref=f35e190]: Getting started
+        - heading "Put money toward a goal" [level=2] [ref=f35e191]
+        - generic [ref=f35e192]: Type an amount in the Add column to put money toward a goal. Use a minus — −200 — to pull money back out.
+        - button "Got it" [ref=f35e193] [cursor=pointer]
+    - text: Source Value Counted Source Value Counted Source Value Counted

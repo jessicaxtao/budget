@@ -1,0 +1,169 @@
+- generic [ref=f41e3]:
+  - link "Skip to content" [ref=f41e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f41e5]:
+    - generic [ref=f41e6]:
+      - generic [ref=f41e7]:
+        - generic [ref=f41e8]: Canopy Budget
+        - generic [ref=f41e25]:
+          - generic [ref=f41e26]:
+            - button "Add transaction" [ref=f41e27] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f41e28]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f41e29] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f41e30]: ⇄
+              - text: Transfer
+          - button "Turn on sync" [ref=f41e31] [cursor=pointer]
+      - navigation "Sections" [ref=f41e32]:
+        - link "Configuration" [ref=f41e33] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f41e34] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f41e35] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f41e36] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f41e37] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f41e38] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f41e39] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f41e40] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f41e41] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f41e42] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f41e43]:
+    - generic [ref=f41e44]:
+      - heading "Net worth" [level=1] [ref=f41e46]
+      - generic [ref=f41e47]:
+        - generic [ref=f41e48]:
+          - button "Previous month" [ref=f41e49] [cursor=pointer]: ‹
+          - generic [ref=f41e50]: October 2026
+          - button "Next month" [ref=f41e51] [cursor=pointer]: ›
+        - button "Update balances" [ref=f41e52] [cursor=pointer]
+    - generic [ref=f41e53]:
+      - region "Net worth summary" [ref=f41e54]:
+        - generic [ref=f41e55]:
+          - generic [ref=f41e56]:
+            - generic [ref=f41e57]: Net worth · October 2026
+            - generic [ref=f41e58]: $361,023.43
+          - generic [ref=f41e60]:
+            - term [ref=f41e61]: Change since October 2025 · was $280,267
+            - definition [ref=f41e62]:
+              - generic [ref=f41e63]: +28.81%
+              - generic [ref=f41e64]: +$80,756.43
+        - generic [ref=f41e65]:
+          - generic [ref=f41e66]:
+            - term [ref=f41e67]: Cash
+            - definition [ref=f41e69]: $31,743
+          - generic [ref=f41e70]:
+            - term [ref=f41e71]: Investments
+            - definition [ref=f41e73]: $140,368.11
+          - generic [ref=f41e74]:
+            - term [ref=f41e75]: Property & other
+            - definition [ref=f41e77]: $501,549.32
+          - generic [ref=f41e78]:
+            - term [ref=f41e79]: Owed
+            - definition [ref=f41e81]: $312,637
+      - paragraph [ref=f41e82]:
+        - generic [ref=f41e83]: 1 holding has no figure for October 2026.
+        - text: They are carrying their previous value forward until you update them.
+      - generic [ref=f41e84]:
+        - generic [ref=f41e85]:
+          - generic [ref=f41e86]:
+            - heading "Over time" [level=2] [ref=f41e87]
+            - generic [ref=f41e88]: November 2025 – October 2026
+          - group "How far back" [ref=f41e89]:
+            - button "3M" [ref=f41e90] [cursor=pointer]
+            - button "6M" [ref=f41e91] [cursor=pointer]
+            - button "YTD" [ref=f41e92] [cursor=pointer]
+            - button "1Y" [pressed] [ref=f41e93] [cursor=pointer]
+            - button "5Y" [ref=f41e94] [cursor=pointer]
+            - button "10Y" [ref=f41e95] [cursor=pointer]
+            - button "ALL" [ref=f41e96] [cursor=pointer]
+        - generic [ref=f41e97]:
+          - generic [ref=f41e98]:
+            - generic [ref=f41e99]: Spending accounts
+            - generic [ref=f41e102]: 401(k)
+            - generic [ref=f41e105]: Brokerage
+            - generic [ref=f41e108]: Home
+            - generic [ref=f41e111]: Mortgage
+            - generic [ref=f41e114]: Net worth
+          - group "Net worth by month, split by account" [ref=f41e119]:
+            - generic [ref=f41e120]: "-$400K"
+            - generic [ref=f41e122]: "-$200K"
+            - generic [ref=f41e124]: $0
+            - generic [ref=f41e126]: $200K
+            - generic [ref=f41e128]: $400K
+            - generic [ref=f41e130]: $600K
+            - generic [ref=f41e132]: $800K
+            - generic [ref=f41e220]: $361K
+            - generic [ref=f41e221]: Jan2026
+            - generic [ref=f41e222]: Apr
+            - generic [ref=f41e223]: Jul
+            - generic [ref=f41e224]: Oct
+            - 'img "November 2025: net worth $287,081.41, Spending accounts $11,985, 401(k) $87,825.20, Brokerage $24,729.40, Home $486,361.81, Mortgage -$323,820" [ref=f41e225] [cursor=pointer]'
+            - 'img "December 2025: net worth $296,856.48, Spending accounts $16,657, 401(k) $89,656.18, Brokerage $25,459.69, Home $487,723.61, Mortgage -$322,640" [ref=f41e226] [cursor=pointer]'
+            - 'img "January 2026: net worth $303,596.30, Spending accounts $18,287, 401(k) $91,493, Brokerage $26,190.88, Home $489,085.42, Mortgage -$321,460" [ref=f41e227] [cursor=pointer]'
+            - 'img "February 2026: net worth $310,185.37, Spending accounts $19,748, 401(k) $93,335.69, Brokerage $26,922.98, Home $490,458.70, Mortgage -$320,280" [ref=f41e228] [cursor=pointer]'
+            - 'img "March 2026: net worth $314,620.26, Spending accounts $21,248, 401(k) $92,984.30, Brokerage $27,655.99, Home $491,831.97, Mortgage -$319,100" [ref=f41e229] [cursor=pointer]'
+            - 'img "April 2026: net worth $322,622.05, Spending accounts $21,908, 401(k) $97,038.89, Brokerage $28,389.91, Home $493,205.25, Mortgage -$317,920" [ref=f41e230] [cursor=pointer]'
+            - 'img "May 2026: net worth $329,650.35, Spending accounts $23,776, 401(k) $98,899.51, Brokerage $29,124.75, Home $494,590.09, Mortgage -$316,740" [ref=f41e231] [cursor=pointer]'
+            - 'img "June 2026: net worth $339,293.65, Spending accounts $28,252, 401(k) $100,766.20, Brokerage $29,860.51, Home $495,974.94, Mortgage -$315,560" [ref=f41e232] [cursor=pointer]'
+            - 'img "July 2026: net worth $344,870, Spending accounts $30,054, 401(k) $101,239.01, Brokerage $30,597.21, Home $497,359.78, Mortgage -$314,380" [ref=f41e233] [cursor=pointer]'
+            - 'img "August 2026: net worth $353,762.01, Spending accounts $30,381, 401(k) $104,517.99, Brokerage $31,334.85, Home $500,728.17, Mortgage -$313,200" [ref=f41e234] [cursor=pointer]'
+            - 'img "September 2026: net worth $357,861.38, Spending accounts $30,266, 401(k) $106,403.20, Brokerage $32,073.43, Home $501,138.75, Mortgage -$312,020" [ref=f41e235] [cursor=pointer]'
+            - 'img "October 2026: net worth $361,023.43, Spending accounts $29,946, 401(k) $108,294.68, Brokerage $32,073.43, Home $501,549.32, Mortgage -$310,840" [ref=f41e236] [cursor=pointer]'
+        - group [ref=f41e237]:
+          - generic "Show these figures as a table" [ref=f41e238] [cursor=pointer]
+      - generic [ref=f41e239]:
+        - generic [ref=f41e240]:
+          - heading "Holdings" [level=2] [ref=f41e241]
+          - generic [ref=f41e242]: October 2026
+        - table [ref=f41e244]:
+          - rowgroup [ref=f41e245]:
+            - row [ref=f41e246]:
+              - columnheader "Cash" [ref=f41e247]
+              - cell "$31,743" [ref=f41e250]
+            - row [ref=f41e251]:
+              - rowheader [ref=f41e252]:
+                - text: Everyday checking
+                - button "Settle the $42 difference on Everyday checking" [ref=f41e253] [cursor=pointer]: $42 vs ledger · settle
+              - cell "Value $9,743" [ref=f41e254]
+            - row [ref=f41e255]:
+              - rowheader "High-yield savings" [ref=f41e256]
+              - cell "Value $22,000" [ref=f41e257]
+          - rowgroup [ref=f41e258]:
+            - row [ref=f41e259]:
+              - columnheader "Investments" [ref=f41e260]
+              - cell "$140,368.11" [ref=f41e263]
+            - row [ref=f41e264]:
+              - rowheader "401(k)" [ref=f41e265]
+              - cell "Value $108,294.68" [ref=f41e266]
+            - row [ref=f41e267]:
+              - rowheader "Brokerage" [ref=f41e268]
+              - cell "Value $32,073.43" [ref=f41e269]
+          - rowgroup [ref=f41e270]:
+            - row [ref=f41e271]:
+              - columnheader "Property & other" [ref=f41e272]
+              - cell "$501,549.32" [ref=f41e275]
+            - row [ref=f41e276]:
+              - rowheader "Home" [ref=f41e277]
+              - cell "Value $501,549.32" [ref=f41e278]
+          - rowgroup [ref=f41e279]:
+            - row [ref=f41e280]:
+              - columnheader "Owed" [ref=f41e281]
+              - cell "$312,637" [ref=f41e284]
+            - row [ref=f41e285]:
+              - rowheader "Rewards card" [ref=f41e286]
+              - cell "Value $1,797" [ref=f41e287]
+            - row [ref=f41e288]:
+              - rowheader "Mortgage" [ref=f41e289]
+              - cell "Value $310,840" [ref=f41e290]
+          - rowgroup [ref=f41e291]:
+            - row [ref=f41e292]:
+              - rowheader "Net worth" [ref=f41e293]
+              - cell "$361,023.43" [ref=f41e294]

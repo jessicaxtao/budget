@@ -254,30 +254,13 @@ function AccountControl() {
   if (!email) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-4">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
       <SyncBadge state={syncState} />
-      {/* `title` rather than a wider column: an address long enough to be
-          truncated is still identifiable by its start, and the header must not
-          reflow around it. Hidden below `sm`, where it is what pushes the
-          header onto a second line. */}
-      <span
-        title={email}
-        className="hidden max-w-[16rem] truncate sm:block font-mono text-label text-on-canopy-soft"
-      >
-        {email}
-      </span>
-      {/* Desktop only, and the wording is the difference: on a machine somebody
-          owns, the useful thing is to keep the books and drop the server, which
-          `signOut` will not do. In a browser the destructive one is the right
-          default — the books have to leave with the session, because the next
-          person to open this browser is not necessarily the same household. */}
       {isDesktop() && (
         <Button variant="canopy" size="sm" type="button" onClick={stopSyncing}>
           Stop syncing
         </Button>
       )}
-      {/* Icon-only below `sm`, the dark-mode switch's treatment: the words
-          stay as its accessible name, and `title` says them on hover. */}
       <Button
         variant="canopy"
         className="gap-2 rounded-full max-sm:px-2.5 sm:rounded-lg sm:px-2 sm:py-1 sm:text-label"
