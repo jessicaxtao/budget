@@ -1,0 +1,205 @@
+- generic [ref=f7e30]:
+  - link "Skip to content" [ref=f7e31] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f7e32]:
+    - generic [ref=f7e33]:
+      - generic [ref=f7e34]:
+        - generic [ref=f7e35]: Canopy Budget
+        - generic [ref=f7e52]:
+          - generic [ref=f7e53]:
+            - button "Add transaction" [ref=f7e54] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f7e55]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f7e56] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f7e57]: ⇄
+              - text: Transfer
+          - generic [ref=f7e58]:
+            - generic "Your books are in this browser. Nothing is sent anywhere." [ref=f7e59]: On this browser
+            - button "Turn on sync" [ref=f7e60] [cursor=pointer]
+      - navigation "Sections" [ref=f7e61]:
+        - link "Configuration" [ref=f7e62] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f7e63] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f7e64] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f7e65] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f7e66] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f7e67] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f7e68] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f7e69] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f7e70] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f7e71] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f7e72]:
+    - generic [ref=f7e74]:
+      - heading "Budget plan" [level=1] [ref=f7e75]
+      - paragraph [ref=f7e76]: Set monthly estimates, organize categories, and manage accounts.
+    - generic [ref=f7e77]:
+      - generic [ref=f7e78]:
+        - heading "Plan health" [level=2] [ref=f7e79]
+        - generic [ref=f7e80]: Per month
+      - generic [ref=f7e81]:
+        - generic [ref=f7e82]:
+          - term [ref=f7e83]: Expected income
+          - definition [ref=f7e84]: $0
+        - generic [ref=f7e85]:
+          - term [ref=f7e86]: Planned expenses
+          - definition [ref=f7e87]: $0
+        - generic [ref=f7e88]:
+          - term [ref=f7e89]: Not known yet
+          - definition [ref=f7e90]: —
+      - generic [ref=f7e91]:
+        - generic [ref=f7e92]:
+          - text: Pretax retirement contributions
+          - textbox "Pretax retirement contributions" [ref=f7e93]:
+            - /placeholder: "0.00"
+        - paragraph [ref=f7e94]: A year's worth — a 401(k) or other payroll deduction that never reaches an on-budget account, so there is no category here to read it off. Also set on the Retirement page, where it feeds the projection; the two are the same figure.
+      - status [ref=f7e95]:
+        - paragraph [ref=f7e96]: Nothing is expected to come in yet. Add an income source below, and the plan can tell you whether it balances.
+    - generic [ref=f7e97]:
+      - generic [ref=f7e98]:
+        - generic [ref=f7e99]:
+          - generic [ref=f7e100]:
+            - generic [ref=f7e101]:
+              - heading "Expected income" [level=2] [ref=f7e102]
+              - generic [ref=f7e103]:
+                - generic [ref=f7e104]: Per month
+                - button "Add income source" [ref=f7e105] [cursor=pointer]
+            - paragraph [ref=f7e106]: No income sources yet. Add the paycheques and other money you expect — the plan uses them to work out whether your estimates fit inside what you earn.
+          - generic [ref=f7e107]:
+            - generic [ref=f7e108]:
+              - heading "Pay schedule" [level=2] [ref=f7e109]
+              - generic [ref=f7e110]: Counts down on the dashboard
+            - generic [ref=f7e112]:
+              - generic [ref=f7e113]: How often
+              - combobox "How often" [ref=f7e114]:
+                - option "Choose one…" [selected]
+                - option "Weekly"
+                - option "Every 2 weeks"
+                - option "Twice a month"
+                - option "Monthly"
+                - option "Every so many days"
+            - status [ref=f7e115]:
+              - paragraph [ref=f7e116]: Say how often you are paid to count down to your next paycheck on the dashboard.
+        - generic [ref=f7e117]:
+          - heading "Categories" [level=2] [ref=f7e118]
+          - generic [ref=f7e119]:
+            - button "Add category" [ref=f7e120] [cursor=pointer]
+            - button "Add group" [ref=f7e121] [cursor=pointer]
+        - paragraph [ref=f7e123]: No categories yet. Add one to start planning, then fund it from the Transactions page.
+      - generic [ref=f7e124]:
+        - heading "Accounts" [level=2] [ref=f7e126]
+        - generic [ref=f7e127]:
+          - generic [ref=f7e128]:
+            - generic [ref=f7e129]:
+              - generic [ref=f7e130]:
+                - generic [ref=f7e131]:
+                  - heading "On budget" [level=3] [ref=f7e132]
+                  - generic [ref=f7e133]: 0 accounts
+                - paragraph [ref=f7e134]: Spending runs through these.
+              - button "Add an on-budget account" [ref=f7e136] [cursor=pointer]: Add account
+            - paragraph [ref=f7e137]: Nothing on budget yet. Add the account your everyday money moves through.
+          - generic [ref=f7e138]:
+            - generic [ref=f7e139]:
+              - generic [ref=f7e140]:
+                - generic [ref=f7e141]:
+                  - heading "Credit cards" [level=3] [ref=f7e142]
+                  - generic [ref=f7e143]: 0 accounts
+                - paragraph [ref=f7e144]: Spent through now, paid off later. Counts against what there is to assign.
+              - button "Add a credit card" [ref=f7e146] [cursor=pointer]: Add account
+            - paragraph [ref=f7e147]: No cards yet. Add one if you spend on a card and pay it off from these accounts.
+          - generic [ref=f7e148]:
+            - generic [ref=f7e149]:
+              - generic [ref=f7e150]:
+                - generic [ref=f7e151]:
+                  - heading "Off budget" [level=3] [ref=f7e152]
+                  - generic [ref=f7e153]: 0 accounts
+                - paragraph [ref=f7e154]: Held for the long term, tracked for net worth.
+              - button "Add an off-budget account" [ref=f7e156] [cursor=pointer]: Add account
+            - paragraph [ref=f7e157]: Nothing off budget yet. Add a 401(k), a brokerage, the house, or the mortgage against it — what you hold rather than spend.
+    - region [ref=f7e159]:
+      - generic [ref=f7e160]:
+        - heading "Emergency fund" [level=2] [ref=f7e161]
+        - generic [ref=f7e162]: No essentials estimated yet
+      - generic [ref=f7e163]:
+        - generic [ref=f7e164]:
+          - term [ref=f7e165]: Set aside
+          - definition [ref=f7e166]: $0
+          - definition [ref=f7e167]: No accounts ticked yet
+        - generic [ref=f7e168]:
+          - term [ref=f7e169]: Target
+          - definition [ref=f7e170]: $0
+        - generic [ref=f7e171]:
+          - term [ref=f7e172]: Still to save
+          - definition [ref=f7e173]: $0
+      - group "Where the emergency fund target comes from" [ref=f7e175]:
+        - generic [ref=f7e177] [cursor=pointer]:
+          - radio "Months of my essentials" [checked] [ref=f7e178]
+          - generic [ref=f7e179]: Months of my essentials
+        - generic [ref=f7e180] [cursor=pointer]:
+          - radio "A target I enter" [ref=f7e181]
+          - generic [ref=f7e182]: A target I enter
+      - generic [ref=f7e183]:
+        - generic [ref=f7e184]:
+          - generic [ref=f7e185]: Months
+          - spinbutton "Months" [ref=f7e186]: "6"
+        - paragraph [ref=f7e187]: No category counting as essentials has a monthly estimate yet, so there is nothing to take a multiple of. Fill in the estimates above and the target appears here.
+      - paragraph [ref=f7e188]:
+        - text: No accounts yet.
+        - link "Add them on the budget plan" [ref=f7e189] [cursor=pointer]:
+          - /url: /plan
+        - text: — an emergency fund is usually an ordinary savings account, and this needs one to read a balance off.
+      - generic [ref=f7e190]:
+        - generic [ref=f7e191]:
+          - checkbox "Hold this money back from To be assigned" [checked] [ref=f7e192]
+          - text: Hold this money back from To be assigned
+        - paragraph [ref=f7e193]: Leave this off if you already set the fund aside through a category of its own.
+    - dialog "New account" [ref=f7e194]:
+      - generic [ref=f7e195]:
+        - generic [ref=f7e196]:
+          - generic [ref=f7e197]: New account
+          - button "Close" [active] [ref=f7e199] [cursor=pointer]: ×
+        - generic [ref=f7e200]:
+          - generic [ref=f7e201]:
+            - generic [ref=f7e202]: Name
+            - textbox "Name" [ref=f7e203]
+          - complementary [ref=f7e204]:
+            - paragraph [ref=f7e205]:
+              - text: Name this account
+              - generic [ref=f7e206]: · Step 1 of 6
+            - paragraph [ref=f7e207]: Use a name you will recognize, such as Everyday checking or Travel card.
+            - generic [ref=f7e208]:
+              - button "Skip guide" [ref=f7e209] [cursor=pointer]
+              - button "Next" [ref=f7e211] [cursor=pointer]
+          - generic [ref=f7e212]:
+            - generic [ref=f7e213]: Budgeting
+            - combobox "Budgeting" [ref=f7e214]:
+              - option "On budget — money moves through it" [selected]
+              - option "Credit card — spent through, paid off"
+              - option "Off budget — tracked for net worth only"
+          - generic [ref=f7e215]:
+            - generic [ref=f7e216]: Kind
+            - combobox "Kind" [ref=f7e217]:
+              - option "Asset — something you own" [selected]
+              - option "Liability — something you owe"
+          - generic [ref=f7e218]:
+            - generic [ref=f7e219]: Starting balance
+            - textbox "Starting balance" [ref=f7e220]:
+              - /placeholder: "0"
+          - paragraph [ref=f7e221]: What this account holds. On budget, it lands in “to be assigned” and can be pushed into categories.
+          - generic [ref=f7e222]:
+            - generic [ref=f7e223]: Balance as of
+            - textbox "Balance as of" [ref=f7e224]: 2026-10-21
+          - generic [ref=f7e225]:
+            - generic [ref=f7e226]: Cash back onto the balance
+            - textbox "Cash back onto the balance" [ref=f7e227]:
+              - /placeholder: None
+          - paragraph [ref=f7e228]: For a card that pays its rewards straight back onto itself — 1% means a $100 purchase costs the balance $99. Each purchase gets a cash-back row of its own, filed as a refund to the purchase's category.
+          - button "Add" [ref=f7e230] [cursor=pointer]

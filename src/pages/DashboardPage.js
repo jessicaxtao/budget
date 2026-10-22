@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import AssignIncomeModal from "../components/AssignIncomeModal";
 import CategoryLedgerTable from "../components/CategoryLedgerTable";
 import DashboardSummary from "../components/DashboardSummary";
@@ -87,6 +88,11 @@ export default function DashboardPage() {
     (count, section) => count + section.rows.length,
     0
   );
+
+  // A brand-new household has nothing to show — send them straight to setup.
+  if (accounts.length === 0 && budgets.length === 0) {
+    return <Navigate to="/plan" replace />;
+  }
 
   // Off-budget holdings sit on Net worth, not here: nothing on this page is
   // assigned out of them, and the dashboard's accounts panel is about what the

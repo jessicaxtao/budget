@@ -335,6 +335,25 @@ describe("sign-out", () => {
     setStorageScope(null);
     expect(readKey("budgets")).toEqual([{ id: "local" }]);
   });
+
+  // Financial data must not linger in the browser after a sign-out. A guest
+  // trial left behind on a shared machine reads like a leak.
+  test("guest books are wiped and guest mode is ended", async () => {
+    mockAuth.getSession.mockResolvedValue({
+      data: { session: { user: { id: "u1", email: "jt@example.com" } } },
+    });
+    restoreScope(GUEST_SCOPE, { budgets: [{ id: "g1" }], transactions: [{ id: "t1" }] });
+
+    const { result } = await mountAuth();
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    setStorageScope(GUEST_SCOPE);
+    expect(readKey("budgets")).toBeUndefined();
+    expect(readKey("transactions")).toBeUndefined();
+    expect(isGuestMode()).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

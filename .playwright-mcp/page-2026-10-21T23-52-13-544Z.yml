@@ -1,0 +1,22 @@
+- generic [ref=f7e4]:
+  - generic [ref=f7e5]: Canopy Budget
+  - generic [ref=f7e6]:
+    - heading "Sign in" [level=1] [ref=f7e7]
+    - paragraph [ref=f7e8]: Your books are on the server now — they follow you to any browser you sign in from.
+    - generic [ref=f7e9]:
+      - generic [ref=f7e10]:
+        - generic [ref=f7e11]: Email
+        - textbox "Email" [ref=f7e12]
+      - generic [ref=f7e13]:
+        - generic [ref=f7e14]: Password
+        - textbox "Password" [ref=f7e15]
+      - button "Sign in" [ref=f7e16] [cursor=pointer]
+      - generic [ref=f7e17]: or
+      - button "Email me a sign-in link" [ref=f7e21] [cursor=pointer]
+      - paragraph [ref=f7e22]: No password needed — useful if you have never set one.
+    - generic [ref=f7e24]:
+      - button "Create an account" [ref=f7e25] [cursor=pointer]
+      - button "Forgot your password?" [ref=f7e26] [cursor=pointer]
+  - generic [ref=f7e27]:
+    - button "Use this browser without an account" [ref=f7e28] [cursor=pointer]
+    - paragraph [ref=f7e29]: The books stay in this browser and go no further.

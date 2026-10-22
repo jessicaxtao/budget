@@ -1,0 +1,712 @@
+- generic [ref=f5e3]:
+  - link "Skip to content" [ref=f5e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f5e5]:
+    - generic [ref=f5e6]:
+      - generic [ref=f5e7]:
+        - generic [ref=f5e8]: Canopy Budget
+        - generic [ref=f5e25]:
+          - generic [ref=f5e26]:
+            - button "Add transaction" [ref=f5e27] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f5e28]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f5e29] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f5e30]: ⇄
+              - text: Transfer
+          - generic [ref=f5e31]:
+            - generic "Your books are in this browser. Nothing is sent anywhere." [ref=f5e32]: On this browser
+            - button "Turn on sync" [ref=f5e33] [cursor=pointer]
+      - navigation "Sections" [ref=f5e34]:
+        - link "Configuration" [ref=f5e35] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f5e36] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f5e37] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f5e38] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f5e39] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f5e40] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f5e41] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f5e42] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f5e43] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f5e44] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f5e45]:
+    - generic [ref=f5e47]:
+      - heading "Budget plan" [level=1] [ref=f5e48]
+      - paragraph [ref=f5e49]: Set monthly estimates, organize categories, and manage accounts.
+    - generic [ref=f5e50]:
+      - generic [ref=f5e51]:
+        - heading "Plan health" [level=2] [ref=f5e52]
+        - generic [ref=f5e53]: Per month
+      - generic [ref=f5e54]:
+        - generic [ref=f5e55]:
+          - term [ref=f5e56]: Expected income
+          - definition [ref=f5e57]: $8,548.34
+          - definition [ref=f5e58]: $7,381.67 take-home + $1,166.67 pretax
+        - generic [ref=f5e59]:
+          - term [ref=f5e60]: Planned expenses
+          - definition [ref=f5e61]: $7,564.67
+          - definition [ref=f5e62]: Includes $1,166.67 pretax retirement
+        - generic [ref=f5e63]:
+          - term [ref=f5e64]: Left to plan
+          - definition [ref=f5e65]: $983.67
+      - generic [ref=f5e66]:
+        - generic [ref=f5e67]:
+          - text: Pretax retirement contributions
+          - textbox "Pretax retirement contributions" [ref=f5e68]:
+            - /placeholder: "0.00"
+            - text: "14000"
+        - paragraph [ref=f5e69]: A year's worth — a 401(k) or other payroll deduction that never reaches an on-budget account, so there is no category here to read it off. Also set on the Retirement page, where it feeds the projection; the two are the same figure.
+      - heading "Where it goes" [level=3] [ref=f5e71]
+      - generic [ref=f5e72]:
+        - generic [ref=f5e73]:
+          - term [ref=f5e74]: Essentials
+          - definition [ref=f5e76]: 46%
+          - definition [ref=f5e77]: $3,945 · 9 categories
+        - generic [ref=f5e78]:
+          - term [ref=f5e79]: Fun
+          - definition [ref=f5e81]: 14%
+          - definition [ref=f5e82]: $1,220 · 6 categories
+        - generic [ref=f5e83]:
+          - term [ref=f5e84]: Savings
+          - definition [ref=f5e86]: 19%
+          - definition [ref=f5e87]: $1,633.67 · 2 categories + $983.67 left to plan
+        - generic [ref=f5e88]:
+          - term [ref=f5e89]: Retirement
+          - definition [ref=f5e91]: 21%
+          - definition [ref=f5e92]: $1,749.67 · 1 category + $1,166.67 pretax
+    - generic [ref=f5e93]:
+      - generic [ref=f5e94]:
+        - generic [ref=f5e95]:
+          - generic [ref=f5e96]:
+            - generic [ref=f5e97]:
+              - heading "Expected income" [level=2] [ref=f5e98]
+              - generic [ref=f5e99]:
+                - generic [ref=f5e100]: Per month
+                - button "Add income source" [ref=f5e101] [cursor=pointer]
+            - table [ref=f5e103]:
+              - rowgroup [ref=f5e104]:
+                - row [ref=f5e105]:
+                  - columnheader "Source" [ref=f5e106]
+                  - columnheader "Cadence" [ref=f5e107]
+                  - columnheader "Per payment" [ref=f5e108]
+                  - columnheader "Per month" [ref=f5e109]
+                  - columnheader "Remove" [ref=f5e110]
+              - rowgroup [ref=f5e112]:
+                - row [ref=f5e113]:
+                  - cell "Acme Corp salary" [ref=f5e114]
+                  - cell "Every 2 weeks 26 a year" [ref=f5e115]:
+                    - generic [ref=f5e116]:
+                      - generic [ref=f5e117]: Every 2 weeks
+                      - generic [ref=f5e118]: 26 a year
+                  - cell "$2,650" [ref=f5e119]
+                  - cell "$5,741.67" [ref=f5e120]
+                  - cell [ref=f5e121]:
+                    - 'button "Remove income source: Acme Corp salary" [ref=f5e122] [cursor=pointer]': Remove
+                - row [ref=f5e123]:
+                  - cell "Clinic shifts" [ref=f5e124]
+                  - cell "Twice a month 24 a year" [ref=f5e125]:
+                    - generic [ref=f5e126]:
+                      - generic [ref=f5e127]: Twice a month
+                      - generic [ref=f5e128]: 24 a year
+                  - cell "$820" [ref=f5e129]
+                  - cell "$1,640" [ref=f5e130]
+                  - cell [ref=f5e131]:
+                    - 'button "Remove income source: Clinic shifts" [ref=f5e132] [cursor=pointer]': Remove
+              - rowgroup [ref=f5e133]:
+                - row [ref=f5e134]:
+                  - cell "Expected each month + $1,166.67 pretax" [ref=f5e135]:
+                    - text: Expected each month
+                    - generic [ref=f5e136]: + $1,166.67 pretax
+                  - cell "$8,548.34" [ref=f5e137]
+                  - cell [ref=f5e138]
+          - generic [ref=f5e139]:
+            - generic [ref=f5e140]:
+              - heading "Pay schedule" [level=2] [ref=f5e141]
+              - generic [ref=f5e142]: Counts down on the dashboard
+            - generic [ref=f5e143]:
+              - generic [ref=f5e144]:
+                - generic [ref=f5e145]: How often
+                - combobox "How often" [ref=f5e146]:
+                  - option "Choose one…"
+                  - option "Weekly"
+                  - option "Every 2 weeks" [selected]
+                  - option "Twice a month"
+                  - option "Monthly"
+                  - option "Every so many days"
+              - generic [ref=f5e147]:
+                - generic [ref=f5e148]: Last paycheck
+                - textbox "Last paycheck" [ref=f5e149]: 2026-10-05
+            - status [ref=f5e150]:
+              - paragraph [ref=f5e151]: Paid every 2 weeks. Next paycheck Nov 2, 2026 — in 12 days.
+        - generic [ref=f5e152]:
+          - heading "Categories" [level=2] [ref=f5e153]
+          - generic [ref=f5e154]:
+            - button "Add category" [ref=f5e155] [cursor=pointer]
+            - button "Add group" [ref=f5e156] [cursor=pointer]
+        - generic [ref=f5e158]:
+          - generic [ref=f5e159]:
+            - generic [ref=f5e160]:
+              - generic [ref=f5e161]:
+                - heading "Home" [level=3] [ref=f5e162]
+                - generic [ref=f5e163]: 4 categories · $2,560 · Essentials by default
+              - generic [ref=f5e164]:
+                - button "Add category" [ref=f5e165] [cursor=pointer]
+                - 'button "Move group up: Home" [disabled] [ref=f5e166]': ↑
+                - 'button "Move group down: Home" [ref=f5e167] [cursor=pointer]': ↓
+                - button "Edit" [ref=f5e168] [cursor=pointer]
+                - 'button "Delete group: Home" [ref=f5e169] [cursor=pointer]': Delete
+            - generic [ref=f5e170]:
+              - generic [ref=f5e171]:
+                - generic [ref=f5e172]: Category
+                - generic [ref=f5e173]: What it’s for
+                - generic [ref=f5e174]: Estimate
+                - generic [ref=f5e175]: Goal
+                - generic [ref=f5e176]: Rollover
+              - generic [ref=f5e178]:
+                - button "Reorder Rent" [ref=f5e179]
+                - textbox "Name of Rent" [ref=f5e187]: Rent
+                - combobox "What Rent is for" [ref=f5e188]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Rent" [ref=f5e189]:
+                  - /placeholder: "0"
+                  - text: "2200.00"
+                - textbox "Goal for Rent" [ref=f5e190]:
+                  - /placeholder: None
+                - generic [ref=f5e191]:
+                  - checkbox "Roll over Rent's overspending into next month" [checked] [ref=f5e192]
+                  - 'button "Hide category: Rent" [ref=f5e193] [cursor=pointer]': Hide
+                - 'button "Remove category: Rent" [ref=f5e194] [cursor=pointer]': Remove
+              - generic [ref=f5e195]:
+                - button "Reorder Utilities" [ref=f5e196]
+                - textbox "Name of Utilities" [ref=f5e204]: Utilities
+                - combobox "What Utilities is for" [ref=f5e205]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Utilities" [ref=f5e206]:
+                  - /placeholder: "0"
+                  - text: "185.00"
+                - textbox "Goal for Utilities" [ref=f5e207]:
+                  - /placeholder: None
+                - generic [ref=f5e208]:
+                  - checkbox "Roll over Utilities's overspending into next month" [checked] [ref=f5e209]
+                  - 'button "Hide category: Utilities" [ref=f5e210] [cursor=pointer]': Hide
+                - 'button "Remove category: Utilities" [ref=f5e211] [cursor=pointer]': Remove
+              - generic [ref=f5e212]:
+                - button "Reorder Internet" [ref=f5e213]
+                - textbox "Name of Internet" [ref=f5e221]: Internet
+                - combobox "What Internet is for" [ref=f5e222]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Internet" [ref=f5e223]:
+                  - /placeholder: "0"
+                  - text: "75.00"
+                - textbox "Goal for Internet" [ref=f5e224]:
+                  - /placeholder: None
+                - generic [ref=f5e225]:
+                  - checkbox "Roll over Internet's overspending into next month" [checked] [ref=f5e226]
+                  - 'button "Hide category: Internet" [ref=f5e227] [cursor=pointer]': Hide
+                - 'button "Remove category: Internet" [ref=f5e228] [cursor=pointer]': Remove
+              - generic [ref=f5e229]:
+                - button "Reorder Home repairs" [ref=f5e230]
+                - textbox "Name of Home repairs" [ref=f5e238]: Home repairs
+                - combobox "What Home repairs is for" [ref=f5e239]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Home repairs" [ref=f5e240]:
+                  - /placeholder: "0"
+                  - text: "100.00"
+                - textbox "Goal for Home repairs" [ref=f5e241]:
+                  - /placeholder: None
+                  - text: "3000.00"
+                - generic [ref=f5e242]:
+                  - checkbox "Roll over Home repairs's overspending into next month" [checked] [ref=f5e243]
+                  - 'button "Hide category: Home repairs" [ref=f5e244] [cursor=pointer]': Hide
+                - 'button "Remove category: Home repairs" [ref=f5e245] [cursor=pointer]': Remove
+          - generic [ref=f5e246]:
+            - generic [ref=f5e247]:
+              - generic [ref=f5e248]:
+                - heading "Living" [level=3] [ref=f5e249]
+                - generic [ref=f5e250]: 5 categories · $1,385 · Essentials by default
+              - generic [ref=f5e251]:
+                - button "Add category" [ref=f5e252] [cursor=pointer]
+                - 'button "Move group up: Living" [ref=f5e253] [cursor=pointer]': ↑
+                - 'button "Move group down: Living" [ref=f5e254] [cursor=pointer]': ↓
+                - button "Edit" [ref=f5e255] [cursor=pointer]
+                - 'button "Delete group: Living" [ref=f5e256] [cursor=pointer]': Delete
+            - generic [ref=f5e257]:
+              - generic [ref=f5e258]:
+                - generic [ref=f5e259]: Category
+                - generic [ref=f5e260]: What it’s for
+                - generic [ref=f5e261]: Estimate
+                - generic [ref=f5e262]: Goal
+                - generic [ref=f5e263]: Rollover
+              - generic [ref=f5e265]:
+                - button "Reorder Groceries" [ref=f5e266]
+                - textbox "Name of Groceries" [ref=f5e274]: Groceries
+                - combobox "What Groceries is for" [ref=f5e275]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Groceries" [ref=f5e276]:
+                  - /placeholder: "0"
+                  - text: "720.00"
+                - textbox "Goal for Groceries" [ref=f5e277]:
+                  - /placeholder: None
+                - generic [ref=f5e278]:
+                  - checkbox "Roll over Groceries's overspending into next month" [checked] [ref=f5e279]
+                  - 'button "Hide category: Groceries" [ref=f5e280] [cursor=pointer]': Hide
+                - 'button "Remove category: Groceries" [ref=f5e281] [cursor=pointer]': Remove
+              - generic [ref=f5e282]:
+                - button "Reorder Transit & fuel" [ref=f5e283]
+                - textbox "Name of Transit & fuel" [ref=f5e291]: Transit & fuel
+                - combobox "What Transit & fuel is for" [ref=f5e292]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Transit & fuel" [ref=f5e293]:
+                  - /placeholder: "0"
+                  - text: "180.00"
+                - textbox "Goal for Transit & fuel" [ref=f5e294]:
+                  - /placeholder: None
+                - generic [ref=f5e295]:
+                  - checkbox "Roll over Transit & fuel's overspending into next month" [checked] [ref=f5e296]
+                  - 'button "Hide category: Transit & fuel" [ref=f5e297] [cursor=pointer]': Hide
+                - 'button "Remove category: Transit & fuel" [ref=f5e298] [cursor=pointer]': Remove
+              - generic [ref=f5e299]:
+                - button "Reorder Insurance" [ref=f5e300]
+                - textbox "Name of Insurance" [ref=f5e308]: Insurance
+                - combobox "What Insurance is for" [ref=f5e309]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Insurance" [ref=f5e310]:
+                  - /placeholder: "0"
+                  - text: "245.00"
+                - textbox "Goal for Insurance" [ref=f5e311]:
+                  - /placeholder: None
+                - generic [ref=f5e312]:
+                  - checkbox "Roll over Insurance's overspending into next month" [checked] [ref=f5e313]
+                  - 'button "Hide category: Insurance" [ref=f5e314] [cursor=pointer]': Hide
+                - 'button "Remove category: Insurance" [ref=f5e315] [cursor=pointer]': Remove
+              - generic [ref=f5e316]:
+                - button "Reorder Phone" [ref=f5e317]
+                - textbox "Name of Phone" [ref=f5e325]: Phone
+                - combobox "What Phone is for" [ref=f5e326]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Phone" [ref=f5e327]:
+                  - /placeholder: "0"
+                  - text: "90.00"
+                - textbox "Goal for Phone" [ref=f5e328]:
+                  - /placeholder: None
+                - generic [ref=f5e329]:
+                  - checkbox "Roll over Phone's overspending into next month" [checked] [ref=f5e330]
+                  - 'button "Hide category: Phone" [ref=f5e331] [cursor=pointer]': Hide
+                - 'button "Remove category: Phone" [ref=f5e332] [cursor=pointer]': Remove
+              - generic [ref=f5e333]:
+                - button "Reorder Health & medical" [ref=f5e334]
+                - textbox "Name of Health & medical" [ref=f5e342]: Health & medical
+                - combobox "What Health & medical is for" [ref=f5e343]:
+                  - option "Essentials" [selected]
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Health & medical" [ref=f5e344]:
+                  - /placeholder: "0"
+                  - text: "150.00"
+                - textbox "Goal for Health & medical" [ref=f5e345]:
+                  - /placeholder: None
+                  - text: "2000.00"
+                - generic [ref=f5e346]:
+                  - checkbox "Roll over Health & medical's overspending into next month" [checked] [ref=f5e347]
+                  - 'button "Hide category: Health & medical" [ref=f5e348] [cursor=pointer]': Hide
+                - 'button "Remove category: Health & medical" [ref=f5e349] [cursor=pointer]': Remove
+          - generic [ref=f5e350]:
+            - generic [ref=f5e351]:
+              - generic [ref=f5e352]:
+                - heading "Lifestyle" [level=3] [ref=f5e353]
+                - generic [ref=f5e354]: 6 categories · $1,220 · Fun by default
+              - generic [ref=f5e355]:
+                - button "Add category" [ref=f5e356] [cursor=pointer]
+                - 'button "Move group up: Lifestyle" [ref=f5e357] [cursor=pointer]': ↑
+                - 'button "Move group down: Lifestyle" [ref=f5e358] [cursor=pointer]': ↓
+                - button "Edit" [ref=f5e359] [cursor=pointer]
+                - 'button "Delete group: Lifestyle" [ref=f5e360] [cursor=pointer]': Delete
+            - generic [ref=f5e361]:
+              - generic [ref=f5e362]:
+                - generic [ref=f5e363]: Category
+                - generic [ref=f5e364]: What it’s for
+                - generic [ref=f5e365]: Estimate
+                - generic [ref=f5e366]: Goal
+                - generic [ref=f5e367]: Rollover
+              - generic [ref=f5e369]:
+                - button "Reorder Dining out" [ref=f5e370]
+                - textbox "Name of Dining out" [ref=f5e378]: Dining out
+                - combobox "What Dining out is for" [ref=f5e379]:
+                  - option "Essentials"
+                  - option "Fun" [selected]
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Dining out" [ref=f5e380]:
+                  - /placeholder: "0"
+                  - text: "320.00"
+                - textbox "Goal for Dining out" [ref=f5e381]:
+                  - /placeholder: None
+                - generic [ref=f5e382]:
+                  - checkbox "Roll over Dining out's overspending into next month" [checked] [ref=f5e383]
+                  - 'button "Hide category: Dining out" [ref=f5e384] [cursor=pointer]': Hide
+                - 'button "Remove category: Dining out" [ref=f5e385] [cursor=pointer]': Remove
+              - generic [ref=f5e386]:
+                - button "Reorder Entertainment" [ref=f5e387]
+                - textbox "Name of Entertainment" [ref=f5e395]: Entertainment
+                - combobox "What Entertainment is for" [ref=f5e396]:
+                  - option "Essentials"
+                  - option "Fun" [selected]
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Entertainment" [ref=f5e397]:
+                  - /placeholder: "0"
+                  - text: "150.00"
+                - textbox "Goal for Entertainment" [ref=f5e398]:
+                  - /placeholder: None
+                - generic [ref=f5e399]:
+                  - checkbox "Roll over Entertainment's overspending into next month" [checked] [ref=f5e400]
+                  - 'button "Hide category: Entertainment" [ref=f5e401] [cursor=pointer]': Hide
+                - 'button "Remove category: Entertainment" [ref=f5e402] [cursor=pointer]': Remove
+              - generic [ref=f5e403]:
+                - button "Reorder Shopping" [ref=f5e404]
+                - textbox "Name of Shopping" [ref=f5e412]: Shopping
+                - combobox "What Shopping is for" [ref=f5e413]:
+                  - option "Essentials"
+                  - option "Fun" [selected]
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Shopping" [ref=f5e414]:
+                  - /placeholder: "0"
+                  - text: "200.00"
+                - textbox "Goal for Shopping" [ref=f5e415]:
+                  - /placeholder: None
+                - generic [ref=f5e416]:
+                  - checkbox "Roll over Shopping's overspending into next month" [checked] [ref=f5e417]
+                  - 'button "Hide category: Shopping" [ref=f5e418] [cursor=pointer]': Hide
+                - 'button "Remove category: Shopping" [ref=f5e419] [cursor=pointer]': Remove
+              - generic [ref=f5e420]:
+                - button "Reorder Travel" [ref=f5e421]
+                - textbox "Name of Travel" [ref=f5e429]: Travel
+                - combobox "What Travel is for" [ref=f5e430]:
+                  - option "Essentials"
+                  - option "Fun" [selected]
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Travel" [ref=f5e431]:
+                  - /placeholder: "0"
+                  - text: "250.00"
+                - textbox "Goal for Travel" [ref=f5e432]:
+                  - /placeholder: None
+                  - text: "5000.00"
+                - generic [ref=f5e433]:
+                  - checkbox "Roll over Travel's overspending into next month" [checked] [ref=f5e434]
+                  - 'button "Hide category: Travel" [ref=f5e435] [cursor=pointer]': Hide
+                - 'button "Remove category: Travel" [ref=f5e436] [cursor=pointer]': Remove
+              - generic [ref=f5e437]:
+                - button "Reorder Gifts & giving" [ref=f5e438]
+                - textbox "Name of Gifts & giving" [ref=f5e446]: Gifts & giving
+                - combobox "What Gifts & giving is for" [ref=f5e447]:
+                  - option "Essentials"
+                  - option "Fun" [selected]
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Gifts & giving" [ref=f5e448]:
+                  - /placeholder: "0"
+                  - text: "300.00"
+                - textbox "Goal for Gifts & giving" [ref=f5e449]:
+                  - /placeholder: None
+                - generic [ref=f5e450]:
+                  - checkbox "Roll over Gifts & giving's overspending into next month" [checked] [ref=f5e451]
+                  - 'button "Hide category: Gifts & giving" [ref=f5e452] [cursor=pointer]': Hide
+                - 'button "Remove category: Gifts & giving" [ref=f5e453] [cursor=pointer]': Remove
+              - generic [ref=f5e454]:
+                - button "Reorder Miscellaneous" [ref=f5e455]
+                - textbox "Name of Miscellaneous" [ref=f5e463]: Miscellaneous
+                - combobox "What Miscellaneous is for" [ref=f5e464]:
+                  - option "Essentials"
+                  - option "Fun" [selected]
+                  - option "Savings"
+                  - option "Retirement"
+                - textbox "Monthly estimate for Miscellaneous" [ref=f5e465]:
+                  - /placeholder: "0"
+                - textbox "Goal for Miscellaneous" [ref=f5e466]:
+                  - /placeholder: None
+                - generic [ref=f5e467]:
+                  - checkbox "Roll over Miscellaneous's overspending into next month" [checked] [ref=f5e468]
+                  - 'button "Hide category: Miscellaneous" [ref=f5e469] [cursor=pointer]': Hide
+                - 'button "Remove category: Miscellaneous" [ref=f5e470] [cursor=pointer]': Remove
+          - generic [ref=f5e471]:
+            - generic [ref=f5e472]:
+              - generic [ref=f5e473]:
+                - heading "Future" [level=3] [ref=f5e474]
+                - generic [ref=f5e475]: 2 categories · $650 · Savings by default
+              - generic [ref=f5e476]:
+                - button "Add category" [ref=f5e477] [cursor=pointer]
+                - 'button "Move group up: Future" [ref=f5e478] [cursor=pointer]': ↑
+                - 'button "Move group down: Future" [ref=f5e479] [cursor=pointer]': ↓
+                - button "Edit" [ref=f5e480] [cursor=pointer]
+                - 'button "Delete group: Future" [ref=f5e481] [cursor=pointer]': Delete
+            - generic [ref=f5e482]:
+              - generic [ref=f5e483]:
+                - generic [ref=f5e484]: Category
+                - generic [ref=f5e485]: What it’s for
+                - generic [ref=f5e486]: Estimate
+                - generic [ref=f5e487]: Goal
+                - generic [ref=f5e488]: Rollover
+              - generic [ref=f5e490]:
+                - button "Reorder Emergency fund" [ref=f5e491]
+                - textbox "Name of Emergency fund" [ref=f5e499]: Emergency fund
+                - combobox "What Emergency fund is for" [ref=f5e500]:
+                  - option "Essentials"
+                  - option "Fun"
+                  - option "Savings" [selected]
+                  - option "Retirement"
+                - textbox "Monthly estimate for Emergency fund" [ref=f5e501]:
+                  - /placeholder: "0"
+                  - text: "400.00"
+                - textbox "Goal for Emergency fund" [ref=f5e502]:
+                  - /placeholder: None
+                  - text: "18000.00"
+                - generic [ref=f5e503]:
+                  - checkbox "Roll over Emergency fund's overspending into next month" [checked] [ref=f5e504]
+                  - 'button "Hide category: Emergency fund" [ref=f5e505] [cursor=pointer]': Hide
+                - 'button "Remove category: Emergency fund" [ref=f5e506] [cursor=pointer]': Remove
+              - generic [ref=f5e507]:
+                - button "Reorder Car replacement" [ref=f5e508]
+                - textbox "Name of Car replacement" [ref=f5e516]: Car replacement
+                - combobox "What Car replacement is for" [ref=f5e517]:
+                  - option "Essentials"
+                  - option "Fun"
+                  - option "Savings" [selected]
+                  - option "Retirement"
+                - textbox "Monthly estimate for Car replacement" [ref=f5e518]:
+                  - /placeholder: "0"
+                  - text: "250.00"
+                - textbox "Goal for Car replacement" [ref=f5e519]:
+                  - /placeholder: None
+                  - text: "20000.00"
+                - generic [ref=f5e520]:
+                  - checkbox "Roll over Car replacement's overspending into next month" [checked] [ref=f5e521]
+                  - 'button "Hide category: Car replacement" [ref=f5e522] [cursor=pointer]': Hide
+                - 'button "Remove category: Car replacement" [ref=f5e523] [cursor=pointer]': Remove
+          - generic [ref=f5e524]:
+            - generic [ref=f5e525]:
+              - generic [ref=f5e526]:
+                - heading "Retirement" [level=3] [ref=f5e527]
+                - generic [ref=f5e528]: 1 category · $583 · Retirement by default
+              - generic [ref=f5e529]:
+                - button "Add category" [ref=f5e530] [cursor=pointer]
+                - 'button "Move group up: Retirement" [ref=f5e531] [cursor=pointer]': ↑
+                - 'button "Move group down: Retirement" [disabled] [ref=f5e532]': ↓
+                - button "Edit" [ref=f5e533] [cursor=pointer]
+                - 'button "Delete group: Retirement" [ref=f5e534] [cursor=pointer]': Delete
+            - generic [ref=f5e535]:
+              - generic [ref=f5e536]:
+                - generic [ref=f5e537]: Category
+                - generic [ref=f5e538]: What it’s for
+                - generic [ref=f5e539]: Estimate
+                - generic [ref=f5e540]: Goal
+                - generic [ref=f5e541]: Rollover
+              - generic [ref=f5e543]:
+                - button "Reorder Roth IRA" [ref=f5e544]
+                - textbox "Name of Roth IRA" [ref=f5e552]: Roth IRA
+                - combobox "What Roth IRA is for" [ref=f5e553]:
+                  - option "Essentials"
+                  - option "Fun"
+                  - option "Savings"
+                  - option "Retirement" [selected]
+                - textbox "Monthly estimate for Roth IRA" [ref=f5e554]:
+                  - /placeholder: "0"
+                  - text: "583.00"
+                - textbox "Goal for Roth IRA" [ref=f5e555]:
+                  - /placeholder: None
+                - generic [ref=f5e556]:
+                  - checkbox "Roll over Roth IRA's overspending into next month" [checked] [ref=f5e557]
+                  - 'button "Hide category: Roth IRA" [ref=f5e558] [cursor=pointer]': Hide
+                - 'button "Remove category: Roth IRA" [ref=f5e559] [cursor=pointer]': Remove
+        - status [ref=f5e560]
+      - generic [ref=f5e561]:
+        - heading "Accounts" [level=2] [ref=f5e563]
+        - generic [ref=f5e564]:
+          - generic [ref=f5e565]:
+            - generic [ref=f5e566]:
+              - generic [ref=f5e567]:
+                - generic [ref=f5e568]:
+                  - heading "On budget" [level=3] [ref=f5e569]
+                  - generic [ref=f5e570]: 2 accounts
+                - paragraph [ref=f5e571]: Spending runs through these.
+              - generic [ref=f5e572]:
+                - generic [ref=f5e573]: $31,701
+                - button "Add an on-budget account" [ref=f5e574] [cursor=pointer]: Add account
+            - generic [ref=f5e575]:
+              - generic [ref=f5e576]:
+                - generic [ref=f5e577]: Everyday checking
+                - generic [ref=f5e579]: $9,701
+                - generic [ref=f5e580]:
+                  - 'button "Edit account: Everyday checking" [ref=f5e581] [cursor=pointer]': Edit
+                  - 'button "Archive account: Everyday checking" [ref=f5e582] [cursor=pointer]': Archive
+                  - 'button "Remove account: Everyday checking" [ref=f5e583] [cursor=pointer]': Remove
+              - generic [ref=f5e584]:
+                - generic [ref=f5e585]: High-yield savings
+                - generic [ref=f5e587]: $22,000
+                - generic [ref=f5e588]:
+                  - 'button "Edit account: High-yield savings" [ref=f5e589] [cursor=pointer]': Edit
+                  - 'button "Archive account: High-yield savings" [ref=f5e590] [cursor=pointer]': Archive
+                  - 'button "Remove account: High-yield savings" [ref=f5e591] [cursor=pointer]': Remove
+          - generic [ref=f5e592]:
+            - generic [ref=f5e593]:
+              - generic [ref=f5e594]:
+                - generic [ref=f5e595]:
+                  - heading "Credit cards" [level=3] [ref=f5e596]
+                  - generic [ref=f5e597]: 1 account
+                - paragraph [ref=f5e598]: Spent through now, paid off later. Counts against what there is to assign.
+              - generic [ref=f5e599]:
+                - generic [ref=f5e600]: "-$1,797"
+                - button "Add a credit card" [ref=f5e601] [cursor=pointer]: Add account
+            - generic [ref=f5e603]:
+              - generic [ref=f5e604]: Rewards card
+              - generic [ref=f5e606]: "-$1,797"
+              - generic [ref=f5e607]:
+                - 'button "Edit account: Rewards card" [ref=f5e608] [cursor=pointer]': Edit
+                - 'button "Archive account: Rewards card" [ref=f5e609] [cursor=pointer]': Archive
+                - 'button "Remove account: Rewards card" [ref=f5e610] [cursor=pointer]': Remove
+          - generic [ref=f5e611]:
+            - generic [ref=f5e612]:
+              - generic [ref=f5e613]:
+                - generic [ref=f5e614]:
+                  - heading "Off budget" [level=3] [ref=f5e615]
+                  - generic [ref=f5e616]: 4 accounts
+                - paragraph [ref=f5e617]: Held for the long term, tracked for net worth.
+              - generic [ref=f5e618]:
+                - generic [ref=f5e619]: $331,077.43
+                - button "Add an off-budget account" [ref=f5e620] [cursor=pointer]: Add account
+            - generic [ref=f5e621]:
+              - generic [ref=f5e622]: Owned
+              - generic [ref=f5e623]:
+                - generic [ref=f5e624]: 401(k)
+                - generic [ref=f5e626]: $108,294.68
+                - generic [ref=f5e627]:
+                  - 'button "Edit account: 401(k)" [ref=f5e628] [cursor=pointer]': Edit
+                  - 'button "Archive account: 401(k)" [ref=f5e629] [cursor=pointer]': Archive
+                  - 'button "Remove account: 401(k)" [ref=f5e630] [cursor=pointer]': Remove
+              - generic [ref=f5e631]:
+                - generic [ref=f5e632]: Brokerage
+                - generic [ref=f5e634]: $32,073.43
+                - generic [ref=f5e635]:
+                  - 'button "Edit account: Brokerage" [ref=f5e636] [cursor=pointer]': Edit
+                  - 'button "Archive account: Brokerage" [ref=f5e637] [cursor=pointer]': Archive
+                  - 'button "Remove account: Brokerage" [ref=f5e638] [cursor=pointer]': Remove
+              - generic [ref=f5e639]:
+                - generic [ref=f5e640]: Home
+                - generic [ref=f5e642]: $501,549.32
+                - generic [ref=f5e643]:
+                  - 'button "Edit account: Home" [ref=f5e644] [cursor=pointer]': Edit
+                  - 'button "Archive account: Home" [ref=f5e645] [cursor=pointer]': Archive
+                  - 'button "Remove account: Home" [ref=f5e646] [cursor=pointer]': Remove
+            - generic [ref=f5e647]:
+              - generic [ref=f5e648]: Owed
+              - generic [ref=f5e649]:
+                - generic [ref=f5e650]: Mortgage
+                - generic [ref=f5e652]: "-$310,840"
+                - generic [ref=f5e653]:
+                  - 'button "Edit account: Mortgage" [ref=f5e654] [cursor=pointer]': Edit
+                  - 'button "Archive account: Mortgage" [ref=f5e655] [cursor=pointer]': Archive
+                  - 'button "Remove account: Mortgage" [ref=f5e656] [cursor=pointer]': Remove
+    - region [ref=f5e658]:
+      - generic [ref=f5e659]:
+        - heading "Emergency fund" [level=2] [ref=f5e660]
+        - generic [ref=f5e661]: 4.6 months of essentials covered
+      - generic [ref=f5e662]:
+        - generic [ref=f5e663]:
+          - term [ref=f5e664]: Set aside
+          - definition [ref=f5e665]: $18,000
+        - generic [ref=f5e666]:
+          - term [ref=f5e667]: Target
+          - definition [ref=f5e668]: $23,670
+        - generic [ref=f5e669]:
+          - term [ref=f5e670]: Still to save
+          - definition [ref=f5e671]: $5,670
+      - generic [ref=f5e672]:
+        - progressbar "$18,000 set aside of a $23,670 target" [ref=f5e673]
+        - generic [ref=f5e698]: 76% funded
+      - group "Where the emergency fund target comes from" [ref=f5e700]:
+        - generic [ref=f5e702] [cursor=pointer]:
+          - radio "Months of my essentials" [checked] [ref=f5e703]
+          - generic [ref=f5e704]: Months of my essentials
+        - generic [ref=f5e705] [cursor=pointer]:
+          - radio "A target I enter" [ref=f5e706]
+          - generic [ref=f5e707]: A target I enter
+      - generic [ref=f5e708]:
+        - generic [ref=f5e709]:
+          - generic [ref=f5e710]: Months
+          - spinbutton "Months" [ref=f5e711]: "6"
+        - paragraph [ref=f5e712]: Your essentials come to $3,945 a month across 9 categories, so 6 months of them is $23,670. Change what a category is expected to need and this follows it.
+      - table [ref=f5e714]:
+        - rowgroup [ref=f5e715]:
+          - row [ref=f5e716]:
+            - columnheader "Account" [ref=f5e717]
+            - columnheader "Where the figure comes from" [ref=f5e718]
+            - columnheader "Value" [ref=f5e719]
+            - columnheader "Counted" [ref=f5e720]
+        - rowgroup [ref=f5e721]:
+          - row [ref=f5e722]:
+            - rowheader "Everyday checking" [ref=f5e723]:
+              - generic [ref=f5e724] [cursor=pointer]:
+                - checkbox "Everyday checking" [ref=f5e725]
+                - generic [ref=f5e726]: Everyday checking
+            - cell "On budget · Valued October 2026" [ref=f5e727]
+            - cell "$9,743" [ref=f5e728]
+            - cell [ref=f5e729]:
+              - textbox "Amount of Everyday checking counted" [disabled] [ref=f5e730]:
+                - /placeholder: All of it
+          - row [ref=f5e731]:
+            - rowheader "High-yield savings" [ref=f5e732]:
+              - generic [ref=f5e733] [cursor=pointer]:
+                - checkbox "High-yield savings" [checked] [ref=f5e734]
+                - generic [ref=f5e735]: High-yield savings
+            - cell "On budget · From the ledger" [ref=f5e736]
+            - cell "$22,000" [ref=f5e737]
+            - cell [ref=f5e738]:
+              - textbox "Amount of High-yield savings counted" [ref=f5e739]:
+                - /placeholder: All of it
+                - text: $18,000
+        - rowgroup [ref=f5e740]:
+          - row [ref=f5e741]:
+            - rowheader "Held as the emergency fund" [ref=f5e742]
+            - cell [ref=f5e743]
+            - cell [ref=f5e744]
+            - cell "$18,000" [ref=f5e745]
+      - paragraph [ref=f5e746]: A ticked account counts in full. If only part of it is your emergency fund — the rest is for something else — enter that part under Counted.
+      - generic [ref=f5e747]:
+        - generic [ref=f5e748]:
+          - checkbox "Hold this money back from To be assigned" [ref=f5e749]
+          - text: Hold this money back from To be assigned
+        - paragraph [ref=f5e750]: Leave this off if you already set the fund aside through a category of its own.

@@ -4,6 +4,7 @@ import {
   clearScope,
   clearOtherAccountScopes,
   getStorageScope,
+  GUEST_SCOPE,
   hasStoredBooks,
   isDesktop,
   isGuestMode,
@@ -535,6 +536,8 @@ export const AuthProvider = ({ children }) => {
     if (!supabase) return { ok: true };
 
     clearScope(user?.id);
+    clearScope(GUEST_SCOPE);
+    setGuestMode(false);
     clearBooksKey();
 
     // The deletes above are asynchronous in the desktop shell — the renderer
