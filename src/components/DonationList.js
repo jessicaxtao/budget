@@ -1,7 +1,5 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import Button from "./Button";
-import { ACKNOWLEDGMENT_THRESHOLD_CENTS } from "../contexts/DonationsContext";
 import { RECEIPT_ACCEPT, formatFileSize } from "../receipts";
 import { amountAtRest, amountEditing, formatCents, formatDayShort, toCents } from "../utils";
 
@@ -376,9 +374,6 @@ export default function DonationList({
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Gifts in {year}
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
-          Written acknowledgment wanted from {formatCents(ACKNOWLEDGMENT_THRESHOLD_CENTS)}
-        </span>
       </div>
 
       {rows.length === 0 ? (
@@ -465,18 +460,6 @@ export default function DonationList({
         </div>
       )}
 
-      <p className="border-t border-edge px-4 py-2.5 font-sans text-row text-chalk-soft">
-        The organization, the deductible part and the receipt — ticked, with the charity’s letter
-        attached if you have it as a file — are set here. The amount, the date and
-        what it was for belong to the money itself —{" "}
-        <Link
-          to="/transactions"
-          className="text-azure underline underline-offset-2 hover:text-chalk"
-        >
-          correct those on the register
-        </Link>
-        . Untagging leaves the expense where it is; it only says this was not a gift.
-      </p>
     </section>
   );
 }

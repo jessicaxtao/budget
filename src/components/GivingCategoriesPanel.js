@@ -1,5 +1,16 @@
+import { useState } from "react";
 import Button from "./Button";
 import Dialog from "./Dialog";
+
+const GIVING_CATEGORIES_CALLOUT_KEY = "givingCategoriesCalloutDismissed";
+
+function shouldShowGivingCategoriesCallout() {
+  try {
+    return window.localStorage.getItem(GIVING_CATEGORIES_CALLOUT_KEY) !== "true";
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Which categories are giving. Spending filed under any of them appears on the
@@ -14,6 +25,8 @@ import Dialog from "./Dialog";
  * Commits on change: a tick has nothing to half-type.
  */
 export default function GivingCategoriesPanel({ budgets, selectedIds, stated, onChange }) {
+  const [showCallout, setShowCallout] = useState(shouldShowGivingCategoriesCallout);
+
   function toggle(budgetId, checked) {
     const rest = [...selectedIds].filter((id) => id !== budgetId);
     onChange(checked ? [...rest, budgetId] : rest);
@@ -41,10 +54,34 @@ export default function GivingCategoriesPanel({ budgets, selectedIds, stated, on
           </button>
         )}
       </div>
-      <p className="px-4 pt-3 font-sans text-row text-chalk-soft">
-        Anything spent from these categories shows up here as a gift, matched to the organization
-        named like its payee.
-      </p>
+      {showCallout && (
+        <aside
+          role="note"
+          aria-label="How giving categories work"
+          className="mx-4 mt-3 rounded-xl border border-azure/50 bg-panel-raised px-4 py-3"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <p className="font-sans text-row text-chalk-soft">
+              Anything spent from these categories shows up here as a gift, matched to the
+              organization named like its payee.
+            </p>
+            <button
+              type="button"
+              className="shrink-0 font-sans text-sm text-chalk-soft underline underline-offset-2 hover:text-chalk"
+              onClick={() => {
+                setShowCallout(false);
+                try {
+                  window.localStorage.setItem(GIVING_CATEGORIES_CALLOUT_KEY, "true");
+                } catch {
+                  // It remains dismissed for this visit if storage is unavailable.
+                }
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </aside>
+      )}
       {budgets.length === 0 ? (
         <p className="px-4 py-3 font-sans text-row text-chalk-soft">No categories yet.</p>
       ) : (

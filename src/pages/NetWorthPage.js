@@ -7,7 +7,6 @@ import NetWorthChart from "../components/NetWorthChart";
 import NetWorthSummary from "../components/NetWorthSummary";
 import PageHeader from "../components/PageHeader";
 import PeriodStepper from "../components/PeriodStepper";
-import Placeholder from "../components/Placeholder";
 import SegmentedControl from "../components/SegmentedControl";
 import UpdateBalancesModal from "../components/UpdateBalancesModal";
 import { useAccounts } from "../contexts/AccountsContext";
@@ -32,10 +31,6 @@ import { currentPeriod, formatCents, formatPeriod } from "../utils";
  * and the summary's headline change look — one dial, so "how far back am I
  * looking" has one answer on screen instead of two that can disagree.
  *
- * Allocation across asset classes is still a placeholder. The band split in the
- * summary — cash, investments, property, debt — is the coarse cut that answers
- * "what kind of money is this"; a target allocation with drift is a different
- * question and wants its own figures to compare against.
  */
 
 /**
@@ -83,7 +78,6 @@ export default function NetWorthPage() {
     <>
       <PageHeader
         title="Net worth"
-        description="Track what you own and owe over time."
         actions={
           <>
             <PeriodStepper period={period} onChange={setPeriod} />
@@ -229,14 +223,6 @@ export default function NetWorthPage() {
             onReorder={reorderAccounts}
           />
 
-          <Placeholder
-            title="Asset allocation"
-            items={[
-              "Current allocation across asset classes, finer than the bands above",
-              "Target allocation with drift from target",
-              "Allocation mix over time",
-            ]}
-          />
         </div>
       )}
 

@@ -89,7 +89,7 @@ function OrganizationRow({ row, striped, onEdit, onRemove }) {
   );
 }
 
-export default function OrganizationList({ year, rows, onAdd, onEdit, onRemove }) {
+export default function OrganizationList({ rows, onAdd, onEdit, onRemove }) {
   const named = rows.filter((row) => row.recipientId != null);
 
   return (
@@ -102,9 +102,6 @@ export default function OrganizationList({ year, rows, onAdd, onEdit, onRemove }
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
             Organizations
           </h2>
-          <p className="mt-0.5 font-sans text-row text-chalk-soft">
-            Given in {year}, per organization.
-          </p>
         </div>
         <Button variant="outline" size="sm" onClick={onAdd}>
           Add organization

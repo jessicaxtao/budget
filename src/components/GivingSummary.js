@@ -63,7 +63,6 @@ function Tile({ label, figure, tone = "text-chalk", note }) {
 /** What the goal is a goal *of*, said where the figure is — a target that moves
  *  with income has to say so, or it reads as a figure that changed itself. */
 function goalNote(goal, year) {
-  if (!goal.stated) return `No goal set for ${year}`;
   if (goal.source === GOAL_SOURCES.INCOME_SHARE) {
     return `${formatBps(goal.shareBps)} of ${formatCents(goal.incomeCents)} recorded`;
   }
@@ -71,16 +70,7 @@ function goalNote(goal, year) {
 }
 
 /** The distance to the goal, as an instruction rather than as a verdict. */
-function Progress({ goal, totalCents, year }) {
-  if (!goal.stated) {
-    return (
-      <>
-        No goal set for {year}. Naming one — a figure, or a share of what comes in — is what turns
-        the total above into something to read against.
-      </>
-    );
-  }
-
+function Progress({ goal, totalCents }) {
   if (goal.remainingCents > 0) {
     return (
       <>
@@ -170,21 +160,23 @@ export default function GivingSummary({ giving }) {
           label="Goal"
           figure={goal.stated ? formatCents(goal.targetCents) : "—"}
           tone={goal.stated ? "text-chalk" : "text-chalk-soft"}
-          note={goalNote(goal, year)}
+          note={goal.stated ? goalNote(goal, year) : null}
         />
       </dl>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-edge px-4 py-3">
-        {ratio != null && (
-          <GivenMeter
-            ratio={ratio}
-            label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the ${year} giving goal`}
-          />
-        )}
-        <p className="flex-1 font-sans text-row text-chalk-soft">
-          <Progress goal={goal} totalCents={totalCents} year={year} />
-        </p>
-      </div>
+      {goal.stated && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-edge px-4 py-3">
+          {ratio != null && (
+            <GivenMeter
+              ratio={ratio}
+              label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the ${year} giving goal`}
+            />
+          )}
+          <p className="flex-1 font-sans text-row text-chalk-soft">
+            <Progress goal={goal} totalCents={totalCents} />
+          </p>
+        </div>
+      )}
     </section>
   );
 }

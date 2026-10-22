@@ -123,10 +123,6 @@ export default function GivingGoalPanel({ year, goal, error, onChange }) {
                 }}
               />
             </label>
-            <p className="mt-2 font-sans text-row text-chalk-soft">
-              What you intend to give in {year}, whatever the year earns. Leave it blank for no
-              goal.
-            </p>
           </>
         )}
       </div>

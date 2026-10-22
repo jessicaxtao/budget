@@ -9,6 +9,16 @@ import { ACKNOWLEDGMENT_THRESHOLD_CENTS, useDonations } from "../contexts/Donati
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { formatCents, toCents, todayISO } from "../utils";
 
+const FIRST_GIFT_CALLOUT_KEY = "firstGiftCalloutDismissed";
+
+function shouldShowFirstGiftCallout() {
+  try {
+    return window.localStorage.getItem(FIRST_GIFT_CALLOUT_KEY) !== "true";
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Record a gift: the money on the register, and the two facts about it that only
  * matter in April.
@@ -55,11 +65,12 @@ export default function AddDonationModal({ show, handleClose }) {
   // not a default. The same contract as the bucket in `AddBudgetModal`.
   const chosenRef = useRef(false);
   const [error, setError] = useState(null);
+  const [showFirstGiftCallout, setShowFirstGiftCallout] = useState(shouldShowFirstGiftCallout);
   // In state rather than on the form, because it decides which fields exist and
   // `form.reset()` cannot reach it.
   const [mode, setMode] = useState(DEDUCTIBLE_MODES.ALL);
 
-  const { recipients, recordDonation } = useDonations();
+  const { recipients, donations, recordDonation } = useDonations();
   const { addTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { budgets } = useBudgets();
@@ -69,6 +80,15 @@ export default function AddDonationModal({ show, handleClose }) {
   // presenting a form whose submit can only fail — the same guard, and the same
   // reason, as `AddTransactionModal`.
   const blocked = recipients.length === 0 || spendable.length === 0 || budgets.length === 0;
+
+  function dismissFirstGiftCallout() {
+    setShowFirstGiftCallout(false);
+    try {
+      window.localStorage.setItem(FIRST_GIFT_CALLOUT_KEY, "true");
+    } catch {
+      // It remains dismissed for this visit if storage is unavailable.
+    }
+  }
 
   // The modal never unmounts — it is toggled by `show` — so nothing clears the
   // last entry, and `defaultValue` on a select only ever applies on the first
@@ -163,6 +183,7 @@ export default function AddDonationModal({ show, handleClose }) {
       return;
     }
 
+    dismissFirstGiftCallout();
     handleClose();
   }
 
@@ -197,6 +218,30 @@ export default function AddDonationModal({ show, handleClose }) {
         </div>
       ) : (
         <form ref={formRef} onSubmit={handleSubmit}>
+          {show && donations.length === 0 && showFirstGiftCallout && (
+            <aside
+              role="note"
+              aria-label="About recording a gift"
+              className="mb-5 rounded-xl border border-azure/50 bg-panel-raised px-4 py-3"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <p className="font-sans text-row text-chalk-soft">
+                  Set the organization and deductible part here, and mark whether you have the
+                  written acknowledgment. After recording, attach the charity’s letter on the
+                  Donations page if you have it. Correct the amount, date and what it was for on
+                  the <Link to="/transactions" className="text-azure underline underline-offset-2 hover:text-chalk">register</Link>.
+                  Untagging removes the gift label only; the expense stays in your books.
+                </p>
+                <button
+                  type="button"
+                  className="shrink-0 font-sans text-sm text-chalk-soft underline underline-offset-2 hover:text-chalk"
+                  onClick={dismissFirstGiftCallout}
+                >
+                  Got it
+                </button>
+              </div>
+            </aside>
+          )}
           <SelectField
             label="Organization"
             selectRef={recipientIdRef}

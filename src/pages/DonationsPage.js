@@ -282,7 +282,6 @@ export default function DonationsPage() {
               onChange={handleGoalChange}
             />
             <OrganizationList
-              year={year}
               rows={giving.byRecipient}
               onAdd={handleAddOrganization}
               onEdit={handleEditOrganization}
