@@ -95,9 +95,9 @@ test("the message belongs to one row, and a later success clears it", () => {
   fireEvent.blur(camera);
 
   // The alert sits under the row it is about — inside the table, spanning all
-  // columns. Seven columns: goal, target, saved, remaining, pace, add, actions.
+  // columns. Eight columns: goal, target, saved, this month, remaining, pace, add, actions.
   const alertRow = screen.getByRole("alert").closest("tr");
-  expect(within(alertRow).getByRole("cell")).toHaveAttribute("colspan", "7");
+  expect(within(alertRow).getByRole("cell")).toHaveAttribute("colspan", "8");
   expect(screen.getByRole("table").contains(alertRow)).toBe(true);
 
   assign.mockReturnValue({ ok: true });
@@ -172,12 +172,11 @@ describe("additive input: every figure is added to what is already there", () =>
 });
 
 /**
- * A goal whose money is already invested. The two piles are stated apart — the
- * holding under the goal's name, the assignment under the headline — because
- * the household is the only thing that can move one into the other, and a
- * single total would hide money that was assigned *and* already swept across.
+ * A goal whose money is already invested. Held money counts towards the saved
+ * total, but the breakdown of held vs assigned is not shown on the row — it
+ * lives in the edit modal so the main list stays scannable.
  */
-test("held money counts towards the goal and is named apart from what the budget assigned", () => {
+test("held money counts towards the saved total; the breakdown is in the edit modal, not the row", () => {
   const HOUSE = goal({
     name: "House deposit",
     targetCents: 4_000_000,
@@ -192,14 +191,6 @@ test("held money counts towards the goal and is named apart from what the budget
 
   expect(screen.getByRole("columnheader", { name: "Saved" })).toBeInTheDocument();
   expect(screen.getByText("$19,700")).toBeInTheDocument();
-  expect(screen.getByText("$18,500 held in Brokerage")).toBeInTheDocument();
-  expect(screen.getByText("$1,200 assigned")).toBeInTheDocument();
-  expect(screen.getByText("$20,300")).toBeInTheDocument();
-});
-
-test("a goal funded out of the budget alone says nothing about holdings", () => {
-  renderList();
-
   expect(screen.queryByText(/held/)).not.toBeInTheDocument();
   expect(screen.queryByText(/assigned$/)).not.toBeInTheDocument();
 });

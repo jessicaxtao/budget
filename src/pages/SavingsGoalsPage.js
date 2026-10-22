@@ -3,11 +3,22 @@ import AddSavingsGoalModal from "../components/AddSavingsGoalModal";
 import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
 import SavingsGoalList from "../components/SavingsGoalList";
+import SetupGuideCallout from "../components/SetupGuideCallout";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
 import useEnvelopes from "../hooks/useEnvelopes";
 import useSavingsGoalEnvelopes from "../hooks/useSavingsGoalEnvelopes";
 import { currentPeriod, formatCents } from "../utils";
+
+const SAVINGS_ADD_EXPLAINER_KEY = "savingsAddExplainerDismissed";
+
+function shouldShowAddExplainer() {
+  try {
+    return window.localStorage.getItem(SAVINGS_ADD_EXPLAINER_KEY) !== "true";
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Medium-term savings: a camera, a wedding, a special event — anything
@@ -32,12 +43,22 @@ import { currentPeriod, formatCents } from "../utils";
 export default function SavingsGoalsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
+  const [showAddExplainer, setShowAddExplainer] = useState(shouldShowAddExplainer);
   const period = currentPeriod();
 
   const { toBeAssignedCents } = useEnvelopes(period);
   const { setAssignedAmount } = useSavingsGoalAssignments();
   const { goals, deleteSavingsGoal, reorderSavingsGoals } = useSavingsGoals();
   const rows = useSavingsGoalEnvelopes(period);
+
+  function dismissAddExplainer() {
+    setShowAddExplainer(false);
+    try {
+      window.localStorage.setItem(SAVINGS_ADD_EXPLAINER_KEY, "true");
+    } catch {
+      // Dismissal still works for this visit when browser storage is unavailable.
+    }
+  }
 
   function handleAssign(row, cents) {
     return setAssignedAmount({ goalId: row.goalId, period, amountCents: cents });
@@ -63,7 +84,6 @@ export default function SavingsGoalsPage() {
     <>
       <PageHeader
         title="Savings goals"
-        description="Plan and track purchases that need more than one month's budget."
         actions={
           <Button variant="primary" onClick={handleAdd}>
             Add goal
@@ -92,6 +112,27 @@ export default function SavingsGoalsPage() {
           onReorder={reorderSavingsGoals}
         />
       </div>
+
+      {showAddExplainer && rows.length > 0 && !showModal && (
+        <SetupGuideCallout
+          targetId={`savings-goal-add-${rows[0].goalId}`}
+          title="Put money toward a goal"
+          description={
+            <>
+              Type an amount in the Add column to put money toward a goal. Use a minus —{" "}
+              <span className="font-mono text-chalk">−200</span> — to pull money back out.
+            </>
+          }
+        >
+          <button
+            type="button"
+            className="mt-3 font-sans text-row text-chalk-soft underline"
+            onClick={dismissAddExplainer}
+          >
+            Got it
+          </button>
+        </SetupGuideCallout>
+      )}
 
       <AddSavingsGoalModal
         show={showModal}

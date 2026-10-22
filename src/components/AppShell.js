@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useMatch } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import AddTransactionModal from "./AddTransactionModal";
 import AskModal from "./AskModal";
 import MoveMoneyModal from "./MoveMoneyModal";
@@ -36,8 +36,7 @@ function SignOutIcon() {
  */
 export default function AppShell({ children }) {
   useTheme(); // applies data-theme to <html> on every render, regardless of which page is shown
-  const retirementPage = useMatch("/retirement");
-  const contentWidth = retirementPage ? "max-w-[1600px]" : "max-w-6xl";
+  const contentWidth = "max-w-[1600px]";
 
   return (
     <div className="min-h-screen bg-ledger">
@@ -67,7 +66,7 @@ export default function AppShell({ children }) {
               list. `flex-wrap` returns once there is room for it. */}
           <nav
             aria-label="Sections"
-            className="no-scrollbar -mx-4 mt-3 flex gap-x-6 overflow-x-auto px-4 sm:mx-0 sm:mt-4 sm:flex-wrap sm:gap-x-7 sm:overflow-visible sm:px-0"
+            className="no-scrollbar -mx-4 mt-3 flex justify-start gap-x-6 overflow-x-auto px-4 sm:mx-0 sm:mt-4 sm:flex-wrap sm:gap-x-7 sm:overflow-visible sm:px-0"
           >
             {navigation.map(({ path, label, activeClass }) => (
               <NavLink

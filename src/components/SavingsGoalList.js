@@ -49,9 +49,9 @@ const COLUMNS = [
   { key: "goal", label: () => "Goal", className: "px-4 text-left" },
   { key: "target", label: () => "Target", className: "px-3 text-right" },
   { key: "saved", label: () => "Saved", className: "px-3 text-right" },
-  { key: "this-month", label: () => "This month", className: "px-3 text-right" },
   { key: "remaining", label: () => "Remaining", className: "px-3 text-right" },
   { key: "pace", label: () => "Pace", className: "px-3 text-right" },
+  { key: "this-month", label: () => "This month", className: "px-3 text-right" },
   { key: "add", label: () => "Add", className: "px-3 text-right" },
   { key: "actions", label: () => <span className="sr-only">Actions</span>, className: "w-32 px-3" },
 ];
@@ -72,22 +72,9 @@ function monthsUntil(targetDate, now) {
   return (gy - ty) * 12 + (gm - tm);
 }
 
-function heldNote(row) {
-  if (!row.heldCents) return null;
-  const names = (row.holdings ?? []).map((holding) => holding.name);
-  const where =
-    names.length === 0
-      ? null
-      : names.length <= 2
-        ? names.join(" and ")
-        : `${names.length} accounts`;
-  return `${formatCents(row.heldCents)} held${where ? ` in ${where}` : ""}`;
-}
-
 function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) {
   const item = useSortableItem(row.goalId, { disabled: !sortable });
   const ratio = row.targetCents > 0 ? row.savedCents / row.targetCents : 0;
-  const held = heldNote(row);
   const months = monthsUntil(row.targetDate, currentPeriod());
   const [confirmation, setConfirmation] = useState(null);
 
@@ -147,9 +134,6 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
               Category: {row.categoryName}
             </div>
           )}
-          {held && (
-            <div className="mt-0.5 font-mono text-label uppercase text-ink-soft">{held}</div>
-          )}
         </th>
         <td data-label="Target" className={`${figureClass} text-ink-soft`}>
           {formatCents(row.targetCents)}
@@ -163,15 +147,7 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
                 label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the way to ${row.name}`}
               />
             </div>
-            {held && (
-              <div className="mt-1 font-mono text-label uppercase text-ink-soft">
-                {formatCents(row.availableCents)} assigned
-              </div>
-            )}
           </div>
-        </td>
-        <td data-label="This month" className={`${figureClass} ${row.assignedCents ? "text-ink" : "text-ink-soft/40"}`}>
-          {row.assignedCents ? formatCents(row.assignedCents) : "—"}
         </td>
         <td
           data-label="Remaining"
@@ -184,9 +160,13 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
         <td data-label="Pace" className={`${figureClass}`}>
           {paceContent}
         </td>
+        <td data-label="This month" className={`${figureClass} ${row.assignedCents ? "text-ink" : "text-ink-soft/40"}`}>
+          {row.assignedCents ? formatCents(row.assignedCents) : "—"}
+        </td>
         <td data-label="Add" className="px-3 py-2 text-right">
           <input
             key={row.assignedCents}
+            id={`savings-goal-add-${row.goalId}`}
             type="text"
             inputMode="decimal"
             defaultValue=""
@@ -297,12 +277,6 @@ export default function SavingsGoalList({ rows, onAssign, onEdit, onDelete, onRe
         </div>
       )}
 
-      {rows.length > 0 && (
-        <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
-          Type an amount in the Add column to put money toward a goal. Use a minus —{" "}
-          <span className="font-mono text-chalk">−200</span> — to pull money back out.
-        </p>
-      )}
     </section>
   );
 }
