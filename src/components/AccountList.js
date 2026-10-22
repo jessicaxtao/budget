@@ -166,7 +166,13 @@ function AccountSection({
               {formatCents(subtotalCents)}
             </span>
           )}
-          <Button variant="outline" size="sm" aria-label={addLabel} onClick={() => onAdd(scope)}>
+          <Button
+            id={`setup-add-account-${scope}`}
+            variant="outline"
+            size="sm"
+            aria-label={addLabel}
+            onClick={() => onAdd(scope)}
+          >
             Add account
           </Button>
         </div>

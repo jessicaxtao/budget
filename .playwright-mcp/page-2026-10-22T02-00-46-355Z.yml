@@ -1,0 +1,74 @@
+- generic [active] [ref=f12e1]:
+  - generic [ref=f12e3]:
+    - link "Skip to content" [ref=f12e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f12e5]:
+      - generic [ref=f12e6]:
+        - generic [ref=f12e7]:
+          - generic [ref=f12e8]: Canopy Budget
+          - generic [ref=f12e25]:
+            - generic [ref=f12e26]:
+              - button "Add transaction" [ref=f12e27] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f12e28]: +
+                - text: Add transaction
+              - button "Transfer" [ref=f12e29] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f12e30]: ⇄
+                - text: Transfer
+            - generic [ref=f12e31]:
+              - generic "Your books are in this browser. Nothing is sent anywhere." [ref=f12e32]: On this browser
+              - button "Turn on sync" [ref=f12e33] [cursor=pointer]
+        - navigation "Sections" [ref=f12e34]:
+          - link "Configuration" [ref=f12e35] [cursor=pointer]:
+            - /url: /plan
+          - link "Dashboard" [ref=f12e36] [cursor=pointer]:
+            - /url: /
+          - link "Transactions" [ref=f12e37] [cursor=pointer]:
+            - /url: /transactions
+          - link "Reports" [ref=f12e38] [cursor=pointer]:
+            - /url: /reports
+          - link "Donations" [ref=f12e39] [cursor=pointer]:
+            - /url: /donations
+          - link "Net worth" [ref=f12e40] [cursor=pointer]:
+            - /url: /net-worth
+          - link "Retirement" [ref=f12e41] [cursor=pointer]:
+            - /url: /retirement
+          - link "Savings goals" [ref=f12e42] [cursor=pointer]:
+            - /url: /savings-goals
+          - link "Rewards" [ref=f12e43] [cursor=pointer]:
+            - /url: /rewards
+          - link "Settings" [ref=f12e44] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f12e45]:
+      - generic [ref=f12e46]:
+        - generic [ref=f12e47]:
+          - heading "Spending reports" [level=1] [ref=f12e48]
+          - paragraph [ref=f12e49]: See income, spending, and category trends across months.
+        - group "How far back the report reaches" [ref=f12e52]:
+          - button "1M" [ref=f12e53] [cursor=pointer]
+          - button "3M" [ref=f12e54] [cursor=pointer]
+          - button "6M" [ref=f12e55] [cursor=pointer]
+          - button "1Y" [pressed] [ref=f12e56] [cursor=pointer]
+          - button "YTD" [ref=f12e57] [cursor=pointer]
+          - button "ALL" [ref=f12e58] [cursor=pointer]
+          - button "Custom" [ref=f12e59] [cursor=pointer]
+      - paragraph [ref=f12e61]:
+        - text: Nothing has been recorded yet.
+        - link "Start the register" [ref=f12e62] [cursor=pointer]:
+          - /url: /transactions
+        - text: — every report here is the ledger read back, so the first month of entries is the first month there is anything to say.
+  - iframe [ref=f12e63]:
+    - generic [ref=f13e2]:
+      - generic [ref=f13e3]: "Compiled with problems:"
+      - button "Dismiss" [ref=f13e4] [cursor=pointer]: ×
+      - generic [ref=f13e6]:
+        - generic [ref=f13e7]: ERROR
+        - generic [ref=f13e8]:
+          - text: "[eslint] src\\pages\\ConfigurationPage.js Line 105:58: 'DEFAULT_SCOPE' is not defined"
+          - generic [ref=f13e9]: no-undef
+          - text: "Line 468:45: 'SKIP_SETUP_INCOME_KEY' is not defined"
+          - generic [ref=f13e10]: no-undef
+          - text: "Line 472:15: 'setSkipSetupIncome' is not defined"
+          - generic [ref=f13e11]: no-undef
+          - text: Search for the
+          - generic [ref=f13e12]: keywords
+          - text: to learn more about each error.

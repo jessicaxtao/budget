@@ -176,7 +176,7 @@ export default function EmergencyFundPanel({
         </div>
       )}
 
-      <div className="border-b border-edge px-4 py-3">
+      <div id="setup-emergency-fund" className="border-b border-edge px-4 py-3">
         <SourceChoice
           name="emergency-fund-target-source"
           legend="Where the emergency fund target comes from"

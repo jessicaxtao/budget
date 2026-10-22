@@ -242,26 +242,11 @@ function AccountControl() {
   const local = status === AUTH_STATUS.GUEST || status === AUTH_STATUS.LOCAL_ONLY;
 
   if (local) {
+    if (status !== AUTH_STATUS.GUEST) return null;
     return (
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* Hidden below `sm`, where it is what pushes the header onto a second
-            line — the email's rule. */}
-        <span
-          className="hidden font-mono text-label uppercase text-on-canopy-soft sm:inline"
-          title={
-            isDesktop()
-              ? "Your books are in a file on this computer. Nothing is sent anywhere."
-              : "Your books are in this browser. Nothing is sent anywhere."
-          }
-        >
-          On this {isDesktop() ? "computer" : "browser"}
-        </span>
-        {status === AUTH_STATUS.GUEST && (
-          <Button variant="canopy" size="sm" type="button" onClick={leaveLocalMode}>
-            Turn on sync
-          </Button>
-        )}
-      </div>
+      <Button variant="canopy" size="sm" type="button" onClick={leaveLocalMode}>
+        Turn on sync
+      </Button>
     );
   }
 

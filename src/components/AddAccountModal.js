@@ -124,7 +124,6 @@ export default function AddAccountModal({
   const openingDateRef = useRef();
   const cashbackRef = useRef();
   const [error, setError] = useState(null);
-  const [guideStep, setGuideStep] = useState("name");
   // Mirror the two selects, and only so the fields below them can be shown or
   // hidden and the balance relabelled — the submitted values are still read from
   // the DOM, so there is no second copy of what the user chose.
@@ -146,52 +145,6 @@ export default function AddAccountModal({
   const owed = effectiveType === ACCOUNT_TYPES.LIABILITY;
   const spentThrough = scope !== ACCOUNT_SCOPES.OFF_BUDGET;
   const seed = seedFor(account, baseType, baseScope);
-  const guideSteps = [
-    { id: "name", ref: nameRef },
-    { id: "scope", ref: scopeRef },
-    ...(!isCard ? [{ id: "kind", ref: typeRef }] : []),
-    { id: "opening", ref: openingRef },
-    { id: "date", ref: openingDateRef },
-    ...(spentThrough ? [{ id: "cashback", ref: cashbackRef }] : []),
-  ];
-  const activeGuideStep = guideStep === null
-    ? null
-    : guideSteps.some((step) => step.id === guideStep)
-      ? guideStep
-      : guideSteps[0]?.id;
-
-  function advanceGuide(direction) {
-    const index = guideSteps.findIndex((step) => step.id === activeGuideStep);
-    const next = guideSteps[index + direction];
-    if (!next) {
-      setGuideStep(null);
-      return;
-    }
-    setGuideStep(next.id);
-    requestAnimationFrame(() => {
-      next.ref.current?.focus();
-      next.ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    });
-  }
-
-  function guideBubble(id, title, description) {
-    if (editing || activeGuideStep !== id) return null;
-    const index = guideSteps.findIndex((step) => step.id === id);
-    return (
-      <aside className="mb-5 rounded-lg border border-azure/50 bg-azure/10 p-3" aria-live="polite">
-        <p className="font-sans text-row font-semibold text-chalk">{title} <span className="font-normal text-chalk-soft">· Step {index + 1} of {guideSteps.length}</span></p>
-        <p className="mt-1 font-sans text-row text-chalk-soft">{description}</p>
-        <div className="mt-3 flex justify-between">
-          <button type="button" className="font-sans text-row text-chalk-soft underline" onClick={() => setGuideStep(null)}>Skip guide</button>
-          <div className="flex gap-3">
-            {index > 0 && <button type="button" className="font-sans text-row text-chalk-soft underline" onClick={() => advanceGuide(-1)}>Back</button>}
-            <button type="button" className="font-sans text-row font-medium text-azure underline" onClick={() => advanceGuide(1)}>{index === guideSteps.length - 1 ? "Done" : "Next"}</button>
-          </div>
-        </div>
-      </aside>
-    );
-  }
-
   // The modal stays mounted, so clear the previous entry — and the previous
   // error — each time it opens, with the account's own values where it was
   // opened on one. The selects are set explicitly rather than left to
@@ -202,7 +155,6 @@ export default function AddAccountModal({
 
     formRef.current.reset();
     setError(null);
-    setGuideStep("name");
     nameRef.current.value = seed.name;
     scopeRef.current.value = seed.scope;
     openingRef.current.value = seed.opening;
@@ -267,7 +219,6 @@ export default function AddAccountModal({
     <Dialog show={show} handleClose={handleClose} title={editing ? "Edit account" : "New account"}>
       <form ref={formRef} onChange={handleChange} onSubmit={handleSubmit}>
         <Field label="Name" inputRef={nameRef} type="text" required />
-        {guideBubble("name", "Name this account", "Use a name you will recognize, such as Everyday checking or Travel card.")}
         {/* Asked first, and of debts as much as of assets: a card is spent
             through and a mortgage is not, and the two want opposite answers
             here. It also decides whether the kind below is still a question. */}
@@ -276,7 +227,6 @@ export default function AddAccountModal({
           <option value={ACCOUNT_SCOPES.CREDIT_CARD}>Credit card — spent through, paid off</option>
           <option value={ACCOUNT_SCOPES.OFF_BUDGET}>Off budget — tracked for net worth only</option>
         </SelectField>
-        {guideBubble("scope", "Choose how you use it", "Pick On budget for everyday money, Credit card for a card you pay off, or Off budget for holdings tracked only in net worth.")}
         {/* Gone for a card, which has already answered it. Leaving it on screen
             set to "liability" would offer the user a choice whose other option
             the store refuses. */}
@@ -286,7 +236,6 @@ export default function AddAccountModal({
             <option value={ACCOUNT_TYPES.LIABILITY}>Liability — something you owe</option>
           </SelectField>
         )}
-        {!isCard && guideBubble("kind", "Is it owned or owed?", "Choose Asset for money or property you own, and Liability for a loan or other debt.")}
         {/* Not required: an account that starts empty is a real answer, and a
             blank reads as zero rather than as a mistake. Text rather than a
             number field, like every money field here, so a balance written the
@@ -298,7 +247,6 @@ export default function AddAccountModal({
           inputMode="decimal"
           placeholder="0"
         />
-        {guideBubble("opening", owed ? "Enter the amount owed" : "Enter the starting balance", "Use the balance from your statement. Leave it blank if the account starts at zero; an on-budget balance becomes available to assign.")}
         {/* Sits with the figure it describes rather than after the date, and
             says nothing about "today" — the date field below is what decides
             when this was true. Said out loud at all because it is the
@@ -315,7 +263,6 @@ export default function AddAccountModal({
           type="date"
           defaultValue={todayISO()}
         />
-        {guideBubble("date", "Date that balance", "Choose the date the statement balance was accurate. Transactions after this date will update the account balance.")}
         {spentThrough && (
           <>
             <Field
@@ -332,7 +279,6 @@ export default function AddAccountModal({
               purchase costs the balance $99. Each purchase gets a cash-back row of its own, filed
               as a refund to the purchase's category.
             </p>
-            {guideBubble("cashback", "Add cash back if it applies", "This is optional. Enter a rate only when rewards are paid directly onto this account’s balance; otherwise leave it blank.")}
           </>
         )}
         {error && (

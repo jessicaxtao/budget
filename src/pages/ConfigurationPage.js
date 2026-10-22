@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import AccountList from "../components/AccountList";
 import AddAccountModal from "../components/AddAccountModal";
 import AddBudgetModal from "../components/AddBudgetModal";
@@ -12,7 +12,13 @@ import ExpectedIncomeTable from "../components/ExpectedIncomeTable";
 import PageHeader from "../components/PageHeader";
 import PlanHealthSummary from "../components/PlanHealthSummary";
 import PaySchedulePanel from "../components/PaySchedulePanel";
-import { DEFAULT_SCOPE, isOffBudget, useAccounts } from "../contexts/AccountsContext";
+import SetupGuideCallout from "../components/SetupGuideCallout";
+import {
+  ACCOUNT_SCOPES,
+  DEFAULT_SCOPE,
+  isOffBudget,
+  useAccounts,
+} from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { useEmergencyFundPlan } from "../contexts/EmergencyFundContext";
 import { useIncomePlan } from "../contexts/IncomePlanContext";
@@ -24,6 +30,25 @@ import useNetWorth from "../hooks/useNetWorth";
 import useNextPaycheck from "../hooks/useNextPaycheck";
 import usePlanHealth from "../hooks/usePlanHealth";
 import { currentPeriod } from "../utils";
+
+const SETUP_SKIPS_KEY = "configurationSetupSkips";
+
+function readSetupSkips() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(SETUP_SKIPS_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((step) => typeof step === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSetupSkips(skips) {
+  try {
+    window.localStorage.setItem(SETUP_SKIPS_KEY, JSON.stringify(skips));
+  } catch {
+    // The setup flow can still continue if browser storage is unavailable.
+  }
+}
 
 /**
  * The standing configuration: what the user expects to earn, what each category
@@ -70,6 +95,7 @@ export default function ConfigurationPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showAddIncomeSourceModal, setShowAddIncomeSourceModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [skippedSetupSteps, setSkippedSetupSteps] = useState(() => new Set(readSetupSkips()));
   // The group a category is being added to, and the group being renamed. Held
   // separately: adding files the new category under a heading, renaming edits
   // the heading itself.
@@ -127,23 +153,6 @@ export default function ConfigurationPage() {
   for (const row of netWorthRows) {
     if (isOffBudget(row.account)) balanceById.set(row.account.id, row.valueCents);
   }
-
-  // First-time setup: open the add account modal automatically when the
-  // household has nothing at all — no accounts, no income, no categories.
-  // An account is the prerequisite for everything else, so it is the natural
-  // first step. Running once on mount is the intent; the deps are captured in
-  // a ref so no re-trigger happens when accounts are later added or removed.
-  useEffect(() => {
-    if (
-      accounts.length === 0 &&
-      health.sourceCount === 0 &&
-      health.categoryCount === 0 &&
-      health.groupCount === 0
-    ) {
-      setShowAddAccountModal(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // The store validates; the page has to say so. Silently swallowing a rejected
   // figure would leave the row showing an amount the plan is not using.
@@ -251,6 +260,58 @@ export default function ConfigurationPage() {
     return result;
   }
 
+  function skipSetupStep(step) {
+    setSkippedSetupSteps((previous) => {
+      const next = new Set(previous);
+      next.add(step);
+      saveSetupSkips([...next]);
+      return next;
+    });
+  }
+
+  const activeAccounts = accounts.filter((account) => !account.archived);
+  const accountSetupSteps = [
+    {
+      key: "on-budget",
+      targetId: `setup-add-account-${ACCOUNT_SCOPES.ON_BUDGET}`,
+      title: "Add your everyday accounts",
+      description:
+        "Think about the accounts you spend from today, such as checking and savings. Add one to start; you can come back for any others later.",
+      done: activeAccounts.some((account) => account.scope === ACCOUNT_SCOPES.ON_BUDGET),
+    },
+    {
+      key: "credit-card",
+      targetId: `setup-add-account-${ACCOUNT_SCOPES.CREDIT_CARD}`,
+      title: "Add your credit cards",
+      description:
+        "Add the cards you spend on and pay off. Canopy tracks their spending alongside your everyday accounts.",
+      done: activeAccounts.some((account) => account.scope === ACCOUNT_SCOPES.CREDIT_CARD),
+    },
+    {
+      key: "off-budget",
+      targetId: `setup-add-account-${ACCOUNT_SCOPES.OFF_BUDGET}`,
+      title: "Add accounts you track off budget",
+      description:
+        "Include savings for the long term, retirement, investments, property, or loans you want to see in net worth. You can add these later too.",
+      done: activeAccounts.some((account) => account.scope === ACCOUNT_SCOPES.OFF_BUDGET),
+    },
+  ];
+  const nextAccountStep = accountSetupSteps.find(
+    (step) => !step.done && !skippedSetupSteps.has(step.key)
+  );
+  const emergencyFundIsSetUp = fund.accountRows.some((row) => row.included);
+  const setupStep =
+    nextAccountStep?.key ??
+    (health.sourceCount === 0 && !skippedSetupSteps.has("income")
+      ? "income"
+      : health.categoryCount === 0 && !skippedSetupSteps.has("categories")
+        ? "categories"
+        : health.categoryCount > 0 &&
+            !emergencyFundIsSetUp &&
+            !skippedSetupSteps.has("emergency-fund")
+          ? "emergency-fund"
+          : null);
+
   return (
     <>
       <PageHeader
@@ -302,6 +363,7 @@ export default function ConfigurationPage() {
               onReorder={reorderIncomeSources}
               actions={
                 <Button
+                  id="setup-add-income"
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAddIncomeSourceModal(true)}
@@ -321,6 +383,7 @@ export default function ConfigurationPage() {
           </div>
           <ColumnHeading title="Categories">
             <Button
+              id="setup-add-category"
               variant="primary"
               size="sm"
               onClick={() => {
@@ -384,6 +447,71 @@ export default function ConfigurationPage() {
           />
         </div>
       </div>
+
+      {nextAccountStep && setupStep === nextAccountStep.key && (
+        <SetupGuideCallout
+          targetId={nextAccountStep.targetId}
+          title={nextAccountStep.title}
+          description={nextAccountStep.description}
+        >
+          <button
+            type="button"
+            className="mt-3 font-sans text-row text-chalk-soft underline"
+            onClick={() => skipSetupStep(nextAccountStep.key)}
+          >
+            Skip this account type
+          </button>
+        </SetupGuideCallout>
+      )}
+      {setupStep === "income" && (
+        <SetupGuideCallout
+          targetId="setup-add-income"
+          title="Look ahead to money coming in"
+          description="Add a paycheck or another regular source of income. Canopy uses it to compare what you expect to earn with what you plan to spend."
+        >
+          <button
+            type="button"
+            className="mt-3 font-sans text-row text-chalk-soft underline"
+            onClick={() => skipSetupStep("income")}
+          >
+            Skip income for now
+          </button>
+        </SetupGuideCallout>
+      )}
+      {setupStep === "categories" && (
+        <SetupGuideCallout
+          targetId="setup-add-category"
+          title="Plan where your spending goes"
+          description="Start with a few categories that match your life, such as housing, groceries, and bills. You can organize and add more later."
+        />
+      )}
+      {setupStep === "emergency-fund" && (
+        <SetupGuideCallout
+          targetId="setup-emergency-fund"
+          title="Set up your emergency fund"
+          description={
+            <>
+              <p>
+                Your default target is six months of planned spending in Essentials categories.
+                Change the months or enter a custom target above.
+              </p>
+              <p className="mt-2">
+                Below, select the on-budget account that holds your emergency savings. If only part
+                of its balance is for emergencies, enter that amount under Counted. Hold the
+                money back to ensure that you always have this set aside as your emergency fund.
+              </p>
+            </>
+          }
+        >
+          <button
+            type="button"
+            className="mt-3 font-sans text-row text-chalk-soft underline"
+            onClick={() => skipSetupStep("emergency-fund")}
+          >
+            Set this up later
+          </button>
+        </SetupGuideCallout>
+      )}
 
       {/* Full width below both columns, because it joins them: the target is a
           multiple of the left-hand column's essentials estimates and the balance
