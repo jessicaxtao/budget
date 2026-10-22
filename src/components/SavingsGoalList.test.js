@@ -2,16 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import SavingsGoalList from "./SavingsGoalList";
 
 /**
- * The goal list with its rows handed to it, since that is how the page gives
- * them — what this pins down is the row's editing contract, not how the goals
- * got there or what the store does with an assignment. The store end is in
+ * The goal list with its rows handed to it. What this pins down is the Add
+ * input's contract — additive semantics (any typed figure adds to the running
+ * total), pace display, and error surfacing. The store end is in
  * `SavingsGoalAssignmentsContext`'s own coverage.
- *
- * `onAssign` is a spy so a rejection can be staged: what matters at this level
- * is what the row does with the answer it gets back, and a refusal that reverts
- * the figure without saying why reads as the app having lost the edit.
  */
-const PERIOD = "2026-08";
 
 const goal = (fields) => ({
   goalId: fields.name,
@@ -20,8 +15,6 @@ const goal = (fields) => ({
   carriedInCents: 0,
   assignedCents: 0,
   availableCents: 0,
-  // The off-budget half of what a goal has: nothing, for a goal funded out of
-  // the budget alone, which is every goal here but the one that says otherwise.
   heldCents: 0,
   holdings: [],
   savedCents: 0,
@@ -38,7 +31,6 @@ function renderList({ rows = [CAMERA, WEDDING], onAssign } = {}) {
   render(
     <SavingsGoalList
       rows={rows}
-      period={PERIOD}
       onAssign={assign}
       onEdit={() => {}}
       onDelete={() => {}}
@@ -47,58 +39,73 @@ function renderList({ rows = [CAMERA, WEDDING], onAssign } = {}) {
   return assign;
 }
 
-const assignField = (name) => screen.getByLabelText(`Assign to ${name} this period`);
+const addField = (name) => screen.getByLabelText(`Add to ${name}`);
 
-test("the period's figure is seeded raw with both decimal places, and a goal nobody has funded stays blank", () => {
+test("the add input always starts blank — it adds, it does not display a stored total", () => {
   renderList();
 
-  // "1234050" cents is $12,340.50 — a bare `fromCents` would seed "12340.5" and
-  // the column would never line up on its decimal point, which is the same
-  // defect that keeps every money field in the app off `type="number"`.
-  expect(assignField("Camera")).toHaveValue("12340.50");
-  // Blank rather than "0": a row nobody has put anything into this month has no
-  // stored record at all, and the placeholder is what says so.
-  expect(assignField("Wedding")).toHaveValue("");
+  // Camera has $12,340.50 already assigned, but the field is blank: the user
+  // is typing how much to add, not restating what is already there.
+  expect(addField("Camera")).toHaveValue("");
+  expect(addField("Wedding")).toHaveValue("");
 });
 
-test("a refused assignment says why, on the row it belongs to, and puts the stored figure back", () => {
+test("the field clears after a successful add", () => {
+  renderList();
+
+  const field = addField("Camera");
+  fireEvent.change(field, { target: { value: "500" } });
+  fireEvent.blur(field);
+
+  expect(field).toHaveValue("");
+});
+
+test("a refused assignment says why, under the row, and the field clears", () => {
   const assign = renderList({
-    onAssign: jest.fn(() => ({ ok: false, error: "Enter an amount." })),
+    onAssign: jest.fn(() => ({ ok: false, error: "Not enough to assign." })),
   });
 
-  const field = assignField("Camera");
+  const field = addField("Camera");
+  fireEvent.change(field, { target: { value: "500" } });
+  fireEvent.blur(field);
+
+  // Camera has 1234050 assigned; adding 50000 yields 1284050.
+  expect(assign).toHaveBeenCalledWith(expect.objectContaining({ goalId: "Camera" }), 1284050);
+  expect(screen.getByRole("alert")).toHaveTextContent("Not enough to assign.");
+  expect(field).toHaveValue("");
+});
+
+test("invalid input clears silently without calling onAssign", () => {
+  const assign = renderList();
+
+  const field = addField("Camera");
   fireEvent.change(field, { target: { value: "twelve" } });
   fireEvent.blur(field);
 
-  expect(assign).toHaveBeenCalledWith(expect.objectContaining({ goalId: "Camera" }), null);
-  expect(screen.getByRole("alert")).toHaveTextContent("Enter an amount.");
-  // Reverted to what the store actually holds, in the shape the field seeds in.
-  expect(field).toHaveValue("12340.50");
+  expect(assign).not.toHaveBeenCalled();
+  expect(field).toHaveValue("");
 });
 
 test("the message belongs to one row, and a later success clears it", () => {
-  const assign = jest.fn(() => ({ ok: false, error: "Enter an amount." }));
+  const assign = jest.fn(() => ({ ok: false, error: "Not enough to assign." }));
   renderList({ onAssign: assign });
 
-  const camera = assignField("Camera");
-  fireEvent.change(camera, { target: { value: "twelve" } });
+  const camera = addField("Camera");
+  fireEvent.change(camera, { target: { value: "500" } });
   fireEvent.blur(camera);
 
-  // The alert sits under the row it is about, not beside the cell — so it is
-  // inside the table and spans it, rather than widening a column the eye is
-  // reading down. Six columns, one of them the actions column added later:
-  // the span is derived from the list, so it cannot go stale.
+  // The alert sits under the row it is about — inside the table, spanning all
+  // columns. Seven columns: goal, target, saved, remaining, pace, add, actions.
   const alertRow = screen.getByRole("alert").closest("tr");
-  expect(within(alertRow).getByRole("cell")).toHaveAttribute("colspan", "6");
+  expect(within(alertRow).getByRole("cell")).toHaveAttribute("colspan", "7");
   expect(screen.getByRole("table").contains(alertRow)).toBe(true);
 
-  // A rejection is a reply to the edit just made: one message at a time, on the
-  // row that earned it.
   assign.mockReturnValue({ ok: true });
-  const wedding = assignField("Wedding");
+  const wedding = addField("Wedding");
   fireEvent.change(wedding, { target: { value: "250" } });
   fireEvent.blur(wedding);
 
+  // Wedding has 0 assigned; adding 25000 = 25000.
   expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Wedding" }), 25000);
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
@@ -110,60 +117,54 @@ test("a target date reads as a date rather than as the ISO string it is stored a
 });
 
 /**
- * The cell's other contract: what a typed figure *means* against the one
- * already in it. A plain figure replaces it, which is what every money field in
- * the app does; a leading plus adds to it, which is the whole point — the
- * alternative is reading the stored figure off the screen and adding to it in
- * your head. A leading minus is left alone deliberately: it already states a
- * negative figure, which is how money is pulled back out of an over-funded
- * goal, and that gesture is in the books.
+ * Every typed figure is a delta — the amount being added to the running total.
+ * A leading plus is redundant but accepted (it means the same thing). A leading
+ * minus subtracts. This is a deliberate change from the old "bare figure sets,
+ * plus-prefix adds" contract: goals accumulate, they do not have a monthly
+ * figure to reset.
  */
-describe("adding to the figure already there", () => {
-  test("a leading plus adds, where a bare figure replaces", () => {
+describe("additive input: every figure is added to what is already there", () => {
+  test("a bare figure and a plus-prefixed figure both add to the running total", () => {
     const assign = renderList();
-
-    const field = assignField("Camera");
-    fireEvent.change(field, { target: { value: "+250" } });
-    fireEvent.blur(field);
-
-    // $12,340.50 stored, $250 added.
-    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1259050);
+    const field = addField("Camera");
 
     fireEvent.change(field, { target: { value: "250" } });
     fireEvent.blur(field);
-    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 25000);
+    // Camera has 1234050 assigned; adding 25000 = 1259050.
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1259050);
+
+    fireEvent.change(field, { target: { value: "+250" } });
+    fireEvent.blur(field);
+    // Row is static in this test (mock does not update the store), so
+    // assignedCents is still 1234050.
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1259050);
   });
 
-  test("a plus takes a figure written as money, and refuses junk like any other", () => {
+  test("money notation ($, commas, spaces) is parsed the way toCents reads it", () => {
     const assign = renderList();
 
-    const field = assignField("Camera");
+    const field = addField("Camera");
     fireEvent.change(field, { target: { value: "+ $1,250.50" } });
     fireEvent.blur(field);
-    // $12,340.50 stored plus $1,250.50 — symbol, separators and the space after
-    // the plus all read the way `toCents` reads them anywhere else.
+    // Camera has 1234050 assigned; adding 125050 = 1359100.
     expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1359100);
-
-    fireEvent.change(field, { target: { value: "+ some" } });
-    fireEvent.blur(field);
-    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), null);
   });
 
-  test("a bare minus still states a negative figure rather than subtracting", () => {
+  test("a minus subtracts: typing −250 pulls $250 back out of the goal", () => {
     const assign = renderList();
 
-    const field = assignField("Camera");
+    const field = addField("Camera");
     fireEvent.change(field, { target: { value: "-250" } });
     fireEvent.blur(field);
-
-    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), -25000);
+    // Camera has 1234050 assigned; subtracting 25000 = 1209050.
+    expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Camera" }), 1209050);
   });
 
-  test("adding to a goal nobody has funded this month is just that figure", () => {
+  test("adding to a goal with nothing assigned yet is just the typed figure", () => {
     const assign = renderList();
 
-    const field = assignField("Wedding");
-    fireEvent.change(field, { target: { value: "+250" } });
+    const field = addField("Wedding");
+    fireEvent.change(field, { target: { value: "250" } });
     fireEvent.blur(field);
 
     expect(assign).toHaveBeenLastCalledWith(expect.objectContaining({ goalId: "Wedding" }), 25000);
@@ -189,7 +190,6 @@ test("held money counts towards the goal and is named apart from what the budget
   });
   renderList({ rows: [HOUSE] });
 
-  // The headline figure is both piles, and the column says so.
   expect(screen.getByRole("columnheader", { name: "Saved" })).toBeInTheDocument();
   expect(screen.getByText("$19,700")).toBeInTheDocument();
   expect(screen.getByText("$18,500 held in Brokerage")).toBeInTheDocument();

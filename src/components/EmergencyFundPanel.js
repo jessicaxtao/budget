@@ -1,3 +1,4 @@
+import { useState } from "react";
 import AccountPicker from "./AccountPicker";
 import SourceChoice from "./SourceChoice";
 import {
@@ -18,10 +19,8 @@ import { amountAtRest, formatCents, fromBps } from "../utils";
  * right-hand column's accounts, and a panel belonging to both belongs under both.
  * `BalanceHistoryPanel`'s placement, and its reasoning.
  *
- * **Open rather than a `<details>`**, unlike the three panels below it. Those are
- * opened to set something up or tidy it; this carries a figure meant to be read
- * in passing, and a buffer nobody is reminded of is the one most likely to be
- * quietly spent.
+ * Open until the target is met; once fully funded the setup controls can be
+ * tucked away while the headline remains visible.
  *
  * Two readings of the same money, deliberately, because households ask the
  * question both ways: the share of the target that is funded, and the number of
@@ -103,17 +102,21 @@ export default function EmergencyFundPanel({
   onToggleAccount,
   onAccountAmountChange,
 }) {
+  const [expanded, setExpanded] = useState(true);
   const byMonths = fund.fund.targetSource === TARGET_SOURCES.MONTHS;
   const funded = fund.fundedBps == null ? null : fromBps(fund.fundedBps);
   const monthsHeld = fund.monthsHeldBps == null ? null : fromBps(fund.monthsHeldBps);
   const met = fund.targetCents > 0 && fund.remainingCents === 0;
 
   return (
-    <section
-      className="overflow-hidden rounded-2xl border border-edge bg-panel"
-      aria-labelledby="emergency-fund-heading"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
+    <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
+      <details
+        open={!met || expanded}
+        onToggle={(event) => {
+          if (met) setExpanded(event.currentTarget.open);
+        }}
+      >
+      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3 marker:text-chalk-soft">
         <h2
           id="emergency-fund-heading"
           className="font-sans text-base font-semibold tracking-tight text-chalk"
@@ -132,7 +135,7 @@ export default function EmergencyFundPanel({
               ? "Nothing set aside yet"
               : `${monthsHeld.toFixed(1)} months of essentials covered`}
         </span>
-      </div>
+      </summary>
 
       <dl className="grid gap-px border-b border-edge bg-edge sm:grid-cols-3">
         <Figure
@@ -266,6 +269,7 @@ export default function EmergencyFundPanel({
           {error}
         </p>
       )}
+      </details>
     </section>
   );
 }

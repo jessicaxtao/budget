@@ -279,6 +279,7 @@ describe("what is stored", () => {
       name: "Camera",
       targetCents: 320000,
       targetDate: null,
+      budgetId: null,
       accountIds: [],
       accountAmounts: {},
     });
@@ -319,6 +320,7 @@ describe("what is stored", () => {
       name: "First home",
       targetCents: 4_500_000,
       targetDate: null,
+      budgetId: null,
       accountIds: ["acc-brk"],
       accountAmounts: { "acc-brk": 750000 },
     });
@@ -355,6 +357,7 @@ describe("what is stored", () => {
       name: "Camera",
       targetCents: 320000,
       targetDate: null,
+      budgetId: null,
       accountIds: [],
       accountAmounts: {},
     });

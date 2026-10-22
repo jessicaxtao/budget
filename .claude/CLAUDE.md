@@ -73,7 +73,7 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 | `/savings-goals` | Goals with target, what is saved (assigned plus any off-budget holding), remaining, this period's contribution; read-only to-be-assigned above |
 | `/rewards` | Card offers and credits, which card to reach for, each card's fee against what it earns, then points/miles: value per point, catalog vs the household's own, planned trips |
 
-`Placeholder` marks what is still to come: asset allocation (`/net-worth`), non-cash gifts and pledges (`/donations`), linking a goal to a category (`/savings-goals`), a recurring filter and CSV export (`/reports`).
+`Placeholder` marks what is still to come: asset allocation (`/net-worth`), non-cash gifts and pledges (`/donations`), a recurring filter and CSV export (`/reports`).
 
 **The dashboard has no period selector.** Everything on it is as of `todayISO()`, read once in the page so the date, the countdown and the reconciliation ages cannot disagree. Walking back through the books is the register's job, and **funding a month ahead is `AssignIncomeModal`'s** — the month is a control on that form rather than on any page, so the pool keeps one door and the dashboard keeps one date. The Net worth page *does* have a month, because half of what is on it is typed in and the month it was typed for is the meaning of the figure. The Retirement page has none, because nothing on it is about a month at all.
 

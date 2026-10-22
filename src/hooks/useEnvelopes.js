@@ -245,6 +245,9 @@ export default function useEnvelopes(period) {
     // quarterly premium funded three paycheques early. Summed across categories
     // and goals alike, since both draw on the one pool.
     let assignedAheadRawCents = 0;
+    // The distinct future months that have any assignment, so the UI can say
+    // "2 months funded ahead" rather than only a dollar total.
+    const aheadPeriods = new Set();
 
     for (const assignment of assignments) {
       const at = toPeriod(assignment.period);
@@ -260,6 +263,7 @@ export default function useEnvelopes(period) {
         // `null` — a row filed under no month at all, which nothing writes —
         // is ignored, as it always was.
         assignedAheadRawCents += assignment.assignedCents;
+        aheadPeriods.add(at);
       }
     }
 
@@ -285,7 +289,10 @@ export default function useEnvelopes(period) {
       // must not seed a zero-valued entry for it. It still leaves the pool,
       // on the same rule a category's does.
       if (!inPeriod && !before) {
-        if (at != null) assignedAheadRawCents += assignment.assignedCents;
+        if (at != null) {
+          assignedAheadRawCents += assignment.assignedCents;
+          aheadPeriods.add(at);
+        }
         continue;
       }
       const entry = goalBucket(assignment.goalId);
@@ -457,6 +464,7 @@ export default function useEnvelopes(period) {
       // Given a job in a month after this one, out of `toBeAssignedCents` for
       // the same reason and on the same footing in the identity.
       assignedAheadCents,
+      monthsFundedAhead: aheadPeriods.size,
       totalAvailableCents: totals.available,
       totalCarriedInCents: totals.carriedIn,
       periodIncomeCents,

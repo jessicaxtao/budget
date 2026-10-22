@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { ACCOUNT_TYPES, isOffBudget } from "../contexts/AccountsContext";
+import { useBudgets } from "../contexts/BudgetsContext";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
 import useEnvelopes from "./useEnvelopes";
 import useNetWorth from "./useNetWorth";
@@ -85,6 +86,7 @@ export function useHoldingOptions(period) {
  */
 export default function useSavingsGoalEnvelopes(period) {
   const { goals } = useSavingsGoals();
+  const { budgets } = useBudgets();
   const { goalRows } = useEnvelopes(period);
   // At the month on screen, like every other figure the hook returns: a holding
   // carries its last real valuation forward, so stepping a month ahead leaves
@@ -94,6 +96,7 @@ export default function useSavingsGoalEnvelopes(period) {
   return useMemo(() => {
     const byId = new Map(goalRows.map((row) => [row.goalId, row]));
     const heldById = new Map(holdings.map((row) => [row.account.id, row]));
+    const budgetById = new Map(budgets.map((b) => [b.id, b]));
 
     return goals.map((goal) => {
       const row = byId.get(goal.id) ?? ZERO_ROW;
@@ -114,11 +117,15 @@ export default function useSavingsGoalEnvelopes(period) {
       const heldCents = goalHoldings.reduce((sum, held) => sum + held.countedCents, 0);
       const savedCents = row.availableCents + heldCents;
 
+      // Inert but kept: a deleted or unknown category resolves to null here.
+      const categoryName = goal.budgetId ? (budgetById.get(goal.budgetId)?.name ?? null) : null;
+
       return {
         goalId: goal.id,
         name: goal.name,
         targetCents: goal.targetCents,
         targetDate: goal.targetDate,
+        categoryName,
         carriedInCents: row.carriedInCents,
         assignedCents: row.assignedCents,
         availableCents: row.availableCents,
@@ -128,5 +135,5 @@ export default function useSavingsGoalEnvelopes(period) {
         remainingCents: Math.max(goal.targetCents - savedCents, 0),
       };
     });
-  }, [goals, goalRows, holdings]);
+  }, [goals, budgets, goalRows, holdings]);
 }

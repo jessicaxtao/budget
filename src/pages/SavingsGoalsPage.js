@@ -2,7 +2,6 @@ import { useState } from "react";
 import AddSavingsGoalModal from "../components/AddSavingsGoalModal";
 import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
-import Placeholder from "../components/Placeholder";
 import SavingsGoalList from "../components/SavingsGoalList";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
@@ -24,8 +23,8 @@ import { currentPeriod, formatCents } from "../utils";
  * A goal's money does not have to be in the budget: a fund years out is often
  * invested, so a goal may name the off-budget accounts holding it and their
  * value counts towards the target beside what has been assigned — see
- * `useSavingsGoalEnvelopes`. Which categories a goal draws from is still to
- * come.
+ * `useSavingsGoalEnvelopes`. A goal may also name the budget category it draws
+ * its monthly contributions from; that link is informational and changes no sum.
  *
  * `editingGoal` picks up the same add/edit modal AddAccountModal uses:
  * absent, it adds; a row's goal, and it amends that one.
@@ -87,16 +86,10 @@ export default function SavingsGoalsPage() {
 
         <SavingsGoalList
           rows={rows}
-          period={period}
           onAssign={handleAssign}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onReorder={reorderSavingsGoals}
-        />
-
-        <Placeholder
-          title="Still to come"
-          items={["Linking a goal to the category it draws from"]}
         />
       </div>
 

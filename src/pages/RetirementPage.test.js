@@ -103,7 +103,7 @@ describe("a plan that cannot be answered yet", () => {
     // The retirement age is not asked for: it runs on the 65 its field shows.
     expect(within(outlook()).queryByText("Enter the age you want to retire.")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Retire at")).toHaveValue(65);
-    expect(screen.queryByText("Year by year")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your savings over time")).not.toBeInTheDocument();
   });
 
   test("the assumptions are reachable before the projection is", () => {
@@ -333,7 +333,7 @@ describe("the projection", () => {
     statePlan();
     fireEvent.click(screen.getByRole("checkbox", { name: "401(k)" }));
 
-    expect(screen.getByText("Year by year")).toBeInTheDocument();
+    expect(screen.getByText("Your savings over time")).toBeInTheDocument();
     // The table twin carries every figure the chart draws, one row per year of
     // the plan, both ends inclusive. Scoped to that table: the account picker
     // below is a table of row headers too.
@@ -398,7 +398,7 @@ describe("rejected input", () => {
       "Enter your age today as a whole number of years, 0 to 120."
     );
     // The projection is still the one built from the age that was accepted.
-    expect(screen.getByText("Year by year")).toBeInTheDocument();
+    expect(screen.getByText("Your savings over time")).toBeInTheDocument();
   });
 
   test("a bad rate is refused the same way", () => {
@@ -949,5 +949,62 @@ describe("simulation", () => {
     fireEvent.click(screen.getByText("Show every historical starting year"));
 
     expect(screen.getByRole("rowheader", { name: "2008" })).toBeInTheDocument();
+  });
+});
+
+
+describe("guided retirement setup", () => {
+  test("walks from an empty budget through the three steps to a projection", () => {
+    seed({ accounts: [], incomeSources: [], budgets: [] });
+    renderPage();
+    const timeline = screen.getByText("1. Your timeline").closest("details");
+    const savings = screen.getByText("2. Your savings").closest("details");
+    const spending = screen.getByText("3. Retirement spending").closest("details");
+    expect(timeline).toHaveAttribute("open");
+    expect(savings).not.toHaveAttribute("open");
+    expect(spending).not.toHaveAttribute("open");
+    expect(screen.getByText("Investment returns & inflation").closest("details")).not.toHaveAttribute("open");
+
+    type("Age today", "35");
+    fireEvent.click(screen.getByRole("button", { name: /Next: your savings/ }));
+    expect(timeline).not.toHaveAttribute("open");
+    expect(savings).toHaveAttribute("open");
+    expect(savings.querySelector("summary")).toHaveFocus();
+    fireEvent.click(screen.getByRole("radio", { name: "A balance I enter" }));
+    type("Starting balance", "50000");
+    type("Saving each year", "12000");
+
+    fireEvent.click(screen.getByRole("button", { name: /Next: retirement spending/ }));
+    expect(savings).not.toHaveAttribute("open");
+    expect(spending).toHaveAttribute("open");
+    expect(spending.querySelector("summary")).toHaveFocus();
+    fireEvent.click(screen.getByRole("radio", { name: "A yearly figure I enter" }));
+    type("Yearly spending", "40000");
+    expect(screen.getByRole("group", { name: /Retirement savings by age/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View your projection" })).toHaveAttribute("href", "#retirement-projection");
+    expect(screen.getByText("Plan figures: spending, contributions, and savings").closest("details")).not.toHaveAttribute("open");
+    expect(figure("Yearly spending")).toBe("$40,000");
+    expect(figure("Saving each year")).toBe("$12,000");
+    expect(JSON.parse(localStorage.getItem("retirementPlan"))).toMatchObject({
+      currentAge: 35,
+      startingBalanceCents: 5000000,
+      annualContributionCents: 1200000,
+      annualSpendingCents: 4000000,
+    });
+  });
+
+  test("opening the savings step preserves the link to budget contributions", () => {
+    seed();
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Next: your savings/ }));
+    expect(screen.getByLabelText("Saving each year")).toHaveValue("");
+    expect(screen.getByLabelText("Saving each year")).toHaveAttribute("placeholder", "12000");
+    type("Pretax contributions", "6000");
+    expect(screen.getByLabelText("Saving each year")).toHaveAttribute("placeholder", "18000");
+    expect(JSON.parse(localStorage.getItem("retirementPlan"))).toMatchObject({
+      annualContributionCents: null,
+      pretaxContributionCents: 600000,
+    });
+    expect(screen.getByText(/The projection also saves unspent income as cash/)).toBeInTheDocument();
   });
 });

@@ -10,21 +10,21 @@ import RetirementAssumptionsPanel from "../components/RetirementAssumptionsPanel
 import RetirementChart from "../components/RetirementChart";
 import RetirementFanChart from "../components/RetirementFanChart";
 import RetirementOutlook from "../components/RetirementOutlook";
-import RetirementStartingPoint from "../components/RetirementStartingPoint";
+import RetirementPlanInputs from "../components/RetirementPlanInputs";
 import SegmentedControl from "../components/SegmentedControl";
 import SocialSecurityModal from "../components/SocialSecurityModal";
 import { LIFE_EVENT_KINDS, useLifeEvents } from "../contexts/LifeEventsContext";
 import { RETURN_SOURCES, migratePlan, useRetirement } from "../contexts/RetirementContext";
 import { useScenarios } from "../contexts/ScenariosContext";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
-import useRetirementProjection from "../hooks/useRetirementProjection";
+import useRetirementProjection, { effectiveReturnRates } from "../hooks/useRetirementProjection";
 import { formatBps, formatCents } from "../utils";
 
 /** The three lenses `RetirementPage` can show the same plan through — a
  *  choice about what is on screen, never a value the plan stores, per
  *  `SegmentedControl`'s own doc comment. */
 const VIEW_MODES = [
-  { value: "deterministic", label: "Deterministic" },
+  { value: "deterministic", label: "Projection" },
   { value: "monte-carlo", label: "Monte Carlo" },
   { value: "historical", label: "Historical" },
 ];
@@ -98,6 +98,7 @@ export default function RetirementPage() {
   // about an input at the bottom is a message the user has to hunt for.
   const [startingError, setStartingError] = useState(null);
   const [assumptionsError, setAssumptionsError] = useState(null);
+  const [investmentError, setInvestmentError] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
 
   // Which lens the "Year by year" section reads through — a view, not a
@@ -108,6 +109,7 @@ export default function RetirementPage() {
   const [viewMode, setViewMode] = useState("deterministic");
   const [simulation, setSimulation] = useState({ result: null, loading: false, error: null });
   const byMix = plan.returnSource === RETURN_SOURCES.MIX;
+  const returnRates = effectiveReturnRates(plan);
 
   const changeViewMode = (mode) => {
     setViewMode(mode);
@@ -242,7 +244,7 @@ export default function RetirementPage() {
     <>
       <PageHeader
         title="Retirement planning"
-        description="Check your retirement target and projected savings in today's dollars."
+        description="Start with your timeline, savings, and spending. See how they shape your retirement."
         actions={
           <Button variant="danger" onClick={resetRetirementPlan}>
             Reset plan
@@ -251,205 +253,16 @@ export default function RetirementPage() {
       />
 
       <div className="space-y-4">
-        <RetirementOutlook
-          projection={projection}
-          inputs={inputs}
-          retirementAge={plan.retirementAge}
-        />
-
-        {projection.ready && (
-          <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
-              <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
-                Year by year
-              </h2>
-              <SegmentedControl
-                label="How to project the plan"
-                options={VIEW_MODES}
-                value={viewMode}
-                onChange={changeViewMode}
-              />
-            </div>
-
-            {viewMode === "deterministic" && (
-              <>
-                <div className="border-b border-edge px-4 py-2">
-                  <span className="font-mono text-label uppercase text-chalk-soft">
-                    Age {plan.currentAge} to {plan.lifeExpectancy} ·{" "}
-                    {formatBps(projection.realGrowthBps)} then{" "}
-                    {formatBps(projection.realDrawdownBps)} real
-                  </span>
-                </div>
-
-                <RetirementChart
-                  series={savingsSeries}
-                  targetCents={projection.needCents}
-                  retirementAge={plan.retirementAge}
-                  depletionAge={projection.depletionAge}
-                />
-
-                {/* The chart's table twin, as on the net-worth page. Every figure it
-                    draws is readable here, which is what stops the hover being the
-                    only route to a value on a fifty-year series. */}
-                <details className="border-t border-edge">
-                  <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
-                    Show these figures as a table
-                  </summary>
-                  <div className="max-h-96 overflow-auto border-t border-edge">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0">
-                        <tr className="bg-panel-raised">
-                          <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
-                            Age
-                          </th>
-                          <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
-                            Stage
-                          </th>
-                          <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
-                            Savings
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {savingsSeries.map((point, index) => (
-                          <tr key={point.age} className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
-                            <th
-                              scope="row"
-                              className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
-                            >
-                              {point.age}
-                            </th>
-                            <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-ink-soft">
-                              {point.phase === "saving" ? "Saving" : "Retired"}
-                            </td>
-                            <td
-                              className={`whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums ${
-                                point.balanceCents === 0 ? "text-vermilion-ink" : "text-ink"
-                              }`}
-                            >
-                              {formatCents(point.balanceCents)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </>
-            )}
-
-            {viewMode !== "deterministic" && !byMix && (
-              <p className="px-4 py-5 font-sans text-row text-chalk-soft">
-                A Monte Carlo trial or a historical year needs something to vary — switch
-                "Where the money is invested" below to a stock/bond mix to turn this on.
-              </p>
-            )}
-
-            {viewMode !== "deterministic" && byMix && (
-              <div className="px-4 py-4">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <button
-                    type="button"
-                    onClick={runCurrentSimulation}
-                    disabled={simulation.loading}
-                    className="rounded-lg border border-edge bg-panel-raised px-3 py-1.5 font-mono text-label uppercase text-chalk transition-colors hover:bg-edge disabled:opacity-50"
-                  >
-                    {simulation.loading ? "Running…" : "Run simulation"}
-                  </button>
-                  {viewMode === "monte-carlo" && (
-                    <span className="font-mono text-label uppercase text-chalk-soft">
-                      {plan.simulationTrials} trials
-                    </span>
-                  )}
-                  {/* Unlike every other figure on this page, a batch does not
-                      recompute as the plan is edited — see the note on
-                      `runSimulation` in `useRetirementProjection.js`. */}
-                  <span className="font-sans text-row text-chalk-soft">
-                    Does not update as you change the plan — run it again after editing.
-                  </span>
-                </div>
-
-                {simulation.error && (
-                  <p role="alert" className="mt-3 font-sans text-row text-vermilion">
-                    {simulation.error}
-                  </p>
-                )}
-
-                {simulation.result && (
-                  <div className="mt-4">
-                    <RetirementFanChart
-                      percentilesByAge={simulation.result.percentilesByAge}
-                      deterministicSeries={savingsSeries}
-                      targetCents={projection.needCents}
-                      retirementAge={plan.retirementAge}
-                      successRate={simulation.result.successRate}
-                    />
-
-                    {viewMode === "historical" && (
-                      <details className="border-t border-edge">
-                        <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
-                          Show every historical starting year
-                        </summary>
-                        <div className="max-h-96 overflow-auto border-t border-edge">
-                          <table className="w-full border-collapse">
-                            <thead className="sticky top-0">
-                              <tr className="bg-panel-raised">
-                                <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
-                                  Retired in
-                                </th>
-                                <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
-                                  Outcome
-                                </th>
-                                <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
-                                  Ending balance
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {simulation.result.cohorts.map((cohort, index) => (
-                                <tr
-                                  key={cohort.startYear}
-                                  className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}
-                                >
-                                  <th
-                                    scope="row"
-                                    className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
-                                  >
-                                    {cohort.startYear}
-                                  </th>
-                                  <td
-                                    className={`whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase ${
-                                      cohort.shortfallAge == null ? "text-ink-soft" : "text-vermilion-ink"
-                                    }`}
-                                  >
-                                    {cohort.shortfallAge == null
-                                      ? "Lasted"
-                                      : `Ran out at ${cohort.shortfallAge}`}
-                                  </td>
-                                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink">
-                                    {formatCents(cohort.atEndCents)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        <div className="grid gap-4 [&>*]:min-w-0 xl:grid-cols-2">
-          <RetirementStartingPoint
+        <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+          <RetirementPlanInputs
             plan={plan}
+            inputs={inputs}
+            projection={projection}
             accountRows={accountRows}
-            selectedCents={inputs.selectedCents}
-            error={startingError}
-            onChange={commit(setStartingError)}
+            startingError={startingError}
+            assumptionsError={assumptionsError}
+            onStartingChange={commit(setStartingError)}
+            onChange={commit(setAssumptionsError)}
             onToggleAccount={({ accountId, included }) =>
               toggleRetirementAccount({
                 accountId,
@@ -458,48 +271,286 @@ export default function RetirementPage() {
               })
             }
           />
+          <div id="retirement-projection" tabIndex={-1} className="min-w-0 scroll-mt-5 space-y-3 lg:sticky lg:top-5">
+            <RetirementOutlook
+              projection={projection}
+              inputs={inputs}
+              compact
+              retirementAge={plan.retirementAge}
+            />
 
-          <RetirementAssumptionsPanel
-            plan={plan}
-            inputs={inputs}
-            projection={projection}
-            error={assumptionsError}
-            onChange={commit(setAssumptionsError)}
-          />
+            {projection.ready && (
+              <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
+                  <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
+                    Your savings over time
+                  </h2>
+                  <SegmentedControl
+                    label="How to project the plan"
+                    options={VIEW_MODES}
+                    value={viewMode}
+                    onChange={changeViewMode}
+                  />
+                </div>
+
+                {viewMode === "deterministic" && (
+                  <>
+                    <div className="border-b border-edge px-4 py-2">
+                      <span className="font-mono text-label uppercase text-chalk-soft">
+                        Age {plan.currentAge} to {plan.lifeExpectancy} ·{" "}
+                        {formatBps(projection.realGrowthBps)} then{" "}
+                        {formatBps(projection.realDrawdownBps)} real
+                      </span>
+                    </div>
+
+                    <RetirementChart
+                      series={savingsSeries}
+                      targetCents={projection.needCents}
+                      retirementAge={plan.retirementAge}
+                      depletionAge={projection.depletionAge}
+                    />
+
+                    {/* The chart's table twin, as on the net-worth page. Every figure it
+                        draws is readable here, which is what stops the hover being the
+                        only route to a value on a fifty-year series. */}
+                    <details className="border-t border-edge">
+                      <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+                        Show these figures as a table
+                      </summary>
+                      <div className="max-h-96 overflow-auto border-t border-edge">
+                        <table className="w-full border-collapse">
+                          <thead className="sticky top-0">
+                            <tr className="bg-panel-raised">
+                              <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                                Age
+                              </th>
+                              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                                Stage
+                              </th>
+                              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                                Savings
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {savingsSeries.map((point, index) => (
+                              <tr key={point.age} className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
+                                <th
+                                  scope="row"
+                                  className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
+                                >
+                                  {point.age}
+                                </th>
+                                <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-ink-soft">
+                                  {point.phase === "saving" ? "Saving" : "Retired"}
+                                </td>
+                                <td
+                                  className={`whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums ${
+                                    point.balanceCents === 0 ? "text-vermilion-ink" : "text-ink"
+                                  }`}
+                                >
+                                  {formatCents(point.balanceCents)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  </>
+                )}
+
+                {viewMode !== "deterministic" && !byMix && (
+                  <p className="px-4 py-5 font-sans text-row text-chalk-soft">
+                    A Monte Carlo trial or a historical year needs something to vary — switch
+                    "Where the money is invested" below to a stock/bond mix to turn this on.
+                  </p>
+                )}
+
+                {viewMode !== "deterministic" && byMix && (
+                  <div className="px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <button
+                        type="button"
+                        onClick={runCurrentSimulation}
+                        disabled={simulation.loading}
+                        className="rounded-lg border border-edge bg-panel-raised px-3 py-1.5 font-mono text-label uppercase text-chalk transition-colors hover:bg-edge disabled:opacity-50"
+                      >
+                        {simulation.loading ? "Running…" : "Run simulation"}
+                      </button>
+                      {viewMode === "monte-carlo" && (
+                        <span className="font-mono text-label uppercase text-chalk-soft">
+                          {plan.simulationTrials} trials
+                        </span>
+                      )}
+                      {/* Unlike every other figure on this page, a batch does not
+                          recompute as the plan is edited — see the note on
+                          `runSimulation` in `useRetirementProjection.js`. */}
+                      <span className="font-sans text-row text-chalk-soft">
+                        Does not update as you change the plan — run it again after editing.
+                      </span>
+                    </div>
+
+                    {simulation.error && (
+                      <p role="alert" className="mt-3 font-sans text-row text-vermilion">
+                        {simulation.error}
+                      </p>
+                    )}
+
+                    {simulation.result && (
+                      <div className="mt-4">
+                        <RetirementFanChart
+                          percentilesByAge={simulation.result.percentilesByAge}
+                          deterministicSeries={savingsSeries}
+                          targetCents={projection.needCents}
+                          retirementAge={plan.retirementAge}
+                          successRate={simulation.result.successRate}
+                        />
+
+                        {viewMode === "historical" && (
+                          <details className="border-t border-edge">
+                            <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+                              Show every historical starting year
+                            </summary>
+                            <div className="max-h-96 overflow-auto border-t border-edge">
+                              <table className="w-full border-collapse">
+                                <thead className="sticky top-0">
+                                  <tr className="bg-panel-raised">
+                                    <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                                      Retired in
+                                    </th>
+                                    <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                                      Outcome
+                                    </th>
+                                    <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                                      Ending balance
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {simulation.result.cohorts.map((cohort, index) => (
+                                    <tr
+                                      key={cohort.startYear}
+                                      className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}
+                                    >
+                                      <th
+                                        scope="row"
+                                        className="px-4 py-2 text-left font-sans text-row font-normal text-ink"
+                                      >
+                                        {cohort.startYear}
+                                      </th>
+                                      <td
+                                        className={`whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase ${
+                                          cohort.shortfallAge == null ? "text-ink-soft" : "text-vermilion-ink"
+                                        }`}
+                                      >
+                                        {cohort.shortfallAge == null
+                                          ? "Lasted"
+                                          : `Ran out at ${cohort.shortfallAge}`}
+                                      </td>
+                                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink">
+                                        {formatCents(cohort.atEndCents)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            <p className="px-1 font-sans text-row text-chalk-soft">
+              Assumed returns: {formatBps(returnRates.growthRateBps)} while saving and {formatBps(returnRates.drawdownRateBps)} once retired.
+              Inflation: {formatBps(plan.inflationRateBps)}. All results are in today's dollars.
+              {" "}<a href="#retirement-details" className="text-azure underline underline-offset-2">Review assumptions below</a>.
+            </p>
+          </div>
         </div>
 
-        {netWorth.ready && (
-          <NetWorthProjection
-            projection={netWorth}
-            retirementAge={plan.retirementAge}
-            lifeExpectancy={plan.lifeExpectancy}
+        <div id="retirement-details" className="scroll-mt-6">
+          <h2 className="font-sans text-lg font-semibold text-chalk">Make it your own</h2>
+          <p className="mt-1 font-sans text-row text-chalk-soft">Once the basics look right, add detail and explore what could change.</p>
+        </div>
+
+        <details className="overflow-hidden rounded-2xl border border-edge bg-panel">
+          <summary className="cursor-pointer px-5 py-4 font-sans text-base font-semibold text-chalk hover:bg-panel-raised">
+            Investment returns & inflation
+            <span className="mt-1 block text-row font-normal text-chalk-soft">Review the rates behind your projection or model a stock and bond mix.</span>
+          </summary>
+          <RetirementAssumptionsPanel
+            plan={plan}
+            projection={projection}
+            error={investmentError}
+            onChange={commit(setInvestmentError)}
           />
-        )}
+        </details>
 
-        <LifeEventsPanel
-          plan={plan}
-          events={events}
-          goals={goals}
-          propertyNames={propertyNames}
-          onAdd={(seed) => setEventModal({ show: true, editing: null, seed })}
-          onAddSocialSecurity={() => setSocialSecurity(true)}
-          onEdit={(event) => setEventModal({ show: true, editing: event, seed: null })}
-          onToggle={setLifeEventEnabled}
-          onRemove={deleteLifeEvent}
-        />
+        <details className="overflow-hidden rounded-2xl border border-edge bg-panel">
+          <summary className="cursor-pointer px-5 py-4 font-sans text-base font-semibold text-chalk hover:bg-panel-raised">
+            Net worth by age
+            <span className="mt-1 block text-row font-normal text-chalk-soft">See cash, investments, property, and debt across your lifetime.</span>
+          </summary>
+          <div className="border-t border-edge p-3 sm:p-4">
+            {netWorth.ready && (
+              <NetWorthProjection
+                projection={netWorth}
+                retirementAge={plan.retirementAge}
+                lifeExpectancy={plan.lifeExpectancy}
+              />
+            )}
+            {!netWorth.ready && <p className="font-sans text-row text-chalk-soft">Complete your timeline and retirement spending to see your net worth by age.</p>}
 
-        <ProjectionAssumptionsPanel
-          plan={plan}
-          inputs={inputs}
-          debtRows={debtRows}
-          projection={netWorth}
-          error={projectionError}
-          onChange={commit(setProjectionError)}
-          onAddSalary={report(setProjectionError, addSalary)}
-          onUpdateSalary={report(setProjectionError, updateSalary)}
-          onRemoveSalary={report(setProjectionError, removeSalary)}
-          onDebtChange={report(setProjectionError, setDebtAssumption)}
-        />
+          </div>
+        </details>
+
+        <details className="overflow-hidden rounded-2xl border border-edge bg-panel">
+          <summary className="cursor-pointer px-5 py-4 font-sans text-base font-semibold text-chalk hover:bg-panel-raised">
+            Life events & retirement income
+            <span className="mt-1 block text-row font-normal text-chalk-soft">Add Social Security, a pension, a move, or other changes to the plan.</span>
+          </summary>
+          <div className="border-t border-edge p-3 sm:p-4">
+            <LifeEventsPanel
+              plan={plan}
+              events={events}
+              goals={goals}
+              propertyNames={propertyNames}
+              onAdd={(seed) => setEventModal({ show: true, editing: null, seed })}
+              onAddSocialSecurity={() => setSocialSecurity(true)}
+              onEdit={(event) => setEventModal({ show: true, editing: event, seed: null })}
+              onToggle={setLifeEventEnabled}
+              onRemove={deleteLifeEvent}
+            />
+
+          </div>
+        </details>
+
+        <details className="overflow-hidden rounded-2xl border border-edge bg-panel">
+          <summary className="cursor-pointer px-5 py-4 font-sans text-base font-semibold text-chalk hover:bg-panel-raised">
+            Income, taxes & other assets
+            <span className="mt-1 block text-row font-normal text-chalk-soft">Review salary growth, taxes, property, cash returns, and debt payments.</span>
+          </summary>
+          <div className="border-t border-edge p-3 sm:p-4">
+            <ProjectionAssumptionsPanel
+              plan={plan}
+              inputs={inputs}
+              debtRows={debtRows}
+              projection={netWorth}
+              error={projectionError}
+              onChange={commit(setProjectionError)}
+              onAddSalary={report(setProjectionError, addSalary)}
+              onUpdateSalary={report(setProjectionError, updateSalary)}
+              onRemoveSalary={report(setProjectionError, removeSalary)}
+              onDebtChange={report(setProjectionError, setDebtAssumption)}
+            />
+
+          </div>
+        </details>
 
         <AddLifeEventModal
           show={eventModal.show}
@@ -512,22 +563,31 @@ export default function RetirementPage() {
 
         <SocialSecurityModal show={socialSecurity} handleClose={() => setSocialSecurity(false)} />
 
-        <ScenariosPanel
-          rows={scenarioRows}
-          sensitivity={sensitivity}
-          error={scenarioError}
-          onSave={report(setScenarioError, (name) =>
-            saveScenario({ name, plan, enabledEventIds })
-          )}
-          onUse={report(setScenarioError, (scenario) => {
-            replaceRetirementPlan(scenario.plan);
-            return setEnabledEvents(scenario.enabledEventIds);
-          })}
-          onUpdate={report(setScenarioError, (scenario) =>
-            updateScenario({ id: scenario.id, plan, enabledEventIds })
-          )}
-          onRemove={report(setScenarioError, deleteScenario)}
-        />
+        <details className="overflow-hidden rounded-2xl border border-edge bg-panel">
+          <summary className="cursor-pointer px-5 py-4 font-sans text-base font-semibold text-chalk hover:bg-panel-raised">
+            Compare scenarios
+            <span className="mt-1 block text-row font-normal text-chalk-soft">Save alternatives and see how changes in returns or inflation affect the result.</span>
+          </summary>
+          <div className="border-t border-edge p-3 sm:p-4">
+            <ScenariosPanel
+              rows={scenarioRows}
+              sensitivity={sensitivity}
+              error={scenarioError}
+              onSave={report(setScenarioError, (name) =>
+                saveScenario({ name, plan, enabledEventIds })
+              )}
+              onUse={report(setScenarioError, (scenario) => {
+                replaceRetirementPlan(scenario.plan);
+                return setEnabledEvents(scenario.enabledEventIds);
+              })}
+              onUpdate={report(setScenarioError, (scenario) =>
+                updateScenario({ id: scenario.id, plan, enabledEventIds })
+              )}
+              onRemove={report(setScenarioError, deleteScenario)}
+            />
+          </div>
+        </details>
+
       </div>
     </>
   );

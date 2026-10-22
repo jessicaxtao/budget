@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import AccountPicker from "./AccountPicker";
 import Dialog from "./Dialog";
-import Field from "./Field";
+import Field, { SelectField } from "./Field";
 import Button from "./Button";
+import { useBudgets } from "../contexts/BudgetsContext";
 import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
 import { countedHoldingCents, useHoldingOptions } from "../hooks/useSavingsGoalEnvelopes";
 import { amountEditing, currentPeriod, toCents } from "../utils";
@@ -36,6 +37,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   const nameRef = useRef();
   const targetRef = useRef();
   const targetDateRef = useRef();
+  const budgetIdRef = useRef();
   const [error, setError] = useState(null);
   // The draft of where the money is held: which accounts, and how much of one
   // where only part of it is this goal's.
@@ -43,6 +45,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   const [amounts, setAmounts] = useState({});
 
   const { addSavingsGoal, updateSavingsGoal } = useSavingsGoals();
+  const { budgets } = useBudgets();
   const options = useHoldingOptions(currentPeriod());
 
   const editing = goal != null;
@@ -57,6 +60,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
     // "1250.5" — the exact defect that keeps every money field off `type=number`.
     targetRef.current.value = goal ? amountEditing(goal.targetCents) : "";
     targetDateRef.current.value = goal?.targetDate ?? "";
+    budgetIdRef.current.value = goal?.budgetId ?? "";
     setAccountIds(goal?.accountIds ?? []);
     setAmounts(goal?.accountAmounts ?? {});
   }, [show, goal]);
@@ -111,6 +115,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
       name: nameRef.current.value,
       target: targetRef.current.value,
       targetDate: targetDateRef.current.value || null,
+      budgetId: budgetIdRef.current.value || null,
       accountIds,
       // Kept rather than filtered to the ticked accounts, the switched-away-from
       // rule: unticking an account and ticking it again should not lose the part
@@ -152,6 +157,20 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           inputRef={targetDateRef}
           type="date"
         />
+
+        <SelectField label="Budget category (optional)" selectRef={budgetIdRef}>
+          <option value="">None</option>
+          {budgets.map((budget) => (
+            <option key={budget.id} value={budget.id}>
+              {budget.name}
+            </option>
+          ))}
+          {/* A stored id that no longer names a live category gets its own option
+              so the select does not silently fall back to the first one. */}
+          {goal?.budgetId && !budgets.some((b) => b.id === goal.budgetId) && (
+            <option value={goal.budgetId}>Unknown category</option>
+          )}
+        </SelectField>
 
         <div className="mb-5 overflow-hidden rounded-lg border border-edge">
           <div className="border-b border-edge px-4 py-3">

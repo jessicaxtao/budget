@@ -288,7 +288,7 @@ A rotating-category card is a capped bonus per round; "Next round" on the page o
 
 ## `SavingsGoalsContext`
 
-`savingsGoals`: a **standing intention**, `{ id, name, targetCents, targetDate, accountIds, accountAmounts }`, for the medium-term thing expected to *exceed* a normal month — a camera, a wedding, a special event — which is exactly what makes it a goal to plan around rather than a category to estimate.
+`savingsGoals`: a **standing intention**, `{ id, name, targetCents, targetDate, budgetId, accountIds, accountAmounts }`, for the medium-term thing expected to *exceed* a normal month — a camera, a wedding, a special event — which is exactly what makes it a goal to plan around rather than a category to estimate.
 
 It holds **no money**: what has actually been put toward it lives next door, on the same split `BudgetsContext` keeps against `AssignmentsContext`, and for the same reason — the target is the estimate, the assignment is the money.
 
@@ -304,7 +304,9 @@ Both are **inert but kept**: this store reads no other, so neither is checked ag
 
 ### The rest
 
-A goal names **no category and no transaction**, so nothing outside this pair deletes into or out of it — and the account it names is a reference it never reads back, the rule that keeps that true of accounts too. `updateSavingsGoal` refuses an id it cannot find rather than letting a `map` that matches nothing report the write as landed, because `useSyncedState` syncs a delete from another tab — or from another device — and the edit modal can be open on a record the store no longer has.
+**`budgetId`** is nullable and **inert but kept**: a goal may name the budget category its monthly contributions draw from, purely for display. Nothing cascades — a deleted category's id contributes nothing and is resolved where it is read in `useSavingsGoalEnvelopes`.
+
+A goal names **no transaction**, so nothing outside this pair deletes into or out of it — and the accounts and category it names are references it never reads back, the rule that keeps the dependency graph one-way. `updateSavingsGoal` refuses an id it cannot find rather than letting a `map` that matches nothing report the write as landed, because `useSyncedState` syncs a delete from another tab — or from another device — and the edit modal can be open on a record the store no longer has.
 
 ## `SavingsGoalAssignmentsContext`
 

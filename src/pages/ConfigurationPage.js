@@ -85,8 +85,12 @@ function ColumnHeading({ title, children }) {
     // The min-height is a small button's — 16px of label, 4px of padding either
     // side, 1px of border — so a heading with no actions still rules off level
     // with the one beside it that has them.
-    <div className="mb-3 flex min-h-[1.625rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-edge pb-2">
-      <h2 className="font-mono text-label uppercase text-chalk">{title}</h2>
+    <div
+      className={`mb-3 flex min-h-[1.625rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 ${
+        title ? "border-b border-edge pb-2" : ""
+      }`}
+    >
+      {title ? <h2 className="font-mono text-label uppercase text-chalk">{title}</h2> : <span />}
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
@@ -466,7 +470,6 @@ export default function ConfigurationPage() {
             onAdd={handleAddAccount}
             onEdit={handleEditAccount}
             onArchive={(account, archived) => updateAccount({ id: account.id, archived })}
-            onDelete={deleteAccount}
             onReorder={reorderAccounts}
           />
         </div>
@@ -618,6 +621,7 @@ export default function ConfigurationPage() {
         account={editingAccount}
         defaultScope={addAccountScope}
         handleClose={() => setShowAddAccountModal(false)}
+        onDelete={deleteAccount}
       />
       <AssignIncomeModal
         show={showAssignStartingModal}

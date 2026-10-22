@@ -55,6 +55,7 @@ export default function TransactionsPage() {
     periodAssignedCents,
     emergencyReservedCents,
     assignedAheadCents,
+    monthsFundedAhead,
   } = useEnvelopes(period);
 
   // The month's rows, newest first, plus every undated one — those belong to no
@@ -117,6 +118,7 @@ export default function TransactionsPage() {
         periodAssignedCents={periodAssignedCents}
         reservedCents={emergencyReservedCents}
         assignedAheadCents={assignedAheadCents}
+        monthsFundedAhead={monthsFundedAhead}
         onAssignClick={() => setShowAssignModal(true)}
       />
 

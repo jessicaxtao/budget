@@ -39,7 +39,7 @@ const NO_REORDER = () => {};
  * balance for, so a caller that has none simply gets the names.
  */
 
-function AccountRow({ account, balanceCents, striped, onEdit, onArchive, onDelete, sortable }) {
+function AccountRow({ account, balanceCents, striped, onEdit, onArchive, sortable }) {
   const item = useSortableItem(account.id, { disabled: !sortable });
   // One definition of trouble, as in the category table: an account that is
   // *owned* and has gone under. Neither way a debt can read is trouble — owed is
@@ -66,11 +66,8 @@ function AccountRow({ account, balanceCents, striped, onEdit, onArchive, onDelet
           {formatCents(balanceCents)}
         </div>
       )}
-      {/* Editing before removing, and drawn as a button where Remove is bare
-          text: the quiet one is the destructive one, and the row's ordinary
-          action should not have to be reached past it. Both are labelled with
-          the account, since a column of them is otherwise a column of the same
-          two words. */}
+      {/* The row stays focused on editing and archiving. Removal lives inside
+          the edit form, where the account's details are visible. */}
       <div className="flex shrink-0 items-center gap-1">
         <Button
           variant="row-action"
@@ -82,8 +79,7 @@ function AccountRow({ account, balanceCents, striped, onEdit, onArchive, onDelet
         </Button>
         {/* Retired rather than deleted: everything it already moved stays
             exactly where it is, and the account itself comes back the moment
-            it is unarchived. The less destructive of the two, so it sits
-            beside Edit rather than beside Remove. */}
+            it is unarchived. */}
         <Button
           variant="row-action"
           size="sm"
@@ -91,14 +87,6 @@ function AccountRow({ account, balanceCents, striped, onEdit, onArchive, onDelet
           onClick={() => onArchive(account, !account.archived)}
         >
           {account.archived ? "Unarchive" : "Archive"}
-        </Button>
-        <Button
-          variant="row"
-          size="sm"
-          aria-label={`Remove account: ${account.name}`}
-          onClick={() => onDelete(account)}
-        >
-          Remove
         </Button>
       </div>
     </div>
@@ -115,7 +103,6 @@ function AccountSection({
   onAdd,
   onEdit,
   onArchive,
-  onDelete,
   onReorder,
 }) {
   const owned = accounts.filter((account) => account.type !== ACCOUNT_TYPES.LIABILITY);
@@ -195,7 +182,6 @@ function AccountSection({
                   striped={stripe++ % 2 === 1}
                   onEdit={onEdit}
                   onArchive={onArchive}
-                  onDelete={onDelete}
                   sortable={onReorder != null}
                 />
               ))}
@@ -242,7 +228,6 @@ export default function AccountList({
   onAdd,
   onEdit,
   onArchive,
-  onDelete,
   onReorder,
 }) {
   const [showArchived, setShowArchived] = useState(false);
@@ -279,7 +264,6 @@ export default function AccountList({
           onAdd={onAdd}
           onEdit={onEdit}
           onArchive={onArchive}
-          onDelete={onDelete}
           onReorder={onReorder}
         />
       ))}
@@ -304,7 +288,6 @@ export default function AccountList({
                 striped={index % 2 === 1}
                 onEdit={onEdit}
                 onArchive={onArchive}
-                onDelete={onDelete}
                 sortable={false}
               />
             ))}

@@ -115,6 +115,7 @@ export default function AddAccountModal({
   defaultType = ACCOUNT_TYPES.ASSET,
   defaultScope = DEFAULT_SCOPE,
   handleClose,
+  onDelete,
 }) {
   const formRef = useRef();
   const nameRef = useRef();
@@ -286,7 +287,19 @@ export default function AddAccountModal({
             {error}
           </p>
         )}
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {editing && onDelete ? (
+            <Button
+              variant="row"
+              type="button"
+              onClick={() => {
+                onDelete(account);
+                handleClose();
+              }}
+            >
+              Remove account
+            </Button>
+          ) : <span />}
           <Button variant="primary" type="submit">
             {editing ? "Save" : "Add"}
           </Button>

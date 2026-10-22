@@ -191,21 +191,21 @@ export default function PaySchedulePanel({ schedule, paycheck, error, onChange }
       {/* A status region rather than an alert: it is on screen from the moment
           the page loads, and it changes as a consequence of the user's own edit
           rather than announcing anything they did not just do. */}
-      <div role="status" className="border-t border-edge px-4 py-3">
-        {paycheck.configured ? (
-          <p className="font-sans text-row text-chalk-soft">
-            Paid {paycheck.summary}. Next paycheck{" "}
-            <span className="font-medium text-chalk">{formatDateMedium(paycheck.nextDate)}</span> —{" "}
-            <span className="text-azure">{formatDayDelta(paycheck.daysUntil).toLowerCase()}</span>.
-          </p>
-        ) : (
-          <p className="font-sans text-row text-chalk-soft">
-            {cadence
-              ? "Fill in the rest to count down to your next paycheck on the dashboard."
-              : "Say how often you are paid to count down to your next paycheck on the dashboard."}
-          </p>
-        )}
-      </div>
+      {(paycheck.configured || cadence) && (
+        <div role="status" className="border-t border-edge px-4 py-3">
+          {paycheck.configured ? (
+            <p className="font-sans text-row text-chalk-soft">
+              Paid {paycheck.summary}. Next paycheck{" "}
+              <span className="font-medium text-chalk">{formatDateMedium(paycheck.nextDate)}</span> —{" "}
+              <span className="text-azure">{formatDayDelta(paycheck.daysUntil).toLowerCase()}</span>.
+            </p>
+          ) : (
+            <p className="font-sans text-row text-chalk-soft">
+              Fill in the rest to count down to your next paycheck on the dashboard.
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

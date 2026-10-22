@@ -99,7 +99,7 @@ function Guidance({ projection, inputs }) {
   );
 }
 
-export default function RetirementOutlook({ projection, inputs, retirementAge }) {
+export default function RetirementOutlook({ projection, inputs, retirementAge, compact = false }) {
   if (!projection.ready) {
     return (
       <section
@@ -107,11 +107,14 @@ export default function RetirementOutlook({ projection, inputs, retirementAge })
         className="overflow-hidden rounded-2xl border border-edge bg-panel"
       >
         <div className="border-b border-edge px-4 py-3">
-          <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Outlook</h2>
+          <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Your retirement projection</h2>
         </div>
-        <div className="px-4 py-5">
+        <div className="px-5 py-8 sm:py-12">
+          <p className="mb-3 max-w-lg font-sans text-2xl font-semibold tracking-tight text-chalk">
+            See the retirement you are building toward.
+          </p>
           <p className="font-sans text-row text-chalk-soft">
-            A few figures short of a projection:
+            Work through the three steps to see your savings over time and whether they cover your retirement. Here is what is still needed:
           </p>
           <ul className="mt-3 space-y-2">
             {projection.issues.map((issue) => (
@@ -121,6 +124,9 @@ export default function RetirementOutlook({ projection, inputs, retirementAge })
               </li>
             ))}
           </ul>
+          <p className="mt-6 border-t border-edge pt-4 font-sans text-row text-chalk-soft">
+            Already have a budget? We bring in your investment accounts, retirement contributions, and income. Review those in steps 2 and 3.
+          </p>
         </div>
       </section>
     );
@@ -144,14 +150,14 @@ export default function RetirementOutlook({ projection, inputs, retirementAge })
               on the day it is needed. Proportional digits, as elsewhere — a
               standalone figure with tabular numerals reads loose. */}
           <div
-            className={`mt-1 font-sans text-5xl font-semibold tracking-tight ${
+            className={`mt-1 break-words font-sans ${compact ? "text-3xl sm:text-4xl" : "text-5xl"} font-semibold tracking-tight ${
               short ? "text-vermilion" : "text-chalk"
             }`}
           >
             {formatCents(projectedCents)}
           </div>
           <div className="mt-1 font-sans text-row text-chalk-soft">
-            on course to have saved — cash and investments, not the house
+            projected cash and investments at retirement
           </div>
         </div>
 
@@ -190,20 +196,25 @@ export default function RetirementOutlook({ projection, inputs, retirementAge })
       {/* Hairline dividers drawn by the grid gap showing the edge colour
           through, as on the net-worth summary, so they stay 1px on every
           display. */}
-      <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-4">
-        <Band label="Yearly spending">{formatCents(inputs.annualSpendingCents)}</Band>
-        <Band label="Saving each year">{formatCents(inputs.annualContributionCents)}</Band>
-        {/* Everything spendable today — cash and every investment — since that
-            is what the hero figure above grows from, not the ticked accounts
-            alone. */}
-        <Band label="Saved today">{formatCents(projection.startingCents ?? inputs.startingCents)}</Band>
-        <Band
-          label="Money lasts to"
-          tone={depletionAge == null ? "text-chalk" : "text-vermilion"}
-        >
-          {depletionAge == null ? `age ${fundedThroughAge}` : `age ${depletionAge}`}
-        </Band>
-      </dl>
+      <details open={!compact} className="border-t border-edge">
+        <summary className="cursor-pointer px-4 py-2.5 font-sans text-row text-chalk-soft hover:text-chalk">
+          Plan figures: spending, contributions, and savings
+        </summary>
+        <dl className="grid gap-px bg-edge sm:grid-cols-2 xl:grid-cols-4">
+          <Band label="Yearly spending">{formatCents(inputs.annualSpendingCents)}</Band>
+          <Band label="Saving each year">{formatCents(inputs.annualContributionCents)}</Band>
+          {/* Everything spendable today — cash and every investment — since that
+              is what the hero figure above grows from, not the ticked accounts
+              alone. */}
+          <Band label="Saved today">{formatCents(projection.startingCents ?? inputs.startingCents)}</Band>
+          <Band
+            label="Money lasts to"
+            tone={depletionAge == null ? "text-chalk" : "text-vermilion"}
+          >
+            {depletionAge == null ? `age ${fundedThroughAge}` : `age ${depletionAge}`}
+          </Band>
+        </dl>
+      </details>
     </section>
   );
 }

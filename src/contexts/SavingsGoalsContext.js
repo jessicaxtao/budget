@@ -43,7 +43,7 @@ const isAmount = (value) => Number.isInteger(value) && value > 0;
 const isDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 /** The fields `addSavingsGoal` and `updateSavingsGoal` both have to check. */
-function parseGoalFields({ name, target, targetCents, targetDate }) {
+function parseGoalFields({ name, target, targetCents, targetDate, budgetId }) {
   const trimmed = (name ?? "").trim();
   if (!trimmed) return { ok: false, error: "Give the goal a name." };
 
@@ -57,7 +57,10 @@ function parseGoalFields({ name, target, targetCents, targetDate }) {
     return { ok: false, error: "Enter a valid target date, or leave it blank." };
   }
 
-  return { ok: true, name: trimmed, targetCents: cents, targetDate: date };
+  // Inert but kept: a string id is stored as-is, "" or non-string becomes null.
+  const linkedBudgetId = typeof budgetId === "string" && budgetId ? budgetId : null;
+
+  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId };
 }
 
 /** Ids, deduped. Anything that is not a string was never an account id. */
@@ -133,6 +136,8 @@ function migrateGoals(stored) {
       // out of the budget and nothing else, which is what these two say.
       accountIds: readAccountIds(goal.accountIds) ?? [],
       accountAmounts: storedAmounts(goal.accountAmounts),
+      // Inert but kept: a deleted category contributes nothing, resolved where read.
+      budgetId: typeof goal.budgetId === "string" ? goal.budgetId : null,
     }));
 }
 
@@ -159,6 +164,7 @@ export const SavingsGoalsProvider = ({ children }) => {
           name: parsed.name,
           targetCents: parsed.targetCents,
           targetDate: parsed.targetDate,
+          budgetId: parsed.budgetId,
           // Empty rather than a guess at which account the money is in — the
           // `EmergencyFundContext` rule: naming one the household never agreed
           // to would put a figure on screen nobody stated.
@@ -196,6 +202,7 @@ export const SavingsGoalsProvider = ({ children }) => {
                 name: parsed.name,
                 targetCents: parsed.targetCents,
                 targetDate: parsed.targetDate,
+                budgetId: parsed.budgetId,
                 ...holdings.patch,
               }
             : goal

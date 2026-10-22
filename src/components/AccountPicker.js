@@ -74,7 +74,7 @@ function PortionField({ row, onPortionChange }) {
   );
 }
 
-function AccountRow({ row, striped, showSource, onToggle, onPortionChange }) {
+function AccountRow({ row, striped, showSource, compact, onToggle, onPortionChange }) {
   return (
     <tr className={striped ? "bg-sheet-alt" : "bg-sheet"}>
       <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
@@ -89,6 +89,7 @@ function AccountRow({ row, striped, showSource, onToggle, onPortionChange }) {
           />
           <span>{row.account.name}</span>
         </label>
+        {compact && <p className="mt-1 pl-6 text-label text-ink-soft">{scopeLabel(row.account)} · {sourceNote(row)}</p>}
       </th>
       {/* The one cell here that is allowed to wrap. It holds a phrase rather
           than a figure, and held to one line it sets a floor on the table's
@@ -128,6 +129,7 @@ export default function AccountPicker({
   emptyNote,
   holdingsFirst = false,
   showSource = true,
+  compact = false,
   onToggle,
   onPortionChange,
 }) {
@@ -177,6 +179,7 @@ export default function AccountPicker({
               row={row}
               striped={index % 2 === 1}
               showSource={showSource}
+              compact={compact}
               onToggle={onToggle}
               onPortionChange={onPortionChange}
             />

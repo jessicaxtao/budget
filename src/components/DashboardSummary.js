@@ -73,6 +73,7 @@ export default function DashboardSummary({
   period,
   availableToBudgetCents,
   assignedAheadCents = 0,
+  monthsFundedAhead = 0,
   periodIncomeCents,
   budgetedCents,
   plannedCents = 0,
@@ -113,6 +114,7 @@ export default function DashboardSummary({
                 {tone.label} ·{" "}
                 <span className="whitespace-nowrap">
                   {formatCents(assignedAheadCents)} assigned ahead
+                  {monthsFundedAhead > 0 && ` · ${monthsFundedAhead} ${monthsFundedAhead === 1 ? "month" : "months"}`}
                 </span>
               </>
             ) : (

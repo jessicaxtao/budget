@@ -10,12 +10,14 @@ import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsCont
 import { formatCents, toCents, todayISO } from "../utils";
 
 const FIRST_GIFT_CALLOUT_KEY = "firstGiftCalloutDismissed";
+let firstGiftCalloutDismissedThisSession = false;
 
 function shouldShowFirstGiftCallout() {
+  if (firstGiftCalloutDismissedThisSession) return false;
   try {
     return window.localStorage.getItem(FIRST_GIFT_CALLOUT_KEY) !== "true";
   } catch {
-    return true;
+    return !firstGiftCalloutDismissedThisSession;
   }
 }
 
@@ -82,12 +84,18 @@ export default function AddDonationModal({ show, handleClose }) {
   const blocked = recipients.length === 0 || spendable.length === 0 || budgets.length === 0;
 
   function dismissFirstGiftCallout() {
+    firstGiftCalloutDismissedThisSession = true;
     setShowFirstGiftCallout(false);
     try {
       window.localStorage.setItem(FIRST_GIFT_CALLOUT_KEY, "true");
     } catch {
       // It remains dismissed for this visit if storage is unavailable.
     }
+  }
+
+  function closeModal() {
+    if (showFirstGiftCallout) dismissFirstGiftCallout();
+    handleClose();
   }
 
   // The modal never unmounts — it is toggled by `show` — so nothing clears the
@@ -188,7 +196,7 @@ export default function AddDonationModal({ show, handleClose }) {
   }
 
   return (
-    <Dialog show={show} handleClose={handleClose} title="Record a gift">
+    <Dialog show={show} handleClose={closeModal} title="Record a gift">
       {blocked ? (
         <div className="space-y-3 font-sans text-row text-chalk-soft">
           {recipients.length === 0 && (

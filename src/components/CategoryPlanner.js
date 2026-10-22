@@ -475,11 +475,7 @@ function Section({
     : section.budgets.filter((budget) => !budget.hidden);
   const hiddenCount = section.budgets.length - visibleBudgets.length;
 
-  // "Ungrouped" only means something once there is a group to be outside of.
-  // Before that it is the whole list, and heading it with the name of an
-  // exception the user has never met would be noise. Empty, with groups in
-  // play, the planner shows it only during a drag (see the section list).
-  const heading = ungrouped && !hasGroups ? "Categories" : section.name;
+  const heading = ungrouped ? "Ungrouped" : section.name;
 
   return (
     <section
@@ -631,8 +627,8 @@ export default function CategoryPlanner({
   // An empty "Ungrouped" says nothing at rest, so it is hidden. It comes back
   // while a drag is in flight, because then it is the one place a category can
   // be dropped to take it out of its group — and it sits last, so appearing
-  // moves nothing above it. With no groups at all it is the whole list, headed
-  // "Categories", and keeps its empty state.
+  // moves nothing above it. With no groups at all it is the whole list and
+  // keeps its empty state.
   const isShown = (section) =>
     section.groupId != null ||
     section.budgets.length > 0 ||

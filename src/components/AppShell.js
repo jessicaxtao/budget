@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useMatch } from "react-router-dom";
 import AddTransactionModal from "./AddTransactionModal";
 import AskModal from "./AskModal";
 import MoveMoneyModal from "./MoveMoneyModal";
@@ -36,6 +36,8 @@ function SignOutIcon() {
  */
 export default function AppShell({ children }) {
   useTheme(); // applies data-theme to <html> on every render, regardless of which page is shown
+  const retirementPage = useMatch("/retirement");
+  const contentWidth = retirementPage ? "max-w-[1600px]" : "max-w-6xl";
 
   return (
     <div className="min-h-screen bg-ledger">
@@ -43,7 +45,7 @@ export default function AppShell({ children }) {
         Skip to content
       </a>
       <header className="bg-canopy">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className={`mx-auto ${contentWidth} px-4 sm:px-6`}>
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-4 sm:gap-x-4 sm:pt-5">
             <div className="flex items-center gap-x-2.5 sm:gap-x-3.5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-on-canopy-soft sm:h-11 sm:w-11">
@@ -89,7 +91,7 @@ export default function AppShell({ children }) {
       {/* The bottom padding is for the entry bar that covers the foot of the
           page on a phone — without it the last row of every table sits under
           it. */}
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl px-4 pt-4 pb-28 sm:px-6 sm:py-9 sm:pb-9">{children}</main>
+      <main id="main-content" tabIndex={-1} className={`mx-auto ${contentWidth} px-4 pt-4 pb-28 sm:px-6 sm:py-9 sm:pb-9`}>{children}</main>
     </div>
   );
 }

@@ -279,6 +279,7 @@ export default function DashboardPage() {
         period={period}
         availableToBudgetCents={dashboard.availableToBudgetCents}
         assignedAheadCents={dashboard.assignedAheadCents}
+        monthsFundedAhead={dashboard.monthsFundedAhead}
         periodIncomeCents={dashboard.periodIncomeCents}
         budgetedCents={dashboard.periodBudgetedCents}
         plannedCents={dashboard.plannedCents}

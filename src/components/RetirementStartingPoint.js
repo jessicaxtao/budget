@@ -45,12 +45,13 @@ export default function RetirementStartingPoint({
   error,
   onChange,
   onToggleAccount,
+  embedded = false,
 }) {
   const byAccounts = plan.startingSource === STARTING_SOURCES.ACCOUNTS;
   const chosen = accountRows.filter((row) => row.included).length;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
+    <section className={embedded ? "overflow-hidden bg-panel" : "overflow-hidden rounded-2xl border border-edge bg-panel"}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Starting point
@@ -76,6 +77,7 @@ export default function RetirementStartingPoint({
         <p className="border-b border-edge px-4 py-3 font-sans text-row text-chalk-soft">
           Your off-budget investment accounts are counted to start with, at the
           figures on the net-worth page. Tick or untick any to make the list your own.
+          {embedded && " Other tracked cash and investments are also included in the projection."}
         </p>
       )}
 
@@ -85,6 +87,8 @@ export default function RetirementStartingPoint({
           // Off budget first: those are the accounts this question is usually
           // about, and a list that opened on the current account would bury them.
           holdingsFirst
+          showSource={!embedded}
+          compact={embedded}
           totalLabel="Counted as retirement savings"
           totalCents={selectedCents}
           emptyNote="the retirement and brokerage accounts belong off budget, where the net-worth page values them."
@@ -115,7 +119,8 @@ export default function RetirementStartingPoint({
             />
           </label>
           <p className="mt-2 font-sans text-row text-chalk-soft">
-            What you have put aside for retirement today, wherever it is held.
+            Retirement savings not already recorded in your accounts. Other tracked
+            cash and investments are still included in the projection.
             {selectedCents !== 0 && (
               <>
                 {" "}

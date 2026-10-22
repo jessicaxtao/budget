@@ -32,6 +32,7 @@ export default function ToBeAssignedBar({
   periodAssignedCents,
   reservedCents = 0,
   assignedAheadCents = 0,
+  monthsFundedAhead = 0,
   onAssignClick,
 }) {
   // Sulfur is the caution slot, and money sitting unassigned is exactly that —
@@ -84,7 +85,14 @@ export default function ToBeAssignedBar({
             ...(reservedCents > 0 ? [["Held for emergency fund", reservedCents]] : []),
             // "Assigned ahead" is the one wording for this figure, shared with
             // the dashboard's pool tile and `AssignIncomeModal`.
-            ...(assignedAheadCents > 0 ? [["Assigned ahead", assignedAheadCents]] : []),
+            ...(assignedAheadCents > 0
+              ? [[
+                  monthsFundedAhead > 0
+                    ? `Assigned ahead · ${monthsFundedAhead} ${monthsFundedAhead === 1 ? "month" : "months"}`
+                    : "Assigned ahead",
+                  assignedAheadCents,
+                ]]
+              : []),
           ].map(([label, cents]) => (
             <div key={label} className="flex items-baseline gap-2">
               <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>

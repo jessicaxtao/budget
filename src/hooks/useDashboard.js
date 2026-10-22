@@ -160,6 +160,7 @@ export default function useDashboard(period) {
       // was funded out of today's money. Named on the tile so a pool smaller
       // than the balances suggest is explained rather than mysterious.
       assignedAheadCents: envelopes.assignedAheadCents,
+      monthsFundedAhead: envelopes.monthsFundedAhead,
       periodIncomeCents: envelopes.periodIncomeCents,
       periodBudgetedCents: envelopes.periodAssignedCents,
       // A magnitude, unlike the rows' signed `activityCents`: this one is

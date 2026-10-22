@@ -64,7 +64,7 @@ export default function AssignIncomeModal({
 
   const { assignments, setPeriodAssignments } = useAssignments();
   const { setPeriodAssignments: setGoalPeriodAssignments } = useSavingsGoalAssignments();
-  const { rows, toBeAssignedCents, assignedAheadCents } = useEnvelopes(month);
+  const { rows, toBeAssignedCents, assignedAheadCents, monthsFundedAhead } = useEnvelopes(month);
   const goalRows = useSavingsGoalEnvelopes(month);
   // Onboarding's starting-balance flow reuses this same form but is not
   // funded from this month's ordinary pool — see `useStartingBalances`. The
@@ -82,7 +82,9 @@ export default function AssignIncomeModal({
   const notes = steppable
     ? [
         periodLTE(month, currentPeriod()) ? null : "Funding ahead, out of today's money",
-        assignedAheadCents > 0 ? `${formatCents(assignedAheadCents)} assigned ahead` : null,
+        assignedAheadCents > 0
+          ? `${formatCents(assignedAheadCents)} assigned ahead${monthsFundedAhead > 0 ? ` · ${monthsFundedAhead} ${monthsFundedAhead === 1 ? "month" : "months"}` : ""}`
+          : null,
       ].filter(Boolean)
     : [];
 
