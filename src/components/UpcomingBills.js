@@ -118,13 +118,13 @@ export default function UpcomingBills({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-edge px-4 py-3">
         <div className="min-w-0">
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Upcoming</h2>
-          <p className="mt-0.5 font-sans text-row text-chalk-soft">
-            {/* The total is money *out* only, and says so: netting an expected
-                paycheque off it would report a smaller bill than has to be paid. */}
-            {rows.length === 0
-              ? "Bills and other transactions you have scheduled."
-              : `${formatCents(dueCents)} going out in the next ${windowDays} days.`}
-          </p>
+          {rows.length > 0 && (
+            <p className="mt-0.5 font-sans text-row text-chalk-soft">
+              {/* The total is money *out* only, and says so: netting an expected
+                  paycheque off it would report a smaller bill than has to be paid. */}
+              {`${formatCents(dueCents)} going out in the next ${windowDays} days.`}
+            </p>
+          )}
         </div>
         {rows.length > 0 && (
           <span

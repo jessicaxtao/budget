@@ -1,5 +1,3 @@
-import { useState } from "react";
-import AssignIncomeModal from "../components/AssignIncomeModal";
 import BalanceHistoryPanel from "../components/BalanceHistoryPanel";
 import Button from "../components/Button";
 import BooksEncryptionPanel from "../components/BooksEncryptionPanel";
@@ -14,17 +12,14 @@ import TransactionsExportPanel from "../components/TransactionsExportPanel";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { useDonations } from "../contexts/DonationsContext";
 import useGiving from "../hooks/useGiving";
-import useStartingBalances from "../hooks/useStartingBalances";
 import { todayISO } from "../utils";
 import useTheme, { THEMES } from "../hooks/useTheme";
 import { RewardsValuationsPanel } from "./RewardsPage";
 
 export default function SettingsPage() {
-  const [showAssignStartingModal, setShowAssignStartingModal] = useState(false);
   const { budgets } = useBudgets();
   const { givingSettings, setGivingCategories } = useDonations();
   const giving = useGiving(todayISO().slice(0, 4));
-  const { period: startingPeriod, poolCentsOverride: startingPoolCents } = useStartingBalances();
   const { theme, toggleTheme } = useTheme();
   const dark = theme === THEMES.DARK;
   const stated = Array.isArray(givingSettings.budgetIds);
@@ -34,11 +29,6 @@ export default function SettingsPage() {
       <PageHeader
         title="Household setup"
         description="Manage household preferences, schedules, exports, and your books file."
-        actions={
-          <Button variant="outline" onClick={() => setShowAssignStartingModal(true)}>
-            Assign starting balances
-          </Button>
-        }
       />
 
       <div className="space-y-4">
@@ -69,13 +59,6 @@ export default function SettingsPage() {
         />
         <HouseholdPanel />
       </div>
-      <AssignIncomeModal
-        show={showAssignStartingModal}
-        period={startingPeriod}
-        poolCentsOverride={startingPoolCents}
-        title="Assign starting balances"
-        handleClose={() => setShowAssignStartingModal(false)}
-      />
     </>
   );
 }

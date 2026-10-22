@@ -4,6 +4,7 @@ import AddAccountModal from "../components/AddAccountModal";
 import AddBudgetModal from "../components/AddBudgetModal";
 import AddGroupModal from "../components/AddGroupModal";
 import AddIncomeSourceModal from "../components/AddIncomeSourceModal";
+import AssignIncomeModal from "../components/AssignIncomeModal";
 import Button from "../components/Button";
 import CategoryPlanner from "../components/CategoryPlanner";
 import DeleteCategoryModal from "../components/DeleteCategoryModal";
@@ -29,6 +30,7 @@ import useEmergencyFund from "../hooks/useEmergencyFund";
 import useNetWorth from "../hooks/useNetWorth";
 import useNextPaycheck from "../hooks/useNextPaycheck";
 import usePlanHealth from "../hooks/usePlanHealth";
+import useStartingBalances from "../hooks/useStartingBalances";
 import { currentPeriod } from "../utils";
 
 const SETUP_SKIPS_KEY = "configurationSetupSkips";
@@ -95,6 +97,7 @@ export default function ConfigurationPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showAddIncomeSourceModal, setShowAddIncomeSourceModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showAssignStartingModal, setShowAssignStartingModal] = useState(false);
   const [skippedSetupSteps, setSkippedSetupSteps] = useState(() => new Set(readSetupSkips()));
   // The group a category is being added to, and the group being renamed. Held
   // separately: adding files the new category under a heading, renaming edits
@@ -135,6 +138,7 @@ export default function ConfigurationPage() {
   const health = usePlanHealth();
   const fund = useEmergencyFund();
   const paycheck = useNextPaycheck();
+  const { period: startingPeriod, poolCentsOverride: startingPoolCents } = useStartingBalances();
   // What each account holds as things stand. On-budget figures are the
   // ledger's own arithmetic, so they belong on a page with no month on it in a
   // way a hand-entered figure never could — there is nothing here to go
@@ -300,23 +304,34 @@ export default function ConfigurationPage() {
     (step) => !step.done && !skippedSetupSteps.has(step.key)
   );
   const emergencyFundIsSetUp = fund.accountRows.some((row) => row.included);
+  const earlierSetupStepsDone =
+    !nextAccountStep &&
+    (health.sourceCount > 0 || skippedSetupSteps.has("income")) &&
+    (plan.pretaxContributionCents != null || skippedSetupSteps.has("pretax")) &&
+    health.categoryCount > 0 &&
+    (emergencyFundIsSetUp || skippedSetupSteps.has("emergency-fund"));
   const setupStep =
     nextAccountStep?.key ??
     (health.sourceCount === 0 && !skippedSetupSteps.has("income")
       ? "income"
-      : health.categoryCount === 0 && !skippedSetupSteps.has("categories")
-        ? "categories"
-        : health.categoryCount > 0 &&
-            !emergencyFundIsSetUp &&
-            !skippedSetupSteps.has("emergency-fund")
-          ? "emergency-fund"
-          : null);
+      : (health.sourceCount > 0 || skippedSetupSteps.has("income")) &&
+          plan.pretaxContributionCents == null &&
+          !skippedSetupSteps.has("pretax")
+        ? "pretax"
+        : health.categoryCount === 0 && !skippedSetupSteps.has("categories")
+          ? "categories"
+          : health.categoryCount > 0 &&
+              !emergencyFundIsSetUp &&
+              !skippedSetupSteps.has("emergency-fund")
+            ? "emergency-fund"
+            : earlierSetupStepsDone && !skippedSetupSteps.has("starting-balances")
+              ? "starting-balances"
+              : null);
 
   return (
     <>
       <PageHeader
         title="Budget plan"
-        description="Set monthly estimates, organize categories, and manage accounts."
       />
 
       {/* The verdict leads. It is the answer the rest of the page is working
@@ -435,7 +450,16 @@ export default function ConfigurationPage() {
         </div>
 
         <div>
-          <ColumnHeading title="Accounts" />
+          <ColumnHeading title="Accounts">
+            <Button
+              id="setup-assign-starting-balances"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAssignStartingModal(true)}
+            >
+              Assign starting balances
+            </Button>
+          </ColumnHeading>
           <AccountList
             accounts={accounts}
             balanceById={balanceById}
@@ -478,6 +502,21 @@ export default function ConfigurationPage() {
           </button>
         </SetupGuideCallout>
       )}
+      {setupStep === "pretax" && (
+        <SetupGuideCallout
+          targetId="setup-pretax-contribution"
+          title="Add pre-tax retirement contributions"
+          description="If payroll takes money for a 401(k) or similar plan before it reaches your account, enter that amount here. You can enter it by month or year."
+        >
+          <button
+            type="button"
+            className="mt-3 font-sans text-row text-chalk-soft underline"
+            onClick={() => skipSetupStep("pretax")}
+          >
+            I don’t have pre-tax contributions
+          </button>
+        </SetupGuideCallout>
+      )}
       {setupStep === "categories" && (
         <SetupGuideCallout
           targetId="setup-add-category"
@@ -509,6 +548,30 @@ export default function ConfigurationPage() {
             onClick={() => skipSetupStep("emergency-fund")}
           >
             Set this up later
+          </button>
+        </SetupGuideCallout>
+      )}
+      {setupStep === "starting-balances" && (
+        <SetupGuideCallout
+          targetId="setup-assign-starting-balances"
+          title="Give your starting balances a job"
+          description={
+            <>
+              <p>
+                If you have money already in your accounts, assign it to categories and savings goals.
+                These are starting balances, so they are recorded before this month and do not count
+                toward this month&apos;s budget.
+              </p>
+              <p className="mt-2">Then head to the Dashboard to see your budget at a glance.</p>
+            </>
+          }
+        >
+          <button
+            type="button"
+            className="mt-3 font-sans text-row text-chalk-soft underline"
+            onClick={() => skipSetupStep("starting-balances")}
+          >
+            Do this later
           </button>
         </SetupGuideCallout>
       )}
@@ -555,6 +618,13 @@ export default function ConfigurationPage() {
         account={editingAccount}
         defaultScope={addAccountScope}
         handleClose={() => setShowAddAccountModal(false)}
+      />
+      <AssignIncomeModal
+        show={showAssignStartingModal}
+        period={startingPeriod}
+        poolCentsOverride={startingPoolCents}
+        title="Assign starting balances"
+        handleClose={() => setShowAssignStartingModal(false)}
       />
     </>
   );

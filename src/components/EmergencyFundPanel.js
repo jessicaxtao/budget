@@ -187,7 +187,7 @@ export default function EmergencyFundPanel({
       </div>
 
       {byMonths ? (
-        <div className="border-b border-edge px-4 py-4 sm:flex sm:items-start sm:gap-6">
+        <div className="border-b border-edge px-4 py-3">
           <label className="block w-32 shrink-0">
             <span className={labelClass}>Months</span>
             <input
@@ -204,27 +204,9 @@ export default function EmergencyFundPanel({
               onBlur={(event) => onChange({ monthsCovered: event.target.value })}
             />
           </label>
-          <p className="mt-3 font-sans text-row text-chalk-soft sm:mt-0">
-            {fund.hasEssentials ? (
-              <>
-                Your essentials come to{" "}
-                <span className="text-chalk">{formatCents(fund.monthlyEssentialsCents)}</span> a
-                month across{" "}
-                {fund.essentialsCount === 1 ? "1 category" : `${fund.essentialsCount} categories`},
-                so {fund.fund.monthsCovered} months of them is{" "}
-                <span className="text-chalk">{formatCents(fund.derivedTargetCents)}</span>. Change
-                what a category is expected to need and this follows it.
-              </>
-            ) : (
-              <>
-                No category counting as essentials has a monthly estimate yet, so there is nothing
-                to take a multiple of. Fill in the estimates above and the target appears here.
-              </>
-            )}
-          </p>
         </div>
       ) : (
-        <div className="border-b border-edge px-4 py-4 sm:flex sm:items-start sm:gap-6">
+        <div className="border-b border-edge px-4 py-3">
           <label className="block w-40 shrink-0">
             <span className={labelClass}>Target</span>
             <input
@@ -241,17 +223,6 @@ export default function EmergencyFundPanel({
               onBlur={(event) => onChange({ targetCents: event.target.value })}
             />
           </label>
-          <p className="mt-3 font-sans text-row text-chalk-soft sm:mt-0">
-            What you want held back, whatever the plan says.{" "}
-            {fund.hasEssentials && (
-              <>
-                {fund.fund.monthsCovered} months of your essentials would be{" "}
-                <span className="text-chalk">{formatCents(fund.derivedTargetCents)}</span>, which is
-                what the other answer uses.
-              </>
-            )}{" "}
-            Clear the field to go back to it.
-          </p>
         </div>
       )}
 
@@ -260,16 +231,10 @@ export default function EmergencyFundPanel({
         totalLabel="Held as the emergency fund"
         totalCents={fund.heldCents}
         emptyNote="an emergency fund is usually an ordinary savings account, and this needs one to read a balance off."
+        showSource={false}
         onToggle={onToggleAccount}
         onPortionChange={onAccountAmountChange}
       />
-      {onAccountAmountChange && fund.accountRows.some((row) => row.included) && (
-        <p className="border-t border-edge px-4 py-3 font-sans text-row text-chalk-soft">
-          A ticked account counts in full. If only part of it is your emergency fund — the rest
-          is for something else — enter that part under Counted.
-        </p>
-      )}
-
       {/* Commits on change: a tick has nothing to half-type. */}
       <div className="border-t border-edge px-4 py-3">
         <label className="flex items-start gap-2 font-sans text-row text-chalk">

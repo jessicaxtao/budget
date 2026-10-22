@@ -2,13 +2,14 @@ import { useActivity } from "../contexts/ActivityContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
+import { useHousehold } from "../contexts/HouseholdContext";
 import { TO_BE_ASSIGNED } from "../contexts/constants";
 import { formatCents } from "../utils";
 
 /**
  * Recent activity panel for the dashboard's right column.
  *
- * Shows the last 15 mutations by any household member, newest first, with
+ * Shows the last 5 mutations by any household member, newest first, with
  * live updates via Supabase realtime. Each entry names who acted ("You" or a
  * truncated member handle), describes what happened, and shows a relative
  * timestamp. Descriptions are assembled from the decrypted payload at render
@@ -20,7 +21,9 @@ import { formatCents } from "../utils";
  */
 export default function ActivityFeed() {
   const activity = useActivity();
+  const household = useHousehold();
   if (!activity) return null;
+  if (!household || household.members.length < 2) return null;
 
   const { entries, ready } = activity;
   const visible = entries.slice(0, 15);

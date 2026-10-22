@@ -86,7 +86,7 @@ export default function DashboardSummary({
   const budgeted = budgetedTone(budgetedCents, plannedCents, categoryCount);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
+    <section id="dashboard-budget-summary" className="overflow-hidden rounded-2xl border border-edge bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           {formatPeriod(period)}

@@ -67,7 +67,7 @@ export default function AppShell({ children }) {
             aria-label="Sections"
             className="no-scrollbar -mx-4 mt-3 flex gap-x-6 overflow-x-auto px-4 sm:mx-0 sm:mt-4 sm:flex-wrap sm:gap-x-7 sm:overflow-visible sm:px-0"
           >
-            {navigation.map(({ path, label }) => (
+            {navigation.map(({ path, label, activeClass }) => (
               <NavLink
                 key={path}
                 to={path}
@@ -75,7 +75,7 @@ export default function AppShell({ children }) {
                 className={({ isActive }) =>
                   `shrink-0 whitespace-nowrap border-b-[3px] pb-2.5 pt-1 font-sans text-sm transition-colors ${
                     isActive
-                      ? "border-coin font-bold text-on-canopy"
+                      ? `${activeClass} font-bold text-on-canopy`
                       : "border-transparent font-medium text-on-canopy-soft hover:border-on-canopy-soft/40 hover:text-on-canopy"
                   }`
                 }

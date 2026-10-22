@@ -21,51 +21,61 @@ export const navigation = [
   {
     path: "/plan",
     label: "Configuration",
+    activeClass: "border-tab-rose",
     Component: ConfigurationPage,
   },
   {
     path: "/",
     label: "Dashboard",
+    activeClass: "border-tab-peach",
     Component: DashboardPage,
   },
   {
     path: "/transactions",
     label: "Transactions",
+    activeClass: "border-tab-yellow",
     Component: TransactionsPage,
   },
   {
     path: "/reports",
     label: "Reports",
+    activeClass: "border-tab-lime",
     Component: ReportsPage,
   },
   {
     path: "/donations",
     label: "Donations",
+    activeClass: "border-tab-mint",
     Component: DonationsPage,
   },
   {
     path: "/net-worth",
     label: "Net worth",
+    activeClass: "border-tab-sky",
     Component: NetWorthPage,
   },
   {
     path: "/retirement",
     label: "Retirement",
+    activeClass: "border-tab-periwinkle",
     Component: RetirementPage,
   },
   {
     path: "/savings-goals",
     label: "Savings goals",
+    activeClass: "border-tab-lavender",
     Component: SavingsGoalsPage,
   },
   {
     path: "/rewards",
     label: "Rewards",
+    activeClass: "border-tab-violet",
     Component: RewardsPage,
   },
   {
     path: "/settings",
     label: "Settings",
+    activeClass: "border-tab-pink",
     Component: SettingsPage,
   },
 ];

@@ -75,6 +75,19 @@ module.exports = {
         // regardless — colour is never the only channel.
         invested: token("invested"),
         property: token("property"),
+
+        // Rainbow pastel tab underlines — one per nav entry, matching the
+        // `activeClass` fields in navigation.js.
+        "tab-rose": token("tab-rose"),
+        "tab-peach": token("tab-peach"),
+        "tab-yellow": token("tab-yellow"),
+        "tab-lime": token("tab-lime"),
+        "tab-mint": token("tab-mint"),
+        "tab-sky": token("tab-sky"),
+        "tab-periwinkle": token("tab-periwinkle"),
+        "tab-lavender": token("tab-lavender"),
+        "tab-violet": token("tab-violet"),
+        "tab-pink": token("tab-pink"),
       },
       fontFamily: {
         // Young Serif marks the app's name. DM Sans carries page hierarchy and

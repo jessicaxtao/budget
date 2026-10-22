@@ -1,0 +1,434 @@
+- generic [active] [ref=f22e1]:
+  - generic [ref=f22e3]:
+    - link "Skip to content" [ref=f22e4] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f22e5]:
+      - generic [ref=f22e6]:
+        - generic [ref=f22e7]:
+          - generic [ref=f22e8]: Canopy Budget
+          - generic [ref=f22e25]:
+            - generic [ref=f22e26]:
+              - button "Add transaction" [ref=f22e27] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f22e28]: +
+                - text: Add transaction
+              - button "Transfer" [ref=f22e29] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f22e30]: ⇄
+                - text: Transfer
+            - button "Turn on sync" [ref=f22e31] [cursor=pointer]
+        - navigation "Sections" [ref=f22e32]:
+          - link "Configuration" [ref=f22e33] [cursor=pointer]:
+            - /url: /plan
+          - link "Dashboard" [ref=f22e34] [cursor=pointer]:
+            - /url: /
+          - link "Transactions" [ref=f22e35] [cursor=pointer]:
+            - /url: /transactions
+          - link "Reports" [ref=f22e36] [cursor=pointer]:
+            - /url: /reports
+          - link "Donations" [ref=f22e37] [cursor=pointer]:
+            - /url: /donations
+          - link "Net worth" [ref=f22e38] [cursor=pointer]:
+            - /url: /net-worth
+          - link "Retirement" [ref=f22e39] [cursor=pointer]:
+            - /url: /retirement
+          - link "Savings goals" [ref=f22e40] [cursor=pointer]:
+            - /url: /savings-goals
+          - link "Rewards" [ref=f22e41] [cursor=pointer]:
+            - /url: /rewards
+          - link "Settings" [ref=f22e42] [cursor=pointer]:
+            - /url: /settings
+    - main [ref=f22e43]:
+      - generic [ref=f22e44]:
+        - generic [ref=f22e45]:
+          - heading "Spending reports" [level=1] [ref=f22e46]
+          - paragraph [ref=f22e47]: See income, spending, and category trends across months.
+        - group "How far back the report reaches" [ref=f22e50]:
+          - button "1M" [ref=f22e51] [cursor=pointer]
+          - button "3M" [ref=f22e52] [cursor=pointer]
+          - button "6M" [ref=f22e53] [cursor=pointer]
+          - button "1Y" [pressed] [ref=f22e54] [cursor=pointer]
+          - button "YTD" [ref=f22e55] [cursor=pointer]
+          - button "ALL" [ref=f22e56] [cursor=pointer]
+          - button "Custom" [ref=f22e57] [cursor=pointer]
+      - generic [ref=f22e58]:
+        - group [ref=f22e59]:
+          - generic "Report widgets" [ref=f22e60] [cursor=pointer]
+        - paragraph [ref=f22e62]:
+          - generic [ref=f22e63]: 1 record has no date
+          - text: — $56 of spending and $0 of income — so they are in no month and in nothing below.
+          - link "Date them on the register" [ref=f22e64] [cursor=pointer]:
+            - /url: /transactions
+          - text: and they will appear here.
+        - generic [ref=f22e65]:
+          - region "Report summary" [ref=f22e68]:
+            - generic [ref=f22e69]:
+              - heading "November 2025 – October 2026" [level=2] [ref=f22e70]
+              - generic [ref=f22e71]: 12 months · the last 12 months
+            - generic [ref=f22e72]:
+              - generic [ref=f22e73]:
+                - term [ref=f22e74]: Income
+                - definition [ref=f22e75]: $87,760
+                - definition [ref=f22e76]: $7,313.33 a month
+              - generic [ref=f22e77]:
+                - term [ref=f22e78]: Spending
+                - definition [ref=f22e79]: $68,123
+                - definition [ref=f22e80]: $68,187 out, $64 back
+              - generic [ref=f22e81]:
+                - term [ref=f22e82]: Net
+                - definition [ref=f22e83]: $19,637
+                - definition [ref=f22e84]: $1,636.42 a month
+              - generic [ref=f22e85]:
+                - term [ref=f22e86]: Savings rate
+                - definition [ref=f22e87]: 22.38%
+                - definition [ref=f22e88]: Kept of $87,760
+            - generic [ref=f22e89]:
+              - generic [ref=f22e90]:
+                - img "How $68,123 of spending divided between Essentials, Fun, Savings, Retirement" [ref=f22e91]
+                - generic [ref=f22e116]: Where it went, over 12 months
+              - generic [ref=f22e117]:
+                - generic [ref=f22e118]:
+                  - term [ref=f22e120]: Essentials
+                  - definition [ref=f22e121]: $45,269
+                  - definition [ref=f22e122]: 66.45% · $3,772.42/mo
+                - generic [ref=f22e123]:
+                  - term [ref=f22e125]: Fun
+                  - definition [ref=f22e126]: $11,658
+                  - definition [ref=f22e127]: 17.11% · $971.50/mo
+                - generic [ref=f22e128]:
+                  - term [ref=f22e130]: Savings
+                  - definition [ref=f22e131]: $4,200
+                  - definition [ref=f22e132]: 6.17% · $350/mo
+                - generic [ref=f22e133]:
+                  - term [ref=f22e135]: Retirement
+                  - definition [ref=f22e136]: $6,996
+                  - definition [ref=f22e137]: 10.27% · $583/mo
+          - generic [ref=f22e139]:
+            - heading "Scheduled and other spending" [level=2] [ref=f22e141]
+            - generic [ref=f22e142]:
+              - generic [ref=f22e143]:
+                - term [ref=f22e144]: Recorded from a schedule
+                - definition [ref=f22e145]: $0
+              - generic [ref=f22e146]:
+                - term [ref=f22e147]: Other spending
+                - definition [ref=f22e148]: $68,123
+            - paragraph [ref=f22e149]: The scheduled figure counts payments recorded from a schedule reminder; other spending includes discretionary purchases and recurring charges recorded another way. Existing ledger entries are not reclassified. Schedule reminders do not debit accounts automatically.
+          - generic [ref=f22e151]:
+            - generic [ref=f22e152]:
+              - heading "Month by month" [level=2] [ref=f22e153]
+              - group "Chart style for month by month" [ref=f22e154]:
+                - button "Bars" [pressed] [ref=f22e155] [cursor=pointer]
+                - button "Lines" [ref=f22e156] [cursor=pointer]
+            - generic [ref=f22e157]:
+              - generic [ref=f22e158]:
+                - generic [ref=f22e159]: Income
+                - generic [ref=f22e162]: Spending
+                - generic [ref=f22e165]: Net
+              - group "Income and spending by month" [ref=f22e170]:
+                - generic [ref=f22e171]: "-$15K"
+                - generic [ref=f22e173]: "-$10K"
+                - generic [ref=f22e175]: "-$5K"
+                - generic [ref=f22e177]: $0
+                - generic [ref=f22e179]: $5K
+                - generic [ref=f22e181]: $10K
+                - generic [ref=f22e221]: $1.3K
+                - generic [ref=f22e222]: Nov2025
+                - generic [ref=f22e223]: Dec
+                - generic [ref=f22e224]: Jan2026
+                - generic [ref=f22e225]: Feb
+                - generic [ref=f22e226]: Mar
+                - generic [ref=f22e227]: Apr
+                - generic [ref=f22e228]: May
+                - generic [ref=f22e229]: Jun
+                - generic [ref=f22e230]: Jul
+                - generic [ref=f22e231]: Aug
+                - generic [ref=f22e232]: Sep
+                - generic [ref=f22e233]: Oct
+                - 'img "November 2025: net $1,718, Income $6,940, Spending $5,222" [ref=f22e234] [cursor=pointer]'
+                - 'img "December 2025: net $4,672, Income $9,590, Spending $4,918" [ref=f22e235] [cursor=pointer]'
+                - 'img "January 2026: net $1,630, Income $6,940, Spending $5,310" [ref=f22e236] [cursor=pointer]'
+                - 'img "February 2026: net $1,461, Income $6,940, Spending $5,479" [ref=f22e237] [cursor=pointer]'
+                - 'img "March 2026: net $1,500, Income $6,940, Spending $5,440" [ref=f22e238] [cursor=pointer]'
+                - 'img "April 2026: net $660, Income $6,940, Spending $6,280" [ref=f22e239] [cursor=pointer]'
+                - 'img "May 2026: net $1,868, Income $6,940, Spending $5,072" [ref=f22e240] [cursor=pointer]'
+                - 'img "June 2026: net $4,476, Income $9,590, Spending $5,114" [ref=f22e241] [cursor=pointer]'
+                - 'img "July 2026: net $1,828, Income $6,940, Spending $5,112" [ref=f22e242] [cursor=pointer]'
+                - 'img "August 2026: net -$3,129, Income $6,940, Spending $10,069" [ref=f22e243] [cursor=pointer]'
+                - 'img "September 2026: net $1,672, Income $6,940, Spending $5,268" [ref=f22e244] [cursor=pointer]'
+                - 'img "October 2026: net $1,281, Income $6,120, Spending $4,839" [ref=f22e245] [cursor=pointer]'
+            - group [ref=f22e246]:
+              - generic "Show these figures as a table" [ref=f22e247] [cursor=pointer]
+          - generic [ref=f22e249]:
+            - generic [ref=f22e250]:
+              - generic [ref=f22e251]:
+                - heading "Where it came from, where it went" [level=2] [ref=f22e252]
+                - generic [ref=f22e253]: $19,637 kept
+              - group "Chart style for flows" [ref=f22e254]:
+                - button "Sankey" [pressed] [ref=f22e255] [cursor=pointer]
+                - button "Pie" [ref=f22e256] [cursor=pointer]
+            - group "Income, and where it went" [ref=f22e259]:
+              - generic [ref=f22e260]: Came in
+              - generic [ref=f22e261]: Went to
+              - generic [ref=f22e262]: Category
+              - generic [ref=f22e281]:
+                - generic [ref=f22e283]: Income$87.8K
+                - 'img "Income: $87,760, 100% of the money in" [ref=f22e284] [cursor=pointer]'
+              - generic [ref=f22e285]:
+                - generic [ref=f22e288]: Kept$19.6K
+                - 'img "Kept: $19,637, 22% of the money in" [ref=f22e289] [cursor=pointer]'
+              - generic [ref=f22e290]:
+                - generic [ref=f22e293]: Essentials$45.3K
+                - 'img "Essentials: $45,269, 52% of the money in" [ref=f22e294] [cursor=pointer]'
+              - generic [ref=f22e295]:
+                - generic [ref=f22e298]: Fun$11.7K
+                - 'img "Fun: $11,658, 13% of the money in" [ref=f22e299] [cursor=pointer]'
+              - generic [ref=f22e300]:
+                - generic [ref=f22e303]: Savings$4.2K
+                - 'img "Savings: $4,200, 5% of the money in" [ref=f22e304] [cursor=pointer]'
+              - generic [ref=f22e305]:
+                - generic [ref=f22e308]: Retirement$7K
+                - 'img "Retirement: $6,996, 8% of the money in" [ref=f22e309] [cursor=pointer]'
+              - generic [ref=f22e310]:
+                - generic [ref=f22e312]: Rent$26.4K
+                - 'img "Rent: $26,400, 30% of the money in" [ref=f22e313] [cursor=pointer]'
+              - generic [ref=f22e314]:
+                - generic [ref=f22e316]: Groceries$8.7K
+                - 'img "Groceries: $8,665, 10% of the money in" [ref=f22e317] [cursor=pointer]'
+              - generic [ref=f22e318]:
+                - generic [ref=f22e320]: Insurance$2.9K
+                - 'img "Insurance: $2,940, 3% of the money in" [ref=f22e321] [cursor=pointer]'
+              - generic [ref=f22e322]:
+                - generic [ref=f22e324]: Utilities$2.2K
+                - 'img "Utilities: $2,220, 3% of the money in" [ref=f22e325] [cursor=pointer]'
+              - generic [ref=f22e326]:
+                - generic [ref=f22e328]: Transit & fuel$2.1K
+                - 'img "Transit & fuel: $2,079, 2% of the money in" [ref=f22e329] [cursor=pointer]'
+              - generic [ref=f22e330]:
+                - generic [ref=f22e332]: 4 more$3K
+                - 'img "4 more: $2,965, 3% of the money in" [ref=f22e333] [cursor=pointer]'
+              - generic [ref=f22e334]:
+                - generic [ref=f22e336]: Dining out$3.7K
+                - 'img "Dining out: $3,720, 4% of the money in" [ref=f22e337] [cursor=pointer]'
+              - generic [ref=f22e338]:
+                - generic [ref=f22e340]: Gifts & giving$2.4K
+                - 'img "Gifts & giving: $2,400, 3% of the money in" [ref=f22e341] [cursor=pointer]'
+              - generic [ref=f22e342]:
+                - generic [ref=f22e344]: Shopping$2.3K
+                - 'img "Shopping: $2,348, 3% of the money in" [ref=f22e345] [cursor=pointer]'
+              - generic [ref=f22e346]:
+                - generic [ref=f22e348]: Entertainment$1.9K
+                - 'img "Entertainment: $1,850, 2% of the money in" [ref=f22e349] [cursor=pointer]'
+              - generic [ref=f22e350]:
+                - generic [ref=f22e352]: Travel$1.3K
+                - 'img "Travel: $1,340, 2% of the money in" [ref=f22e353] [cursor=pointer]'
+              - generic [ref=f22e354]:
+                - generic [ref=f22e356]: Emergency fund$4.2K
+                - 'img "Emergency fund: $4,200, 5% of the money in" [ref=f22e357] [cursor=pointer]'
+              - generic [ref=f22e358]:
+                - generic [ref=f22e360]: Roth IRA$7K
+                - 'img "Roth IRA: $6,996, 8% of the money in" [ref=f22e361] [cursor=pointer]'
+            - group [ref=f22e362]:
+              - generic "Show the flows as a table" [ref=f22e363] [cursor=pointer]
+          - generic [ref=f22e365]:
+            - generic [ref=f22e366]:
+              - heading "Against the plan" [level=2] [ref=f22e367]
+              - generic [ref=f22e368]: $6,398 planned a month
+            - generic [ref=f22e369]:
+              - generic [ref=f22e370]:
+                - generic [ref=f22e371]: Essentials
+                - generic [ref=f22e374]: Fun
+                - generic [ref=f22e377]: Savings
+                - generic [ref=f22e380]: Retirement
+                - generic [ref=f22e383]: Plan $6,398/mo
+              - group "Spending by month against the plan, split by bucket" [ref=f22e388]:
+                - generic [ref=f22e389]: $0
+                - generic [ref=f22e391]: $2.5K
+                - generic [ref=f22e393]: $5K
+                - generic [ref=f22e395]: $7.5K
+                - generic [ref=f22e397]: $10K
+                - generic [ref=f22e399]: $12.5K
+                - generic [ref=f22e401]: $6.4K
+                - generic [ref=f22e451]: Nov2025
+                - generic [ref=f22e452]: Dec
+                - generic [ref=f22e453]: Jan2026
+                - generic [ref=f22e454]: Feb
+                - generic [ref=f22e455]: Mar
+                - generic [ref=f22e456]: Apr
+                - generic [ref=f22e457]: May
+                - generic [ref=f22e458]: Jun
+                - generic [ref=f22e459]: Jul
+                - generic [ref=f22e460]: Aug
+                - generic [ref=f22e461]: Sep
+                - generic [ref=f22e462]: Oct
+                - 'img "November 2025: $5,222 spent, $1,176 under the plan, Essentials $3,719, Fun $920, Retirement $583" [ref=f22e463] [cursor=pointer]'
+                - 'img "December 2025: $4,918 spent, $1,480 under the plan, Essentials $3,665, Fun $670, Retirement $583" [ref=f22e464] [cursor=pointer]'
+                - 'img "January 2026: $5,310 spent, $1,088 under the plan, Essentials $4,057, Fun $670, Retirement $583" [ref=f22e465] [cursor=pointer]'
+                - 'img "February 2026: $5,479 spent, $919 under the plan, Essentials $3,726, Fun $1,170, Retirement $583" [ref=f22e466] [cursor=pointer]'
+                - 'img "March 2026: $5,440 spent, $958 under the plan, Essentials $4,187, Fun $670, Retirement $583" [ref=f22e467] [cursor=pointer]'
+                - 'img "April 2026: $6,280 spent, $118 under the plan, Essentials $3,687, Fun $2,010, Retirement $583" [ref=f22e468] [cursor=pointer]'
+                - 'img "May 2026: $5,072 spent, $1,326 under the plan, Essentials $3,669, Fun $820, Retirement $583" [ref=f22e469] [cursor=pointer]'
+                - 'img "June 2026: $5,114 spent, $1,284 under the plan, Essentials $3,661, Fun $870, Retirement $583" [ref=f22e470] [cursor=pointer]'
+                - 'img "July 2026: $5,112 spent, $1,286 under the plan, Essentials $3,859, Fun $670, Retirement $583" [ref=f22e471] [cursor=pointer]'
+                - 'img "August 2026: $10,069 spent, $3,671 over the plan, Essentials $3,680, Fun $1,606, Savings $4,200, Retirement $583" [ref=f22e472] [cursor=pointer]'
+                - 'img "September 2026: $5,268 spent, $1,130 under the plan, Essentials $3,887, Fun $798, Retirement $583" [ref=f22e473] [cursor=pointer]'
+                - 'img "October 2026: $4,839 spent, $1,559 under the plan, Essentials $3,472, Fun $784, Retirement $583" [ref=f22e474] [cursor=pointer]'
+            - group [ref=f22e475]:
+              - generic "Show the plan comparison as a table" [ref=f22e476] [cursor=pointer]
+          - generic [ref=f22e479]:
+            - generic [ref=f22e480]:
+              - heading "Where the money went" [level=2] [ref=f22e481]
+              - generic [ref=f22e482]: Per month is over 12 months of records
+            - table [ref=f22e484]:
+              - rowgroup [ref=f22e485]:
+                - row [ref=f22e486]:
+                  - columnheader "Category" [ref=f22e487]
+                  - columnheader "Spent" [ref=f22e488]
+                  - columnheader "Share" [ref=f22e489]
+                  - columnheader "Per month" [ref=f22e490]
+                  - columnheader "Estimate" [ref=f22e491]
+              - rowgroup [ref=f22e492]:
+                - row [ref=f22e493]:
+                  - rowheader "Show the month-by-month detail for Rent Home · 12 of 12 months" [ref=f22e494]:
+                    - button "Show the month-by-month detail for Rent" [ref=f22e495] [cursor=pointer]: Rent
+                    - generic [ref=f22e496]: Home · 12 of 12 months
+                  - cell "$26,400" [ref=f22e497]
+                  - cell "38.75%" [ref=f22e498]
+                  - cell "$2,200" [ref=f22e503]
+                  - cell "$2,200" [ref=f22e504]
+                - row [ref=f22e505]:
+                  - rowheader "Show the month-by-month detail for Groceries Living · 12 of 12 months" [ref=f22e506]:
+                    - button "Show the month-by-month detail for Groceries" [ref=f22e507] [cursor=pointer]: Groceries
+                    - generic [ref=f22e508]: Living · 12 of 12 months
+                  - cell "$8,665" [ref=f22e509]
+                  - cell "12.72%" [ref=f22e510]
+                  - cell "$722.08" [ref=f22e515]
+                  - cell "$720" [ref=f22e516]
+                - row [ref=f22e517]:
+                  - rowheader "Show the month-by-month detail for Roth IRA Retirement · 12 of 12 months" [ref=f22e518]:
+                    - button "Show the month-by-month detail for Roth IRA" [ref=f22e519] [cursor=pointer]: Roth IRA
+                    - generic [ref=f22e520]: Retirement · 12 of 12 months
+                  - cell "$6,996" [ref=f22e521]
+                  - cell "10.27%" [ref=f22e522]
+                  - cell "$583" [ref=f22e527]
+                  - cell "$583" [ref=f22e528]
+                - row [ref=f22e529]:
+                  - rowheader "Show the month-by-month detail for Emergency fund Future · 1 of 12 months" [ref=f22e530]:
+                    - button "Show the month-by-month detail for Emergency fund" [ref=f22e531] [cursor=pointer]: Emergency fund
+                    - generic [ref=f22e532]: Future · 1 of 12 months
+                  - cell "$4,200" [ref=f22e533]
+                  - cell "6.17%" [ref=f22e534]
+                  - cell "$350" [ref=f22e539]
+                  - cell "$400" [ref=f22e540]
+                - row [ref=f22e541]:
+                  - rowheader "Show the month-by-month detail for Dining out Lifestyle · 12 of 12 months" [ref=f22e542]:
+                    - button "Show the month-by-month detail for Dining out" [ref=f22e543] [cursor=pointer]: Dining out
+                    - generic [ref=f22e544]: Lifestyle · 12 of 12 months
+                  - cell "$3,720" [ref=f22e545]
+                  - cell "5.46%" [ref=f22e546]
+                  - cell "$310" [ref=f22e551]
+                  - cell "$320" [ref=f22e552]
+                - row [ref=f22e553]:
+                  - rowheader "Show the month-by-month detail for Insurance Living · 12 of 12 months" [ref=f22e554]:
+                    - button "Show the month-by-month detail for Insurance" [ref=f22e555] [cursor=pointer]: Insurance
+                    - generic [ref=f22e556]: Living · 12 of 12 months
+                  - cell "$2,940" [ref=f22e557]
+                  - cell "4.32%" [ref=f22e558]
+                  - cell "$245" [ref=f22e563]
+                  - cell "$245" [ref=f22e564]
+                - row [ref=f22e565]:
+                  - rowheader "Show the month-by-month detail for Gifts & giving Lifestyle · 6 of 12 months" [ref=f22e566]:
+                    - button "Show the month-by-month detail for Gifts & giving" [ref=f22e567] [cursor=pointer]: Gifts & giving
+                    - generic [ref=f22e568]: Lifestyle · 6 of 12 months
+                  - cell "$2,400" [ref=f22e569]
+                  - cell "3.52%" [ref=f22e570]
+                  - cell "$200" [ref=f22e575]
+                  - cell "$300" [ref=f22e576]
+                - row [ref=f22e577]:
+                  - rowheader "Show the month-by-month detail for Shopping Lifestyle · 12 of 12 months · $64 back" [ref=f22e578]:
+                    - button "Show the month-by-month detail for Shopping" [ref=f22e579] [cursor=pointer]: Shopping
+                    - generic [ref=f22e580]: Lifestyle · 12 of 12 months · $64 back
+                  - cell "$2,348" [ref=f22e581]
+                  - cell "3.45%" [ref=f22e582]
+                  - cell "$195.67" [ref=f22e587]
+                  - cell "$200" [ref=f22e588]
+                - row [ref=f22e589]:
+                  - rowheader "Show the month-by-month detail for Utilities Home · 12 of 12 months" [ref=f22e590]:
+                    - button "Show the month-by-month detail for Utilities" [ref=f22e591] [cursor=pointer]: Utilities
+                    - generic [ref=f22e592]: Home · 12 of 12 months
+                  - cell "$2,220" [ref=f22e593]
+                  - cell "3.26%" [ref=f22e594]
+                  - cell "$185" [ref=f22e599]
+                  - cell "$185" [ref=f22e600]
+                - row [ref=f22e601]:
+                  - rowheader "Show the month-by-month detail for Transit & fuel Living · 12 of 12 months" [ref=f22e602]:
+                    - button "Show the month-by-month detail for Transit & fuel" [ref=f22e603] [cursor=pointer]: Transit & fuel
+                    - generic [ref=f22e604]: Living · 12 of 12 months
+                  - cell "$2,079" [ref=f22e605]
+                  - cell "3.05%" [ref=f22e606]
+                  - cell "$173.25" [ref=f22e611]
+                  - cell "$180" [ref=f22e612]
+                - row [ref=f22e613]:
+                  - rowheader "Show the month-by-month detail for Entertainment Lifestyle · 12 of 12 months" [ref=f22e614]:
+                    - button "Show the month-by-month detail for Entertainment" [ref=f22e615] [cursor=pointer]: Entertainment
+                    - generic [ref=f22e616]: Lifestyle · 12 of 12 months
+                  - cell "$1,850" [ref=f22e617]
+                  - cell "2.72%" [ref=f22e618]
+                  - cell "$154.17" [ref=f22e623]
+                  - cell "$150" [ref=f22e624]
+                - row [ref=f22e625]:
+                  - rowheader "Show the month-by-month detail for Travel Lifestyle · 1 of 12 months" [ref=f22e626]:
+                    - button "Show the month-by-month detail for Travel" [ref=f22e627] [cursor=pointer]: Travel
+                    - generic [ref=f22e628]: Lifestyle · 1 of 12 months
+                  - cell "$1,340" [ref=f22e629]
+                  - cell "1.97%" [ref=f22e630]
+                  - cell "$111.67" [ref=f22e635]
+                  - cell "$250" [ref=f22e636]
+                - row [ref=f22e637]:
+                  - rowheader "Show the month-by-month detail for Phone Living · 12 of 12 months" [ref=f22e638]:
+                    - button "Show the month-by-month detail for Phone" [ref=f22e639] [cursor=pointer]: Phone
+                    - generic [ref=f22e640]: Living · 12 of 12 months
+                  - cell "$1,080" [ref=f22e641]
+                  - cell "1.59%" [ref=f22e642]
+                  - cell "$90" [ref=f22e647]
+                  - cell "$90" [ref=f22e648]
+                - row [ref=f22e649]:
+                  - rowheader "Show the month-by-month detail for Internet Home · 12 of 12 months" [ref=f22e650]:
+                    - button "Show the month-by-month detail for Internet" [ref=f22e651] [cursor=pointer]: Internet
+                    - generic [ref=f22e652]: Home · 12 of 12 months
+                  - cell "$900" [ref=f22e653]
+                  - cell "1.32%" [ref=f22e654]
+                  - cell "$75" [ref=f22e659]
+                  - cell "$75" [ref=f22e660]
+                - row [ref=f22e661]:
+                  - rowheader "Show the month-by-month detail for Health & medical Living · 2 of 12 months" [ref=f22e662]:
+                    - button "Show the month-by-month detail for Health & medical" [ref=f22e663] [cursor=pointer]: Health & medical
+                    - generic [ref=f22e664]: Living · 2 of 12 months
+                  - cell "$505" [ref=f22e665]
+                  - cell "0.74%" [ref=f22e666]
+                  - cell "$42.08" [ref=f22e671]
+                  - cell "$150" [ref=f22e672]
+                - row [ref=f22e673]:
+                  - rowheader "Show the month-by-month detail for Home repairs Home · 1 of 12 months" [ref=f22e674]:
+                    - button "Show the month-by-month detail for Home repairs" [ref=f22e675] [cursor=pointer]: Home repairs
+                    - generic [ref=f22e676]: Home · 1 of 12 months
+                  - cell "$480" [ref=f22e677]
+                  - cell "0.7%" [ref=f22e678]
+                  - cell "$40" [ref=f22e683]
+                  - cell "$100" [ref=f22e684]
+              - rowgroup [ref=f22e685]:
+                - row [ref=f22e686]:
+                  - rowheader "All spending" [ref=f22e687]
+                  - cell "$68,123" [ref=f22e688]
+                  - cell "100%" [ref=f22e689]
+                  - cell "$5,676.92" [ref=f22e691]
+                  - cell [ref=f22e692]
+  - iframe [ref=f22e693]:
+    - generic [ref=f23e2]:
+      - generic [ref=f23e3]: "Compiled with problems:"
+      - button "Dismiss" [ref=f23e4] [cursor=pointer]: ×
+      - generic [ref=f23e6]:
+        - generic [ref=f23e7]: ERROR
+        - generic [ref=f23e8]:
+          - text: "[eslint] src\\components\\ActivityFeed.js Line 26:21: React Hook \"useHousehold\" is called conditionally. React Hooks must be called in the exact same order in every component render"
+          - generic [ref=f23e9]: react-hooks/rules-of-hooks
+          - text: Search for the
+          - generic [ref=f23e10]: keywords
+          - text: to learn more about each error.

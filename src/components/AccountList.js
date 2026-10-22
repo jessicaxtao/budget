@@ -107,7 +107,6 @@ function AccountRow({ account, balanceCents, striped, onEdit, onArchive, onDelet
 
 function AccountSection({
   title,
-  subtitle,
   scope,
   accounts,
   balanceById,
@@ -148,13 +147,7 @@ function AccountSection({
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-3">
-            <h3 className="font-sans text-base font-semibold tracking-tight text-chalk">{title}</h3>
-            <span className="font-mono text-label uppercase text-chalk-soft">
-              {accounts.length} {accounts.length === 1 ? "account" : "accounts"}
-            </span>
-          </div>
-          <p className="mt-0.5 font-sans text-row text-chalk-soft">{subtitle}</p>
+          <h3 className="font-sans text-base font-semibold tracking-tight text-chalk">{title}</h3>
         </div>
         <div className="flex items-center gap-3">
           {subtotalCents != null && accounts.length > 0 && (
@@ -218,21 +211,18 @@ const SECTIONS = [
   {
     scope: ACCOUNT_SCOPES.ON_BUDGET,
     title: "On budget",
-    subtitle: "Spending runs through these.",
     addLabel: "Add an on-budget account",
     empty: "Nothing on budget yet. Add the account your everyday money moves through.",
   },
   {
     scope: ACCOUNT_SCOPES.CREDIT_CARD,
     title: "Credit cards",
-    subtitle: "Spent through now, paid off later. Counts against what there is to assign.",
     addLabel: "Add a credit card",
     empty: "No cards yet. Add one if you spend on a card and pay it off from these accounts.",
   },
   {
     scope: ACCOUNT_SCOPES.OFF_BUDGET,
     title: "Off budget",
-    subtitle: "Held for the long term, tracked for net worth.",
     addLabel: "Add an off-budget account",
     empty:
       "Nothing off budget yet. Add a 401(k), a brokerage, the house, or the mortgage against it — what you hold rather than spend.",
@@ -281,7 +271,6 @@ export default function AccountList({
         <AccountSection
           key={section.scope}
           title={section.title}
-          subtitle={section.subtitle}
           scope={section.scope}
           accounts={byScope.get(section.scope)}
           balanceById={balanceById}

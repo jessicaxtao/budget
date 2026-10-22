@@ -216,9 +216,6 @@ export default function ReconciliationList({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-edge px-4 py-3">
         <div className="min-w-0">
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Accounts</h2>
-          <p className="mt-0.5 font-sans text-row text-chalk-soft">
-            Balance, and when it last agreed with the statement.
-          </p>
         </div>
         {rows.length > 0 && (
           <span

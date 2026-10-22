@@ -10,6 +10,7 @@ import PayOffCardModal from "../components/PayOffCardModal";
 import ReconcileModal from "../components/ReconcileModal";
 import ActivityFeed from "../components/ActivityFeed";
 import ReconciliationList from "../components/ReconciliationList";
+import SetupGuideCallout from "../components/SetupGuideCallout";
 import UpcomingBills from "../components/UpcomingBills";
 import { spendsThroughBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
@@ -22,7 +23,17 @@ import useDashboard from "../hooks/useDashboard";
 import useNextPaycheck from "../hooks/useNextPaycheck";
 import useRecordCashback from "../hooks/useRecordCashback";
 import useUpcoming from "../hooks/useUpcoming";
-import { currentPeriod, daysBetween, formatDateLong, toCents, todayISO } from "../utils";
+import { currentPeriod, daysBetween, formatCents, formatDateLong, toCents, todayISO } from "../utils";
+
+const DASHBOARD_BUDGET_EXPLAINER_KEY = "dashboardBudgetExplainerDismissed";
+
+function shouldShowBudgetExplainer() {
+  try {
+    return window.localStorage.getItem(DASHBOARD_BUDGET_EXPLAINER_KEY) !== "true";
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Where the household stands today.
@@ -74,6 +85,16 @@ export default function DashboardPage() {
   // the balance it shows follows the ledger.
   const [reconcilingId, setReconcilingId] = useState(null);
   const [payingOffId, setPayingOffId] = useState(null);
+  const [showBudgetExplainer, setShowBudgetExplainer] = useState(shouldShowBudgetExplainer);
+
+  function dismissBudgetExplainer() {
+    setShowBudgetExplainer(false);
+    try {
+      window.localStorage.setItem(DASHBOARD_BUDGET_EXPLAINER_KEY, "true");
+    } catch {
+      // Dismissal still works for this visit when browser storage is unavailable.
+    }
+  }
 
   // What went out this month, less what came back into a category: a refund
   // undoes that much of the spending it answers, the way each category's own
@@ -244,7 +265,6 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="Your budget, bills, and account balances today."
         actions={
           <div className="text-right">
             <div className="font-mono text-label uppercase text-chalk-soft">Today</div>
@@ -268,6 +288,52 @@ export default function DashboardPage() {
         categoryCount={categoryCount}
         paycheck={paycheck}
       />
+
+      {dashboard.availableToBudgetCents < 0 && (
+        <section
+          role="alert"
+          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-vermilion/60 bg-panel px-4 py-3"
+        >
+          <p className="font-sans text-row text-chalk-soft">
+            <strong className="text-vermilion">
+              Over-assigned by {formatCents(-dashboard.availableToBudgetCents)}.
+            </strong>{" "}
+            You have assigned more than your available money can cover. Reduce category assignments
+            to bring Available to budget back to zero.
+          </p>
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border border-vermilion/60 px-3 py-2 font-sans text-row font-medium text-chalk hover:bg-vermilion/10"
+            onClick={() => setAssigning(true)}
+          >
+            Review assignments
+          </button>
+        </section>
+      )}
+
+      {showBudgetExplainer && (
+        <SetupGuideCallout
+          targetId="dashboard-budget-summary"
+          title="A quick guide to your budget"
+          description={
+            <>
+              <strong className="text-chalk">Available to budget</strong> is money in your budget
+              that has not been assigned a job yet. <strong className="text-chalk">Budgeted this month</strong>{" "}
+              is the total you have assigned to categories for this month. Assigning money moves it
+              from available to budget into your categories; budgeted money is planned for a job,
+              while spent money has actually left an envelope.
+            </>
+          }
+        >
+            <button
+              type="button"
+              className="mt-3 font-sans text-row text-chalk-soft underline"
+              onClick={dismissBudgetExplainer}
+            >
+              Got it
+            </button>
+        </SetupGuideCallout>
+      )}
 
       {scheduleError && (
         <p role="alert" className="mt-4 font-sans text-row text-vermilion">
@@ -340,14 +406,6 @@ export default function DashboardPage() {
           <ActivityFeed />
         </div>
       </div>
-
-      {accountRows.length > 0 && (
-        <p className="mt-3 font-sans text-row text-chalk-soft">
-          Balances are the opening figure plus every transaction through the account, so they
-          follow the ledger. Mark one accurate where the statement agrees; reconcile it where the
-          statement says otherwise, and the difference is written into the books.
-        </p>
-      )}
 
       <ReconcileModal
         show={reconcilingId != null}

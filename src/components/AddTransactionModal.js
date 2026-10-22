@@ -39,6 +39,16 @@ import {
   todayISO,
 } from "../utils";
 
+const MONEY_IN_CALLOUT_KEY = "moneyInTransactionCalloutDismissed";
+
+function shouldShowMoneyInCallout() {
+  try {
+    return window.localStorage.getItem(MONEY_IN_CALLOUT_KEY) !== "true";
+  } catch {
+    return true;
+  }
+}
+
 /**
  * One form for every movement of money.
  *
@@ -198,6 +208,7 @@ export default function AddTransactionModal({
   const dateRef = useRef();
   const budgetIdRef = useRef();
   const [error, setError] = useState(null);
+  const [showMoneyInCallout, setShowMoneyInCallout] = useState(shouldShowMoneyInCallout);
   const [kind, setKind] = useState(defaultKind);
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
@@ -309,6 +320,8 @@ export default function AddTransactionModal({
   const destinations = active.filter((account) => account.id !== fromAccountId);
 
   const inside = insideBudget(accounts);
+  const betweenBudgetAccounts =
+    isTransfer && inside(fromAccountId) && inside(toAccountId);
   // Money leaving the budget for a holding is real spending and comes out of a
   // category, exactly as it did when the only way to record it was an outflow
   // filed under "Savings". Every other pairing moves no budget money at all, so
@@ -952,8 +965,8 @@ export default function AddTransactionModal({
     if (crossesOut) {
       return "This money is leaving the budget for a holding, so it comes out of a category the same way spending does — and the holding is credited for it.";
     }
-    if (inside(fromAccountId) && inside(toAccountId)) {
-      return "Both of these are accounts the budget spends through, so no envelope moves. Paying a card off costs the plan nothing — that money was budgeted on its way out through the card.";
+    if (betweenBudgetAccounts) {
+      return "This moves money between two accounts the budget tracks. It does not change your category balances. If you are paying a credit card, its purchases were already counted when you recorded them.";
     }
     if (inside(toAccountId)) {
       return "This money is arriving from outside the budget, so it lands in “to be assigned” alongside your income.";
@@ -1220,14 +1233,51 @@ export default function AddTransactionModal({
             </fieldset>
           )}
           {isInflow && !splitting && (
-            <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">
-              Income lands in “to be assigned”, where you give it a job. Pick a category instead
-              only if this is money coming back — a refund, or a share someone paid you back — and
-              it will go straight back into that envelope.
-            </p>
+            showMoneyInCallout && show && (
+              <aside
+                role="status"
+                aria-label="How money in is assigned"
+                className="-mt-1 mb-5 rounded-xl border border-azure/50 bg-panel-raised px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <p className="font-sans text-row text-chalk-soft">
+                    Income lands in “to be assigned”, where you give it a job. Pick a category instead
+                    only if this is money coming back — a refund, or a share someone paid you back —
+                    and it will go straight back into that envelope.
+                  </p>
+                  <button
+                    type="button"
+                    className="shrink-0 font-sans text-sm text-chalk-soft underline underline-offset-2 hover:text-chalk"
+                    onClick={() => {
+                      setShowMoneyInCallout(false);
+                      try {
+                        window.localStorage.setItem(MONEY_IN_CALLOUT_KEY, "true");
+                      } catch {
+                        // It remains dismissed for this visit if storage is unavailable.
+                      }
+                    }}
+                  >
+                    Got it
+                  </button>
+                </div>
+              </aside>
+            )
           )}
           {isTransfer && (
-            <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">{transferNote()}</p>
+            betweenBudgetAccounts ? (
+              <aside
+                role="note"
+                aria-label="How this transfer affects your budget"
+                className="-mt-1 mb-5 rounded-xl border border-azure/50 bg-panel-raised px-4 py-3"
+              >
+                <h3 className="font-sans text-sm font-semibold text-chalk">
+                  This transfer does not change your budget
+                </h3>
+                <p className="mt-1 font-sans text-row text-chalk-soft">{transferNote()}</p>
+              </aside>
+            ) : (
+              <p className="-mt-1 mb-5 font-sans text-row text-chalk-soft">{transferNote()}</p>
+            )
           )}
           {duplicates.length > 0 && (
             <section

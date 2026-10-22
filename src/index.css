@@ -44,6 +44,19 @@
   --c-coin: 242 182 50; /* #F2B632 */
   --c-on-canopy-rust: 224 118 63; /* #E0763F */
 
+  /* Rainbow pastel underlines, one per nav tab. Same in both modes — the
+     canopy is always dark green so these read the same way either way. */
+  --c-tab-rose: 240 143 172;
+  --c-tab-peach: 248 163 107;
+  --c-tab-yellow: 247 210 80;
+  --c-tab-lime: 178 215 104;
+  --c-tab-mint: 104 202 155;
+  --c-tab-sky: 89 200 222;
+  --c-tab-periwinkle: 111 166 233;
+  --c-tab-lavender: 152 134 225;
+  --c-tab-violet: 190 127 213;
+  --c-tab-pink: 223 126 188;
+
   --c-action: 47 107 79; /* #2F6B4F canopy */
   --c-on-action: 255 253 248;
 
@@ -71,15 +84,26 @@
   --c-rule: 52 45 38; /* #342D26 */
 
   --c-ink: 241 232 218; /* #F1E8DA parchment */
-  --c-ink-soft: 168 154 136; /* #A89A88 */
+  --c-ink-soft: 179 163 144; /* #B3A390 */
   --c-chalk: 241 232 218;
-  --c-chalk-soft: 168 154 136;
+  --c-chalk-soft: 179 163 144; /* #B3A390 — 7:1 on panel, needed for text-label */
 
   --c-canopy: 23 54 40; /* #173628 */
   --c-on-canopy: 255 253 248;
   --c-on-canopy-soft: 201 216 206;
   --c-coin: 242 182 50;
   --c-on-canopy-rust: 224 118 63;
+
+  --c-tab-rose: 240 143 172;
+  --c-tab-peach: 248 163 107;
+  --c-tab-yellow: 247 210 80;
+  --c-tab-lime: 178 215 104;
+  --c-tab-mint: 104 202 155;
+  --c-tab-sky: 89 200 222;
+  --c-tab-periwinkle: 111 166 233;
+  --c-tab-lavender: 152 134 225;
+  --c-tab-violet: 190 127 213;
+  --c-tab-pink: 223 126 188;
 
   --c-action: 124 199 154; /* #7CC79A leaf */
   --c-on-action: 15 42 31; /* #0F2A1F */

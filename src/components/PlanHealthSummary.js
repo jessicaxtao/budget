@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { PLAN_BUCKETS } from "../contexts/BudgetsContext";
 import { bucketTone } from "../bucketTones";
-import { formatCents } from "../utils";
+import { formatCents, toCents } from "../utils";
 
 /**
  * Does the plan balance, and what does it balance into?
@@ -77,10 +78,18 @@ export default function PlanHealthSummary({
   pretaxError = null,
   onPretaxChange,
 }) {
+  const [pretaxFrequency, setPretaxFrequency] = useState("year");
   // With nothing expected to come in there is no verdict to give: every plan
   // would read as over-allocated, which says more about the empty income side
   // than about the plan.
   const unknown = sourceCount === 0;
+  const pretaxDisplayedCents =
+    pretaxContributionCents == null
+      ? null
+      : pretaxFrequency === "month"
+        ? Math.round(pretaxContributionCents / 12)
+        : pretaxContributionCents;
+  const pretaxDisplayedValue = asDollars(pretaxDisplayedCents);
 
   const tone = unknown
     ? { text: "text-chalk-soft", border: "border-edge", label: "Not known yet" }
@@ -153,27 +162,44 @@ export default function PlanHealthSummary({
           before there is anything else planned — typing a figure here is
           itself what turns "nothing planned yet" into a plan with something
           in it. */}
-      <div className="border-t border-edge px-4 py-3">
+      <div className="flex flex-wrap items-end gap-4 border-t border-edge px-4 py-3">
         <label className="block sm:w-72">
           <span className="font-mono text-label uppercase text-chalk-soft">
             Pretax retirement contributions
           </span>
           <input
-            key={`pretax-${pretaxContributionCents ?? ""}`}
-            defaultValue={asDollars(pretaxContributionCents)}
+            id="setup-pretax-contribution"
+            key={`pretax-${pretaxFrequency}-${pretaxContributionCents ?? ""}`}
+            defaultValue={pretaxDisplayedValue}
             type="text"
             inputMode="decimal"
             placeholder="0.00"
-            aria-describedby="pretax-contribution-note"
             className="mt-1.5 w-full border-0 border-b-2 border-edge bg-transparent px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure"
-            onBlur={(event) => onPretaxChange(event.target.value)}
+            onBlur={(event) => {
+              const enteredValue = event.target.value;
+              if (enteredValue === pretaxDisplayedValue) return;
+              if (pretaxFrequency === "month") {
+                const monthlyCents = toCents(enteredValue);
+                onPretaxChange(
+                  monthlyCents == null ? enteredValue : String((monthlyCents * 12) / 100)
+                );
+                return;
+              }
+              onPretaxChange(enteredValue);
+            }}
           />
         </label>
-        <p id="pretax-contribution-note" className="mt-1.5 font-sans text-row text-chalk-soft">
-          A year's worth — a 401(k) or other payroll deduction that never reaches an on-budget
-          account, so there is no category here to read it off. Also set on the Retirement page,
-          where it feeds the projection; the two are the same figure.
-        </p>
+        <label className="block">
+          <select
+            aria-label="Contribution frequency"
+            value={pretaxFrequency}
+            onChange={(event) => setPretaxFrequency(event.target.value)}
+            className="rounded-lg border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors focus:border-azure"
+          >
+            <option value="month">Per month</option>
+            <option value="year">Per year</option>
+          </select>
+        </label>
         {pretaxError && (
           <p role="alert" className="mt-1.5 font-sans text-row text-vermilion">
             {pretaxError}

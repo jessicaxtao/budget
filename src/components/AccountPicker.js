@@ -74,7 +74,7 @@ function PortionField({ row, onPortionChange }) {
   );
 }
 
-function AccountRow({ row, striped, onToggle, onPortionChange }) {
+function AccountRow({ row, striped, showSource, onToggle, onPortionChange }) {
   return (
     <tr className={striped ? "bg-sheet-alt" : "bg-sheet"}>
       <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
@@ -96,12 +96,14 @@ function AccountRow({ row, striped, onToggle, onPortionChange }) {
           `AddSavingsGoalModal` is 672px wide and was scrolling the Counted
           column off the end of it. Nothing moves on a wide panel, where the
           phrase fits on one line either way. */}
-      <td
-        data-label="Source"
-        className="px-3 py-2 text-right font-mono text-label uppercase text-ink-soft"
-      >
-        {scopeLabel(row.account)} · {sourceNote(row)}
-      </td>
+      {showSource && (
+        <td
+          data-label="Source"
+          className="px-3 py-2 text-right font-mono text-label uppercase text-ink-soft"
+        >
+          {scopeLabel(row.account)} · {sourceNote(row)}
+        </td>
+      )}
       <td
         data-label="Value"
         className={`whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums ${
@@ -125,6 +127,7 @@ export default function AccountPicker({
   totalCents,
   emptyNote,
   holdingsFirst = false,
+  showSource = true,
   onToggle,
   onPortionChange,
 }) {
@@ -152,9 +155,11 @@ export default function AccountPicker({
             <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
               Account
             </th>
-            <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
-              Where the figure comes from
-            </th>
+            {showSource && (
+              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                Where the figure comes from
+              </th>
+            )}
             <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
               Value
             </th>
@@ -171,6 +176,7 @@ export default function AccountPicker({
               key={row.account.id}
               row={row}
               striped={index % 2 === 1}
+              showSource={showSource}
               onToggle={onToggle}
               onPortionChange={onPortionChange}
             />
@@ -181,7 +187,7 @@ export default function AccountPicker({
             <th scope="row" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
               {totalLabel}
             </th>
-            <td />
+            {showSource && <td />}
             {onPortionChange && <td />}
             <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-chalk">
               {formatCents(totalCents)}
