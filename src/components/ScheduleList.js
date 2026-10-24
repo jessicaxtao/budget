@@ -1,5 +1,7 @@
 import { useState } from "react";
 import AddScheduleModal from "./AddScheduleModal";
+import ScheduleSuggestions from "./ScheduleSuggestions";
+import ScheduleHistory from "./ScheduleHistory";
 import Button from "./Button";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import { useAccounts } from "../contexts/AccountsContext";
@@ -7,8 +9,9 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
-import { describeRecurrence, nextOccurrence } from "../domain/recurrence";
-import { addDays, formatCents, formatDateMedium } from "../utils";
+import { describeRecurrence } from "../domain/recurrence";
+import { outstandingOccurrences } from "../domain/scheduleOccurrences";
+import { formatCents, formatDateMedium } from "../utils";
 
 /**
  * Every scheduled transaction, and the four things only this panel can do to
@@ -45,6 +48,7 @@ export default function ScheduleList() {
   const { payeeById } = usePayees();
   const [editing, setEditing] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState(null);
 
   /**
    * The next occurrence still outstanding — from the day after the cursor, not
@@ -52,12 +56,7 @@ export default function ScheduleList() {
    * rather than as next month's.
    */
   function nextFor(schedule) {
-    const from =
-      schedule.enteredThrough == null ? schedule.startDate : addDays(schedule.enteredThrough, 1);
-    // Deliberately not floored at today: an occurrence nobody has dealt with is
-    // still the next one, and reading "Feb 1" in the middle of March is how this
-    // panel says a bill has been sitting there.
-    return nextOccurrence(schedule, from);
+    return outstandingOccurrences(schedule, undefined, 1)[0] ?? null;
   }
 
   const rows = [...schedules]
@@ -122,6 +121,8 @@ export default function ScheduleList() {
             </Button>
           </div>
 
+          <ScheduleSuggestions onReview={(suggestion) => { setDraft(suggestion); setShowAdd(true); }} />
+          <ScheduleHistory />
           {rows.length === 0 ? (
             <p className="border-t border-edge px-4 py-5 font-sans text-row text-chalk-soft">
               Nothing scheduled yet. Add the rent, a subscription, or a premium that comes round
@@ -236,9 +237,11 @@ export default function ScheduleList() {
       <AddScheduleModal
         show={showAdd || editing != null}
         schedule={editing}
+        draft={draft}
         handleClose={() => {
           setShowAdd(false);
           setEditing(null);
+          setDraft(null);
         }}
       />
     </section>

@@ -19,6 +19,7 @@ import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsCont
 import useAccountBalances from "../hooks/useAccountBalances";
 import { orderPayeesByUse } from "../domain/payeeSearch";
 import { DEFAULT_RECURRENCE, RECURRENCE_KEYS, RECURRENCES } from "../domain/recurrence";
+import { suggestCategory } from "../domain/transactionSuggestions";
 import useCardOffers from "../hooks/useCardOffers";
 import { OFFER_KINDS, offerNudges, rankCardsFor } from "../domain/rewards";
 import { cashbackCents } from "../domain/cashback";
@@ -117,7 +118,7 @@ function shouldShowMoneyInCallout() {
  * account and category are already in hand — so "Repeat this transaction" offers
  * a cadence and, on save, writes a schedule from the same answers, anchored to
  * this entry's date. The entry just made *is* that schedule's first occurrence,
- * so the schedule is created with its cursor already past that date (see
+ * so the schedule links that occurrence to the saved transaction (see
  * `addSchedule`): the dashboard offers the next one rather than re-asking for the
  * one just entered. No link is kept back from the transaction — the two are
  * independent records, the rule `SchedulesContext` keeps for its own reasons. Not
@@ -247,6 +248,7 @@ export default function AddTransactionModal({
   // answer to overwrite — `AddBudgetModal`'s rule for a bucket following a group,
   // and its reason: a choice already made is not a default.
   const chosenBudgetRef = useRef(false);
+  const [categoryTouched, setCategoryTouched] = useState(false);
   // A draft's category, waiting for its select. A transfer out of the budget
   // only grows a category field once its two accounts are in state, which is a
   // render after the one that seeds them, so the answer is held here and
@@ -308,6 +310,10 @@ export default function AddTransactionModal({
   // single letter has been typed — the payee somebody wants is usually one of the
   // last few they used.
   const orderedPayees = useMemo(() => orderPayeesByUse(payees, transactions), [payees, transactions]);
+  const suggestionToday = todayISO();
+  const categorySuggestion = useMemo(() => suggestCategory({ transactions, budgets,
+    payee: payees.find((payee) => payee.id === payeeId), today: suggestionToday }),
+  [transactions, budgets, payees, payeeId, suggestionToday]);
   // Balances as they stand today, not at the period the page is showing: this
   // is a note about what the account can cover right now, and a user entering a
   // receipt while looking at March does not want March's figure.
@@ -416,6 +422,7 @@ export default function AddTransactionModal({
     setRemember({});
     setHeldFor(null);
     chosenBudgetRef.current = Boolean(draft?.budgetId);
+    setCategoryTouched(Boolean(draft?.budgetId));
     // A door other than "Money out" is a direction somebody chose, and so is a
     // draft's; only the ordinary opening is left for a payee to turn.
     chosenKindRef.current = draft != null || defaultKind !== TRANSACTION_KINDS.OUTFLOW;
@@ -879,10 +886,8 @@ export default function AddTransactionModal({
 
     // The schedule, last and only once the money has landed: it is a prediction
     // about the entry just made, so an entry the ledger refused has nothing to
-    // repeat. The date just recorded seeds both the anchor and the cursor — the
-    // occurrence it describes is already dealt with, so the dashboard offers the
-    // next one rather than re-asking for this one. Refused, it says so rather
-    // than closing as though the schedule had been written.
+    // repeat. The first occurrence is linked to the entry just saved, so the
+    // dashboard offers the next one. A refused schedule is reported explicitly.
     if (canRepeat && repeat) {
       const scheduled = addSchedule({
         kind,
@@ -892,7 +897,7 @@ export default function AddTransactionModal({
         budgetId: budgetIdRef.current?.value || null,
         cadence: repeatCadenceRef.current?.value || DEFAULT_RECURRENCE,
         startDate: dateRef.current.value,
-        enteredThrough: dateRef.current.value,
+        recordedTransactionId: result.id,
         description: descriptionRef.current.value,
       });
       if (!scheduled.ok) {
@@ -939,6 +944,7 @@ export default function AddTransactionModal({
     setHeldFor(null);
     setError(null);
     chosenBudgetRef.current = false;
+    setCategoryTouched(false);
     // The account stays on screen as the answer last given, but like the
     // category it is open again for the next payee to set.
     chosenAccountRef.current = false;
@@ -1215,6 +1221,7 @@ export default function AddTransactionModal({
               // nothing on screen depends on it.
               onChange={() => {
                 chosenBudgetRef.current = true;
+                setCategoryTouched(true);
               }}
             >
               {/* A transfer out of the budget has no sensible default — which
@@ -1229,6 +1236,17 @@ export default function AddTransactionModal({
                 </option>
               ))}
             </SelectField>
+          )}
+          {isOutflow && !splitting && !categoryTouched && !chosenBudgetRef.current && categorySuggestion && (
+            <div className="-mt-2 mb-5 rounded-lg border border-edge p-3 text-row text-chalk">
+              <p>{budgetName(categorySuggestion.budgetId)} — used for {categorySuggestion.count} of your last {categorySuggestion.total} payments to this payee.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                chosenBudgetRef.current = true;
+                setCategoryTouched(true);
+                seedBudget(categorySuggestion.budgetId);
+                syncPicked();
+              }}>Apply suggested category</Button>
+            </div>
           )}
           {canSplit && (
             <div className="-mt-2 mb-5">

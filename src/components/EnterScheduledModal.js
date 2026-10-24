@@ -21,7 +21,7 @@ import { amountEditing, formatDateLong } from "../utils";
  * schedule, not typed over once a month forever.
  *
  * **Nothing here decides how the write is ordered.** The page owns that (the
- * ledger first, then the schedule's cursor), because it is the only thing holding
+ * ledger first, then the occurrence decision), because it is the only thing holding
  * both stores. This modal hands back what the user typed and shows whatever it is
  * told, which is also why a refusal leaves it open on the typed figures.
  *

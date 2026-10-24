@@ -23,6 +23,8 @@ import useDashboard from "../hooks/useDashboard";
 import useNextPaycheck from "../hooks/useNextPaycheck";
 import useRecordCashback from "../hooks/useRecordCashback";
 import useUpcoming from "../hooks/useUpcoming";
+import { useSchedulePaymentMatches } from "../hooks/useScheduleSuggestions";
+import { isOccurrenceOutstanding } from "../domain/scheduleOccurrences";
 import { currentPeriod, daysBetween, formatCents, formatDateLong, toCents, todayISO } from "../utils";
 
 const DASHBOARD_BUDGET_EXPLAINER_KEY = "dashboardBudgetExplainerDismissed";
@@ -66,11 +68,12 @@ export default function DashboardPage() {
   const { payeeById } = usePayees();
   const { addTransaction } = useTransactions();
   const recordCashback = useRecordCashback();
-  const { advanceSchedule } = useSchedules();
+  const { schedules, resolveOccurrence } = useSchedules();
   const { rows: balanceRows } = useAccountBalances(period);
   const paycheck = useNextPaycheck(today);
   const dashboard = useDashboard(period);
   const upcoming = useUpcoming(today);
+  const { matches, confirmMatch } = useSchedulePaymentMatches(upcoming.rows, today);
   // Which occurrence the confirmation is open on — the whole row, since the modal
   // needs both the schedule and the date it is about.
   const [entering, setEntering] = useState(null);
@@ -161,21 +164,14 @@ export default function DashboardPage() {
     return { name, filing };
   }
 
-  /**
-   * Record the occurrence, then mark it dealt with.
-   *
-   * **The ledger is written first**, the order `AddDonationModal` and
-   * `mergePayees` both take, and chosen here for which half is survivable alone: a
-   * transaction that landed while the cursor did not move leaves the bill offered
-   * a second time, which the user can see and refuse, where advancing first and
-   * then failing the write would quietly retire a bill that was never recorded.
-   *
-   * The cursor is stamped with the **scheduled** date and not the one the user
-   * typed. A bill due on the 1st and paid on the 3rd has had its 1st dealt with;
-   * stamping the 3rd would swallow anything else falling in between.
-   */
+  /** Save the ledger first, then resolve only the chosen scheduled date. */
   function handleEnter({ amount, date, description }) {
     const { schedule } = entering;
+    const live = schedules.find((item) => item.id === schedule.id);
+    if (!live || !isOccurrenceOutstanding(live, entering.date) ||
+        ["payeeId", "accountId", "budgetId", "kind", "amountCents"].some((key) => live[key] !== schedule[key])) {
+      return { ok: false, error: "That reminder has changed or is already handled. Close this form and review the updated reminder." };
+    }
     const result = addTransaction({
       kind: schedule.kind,
       payeeId: schedule.payeeId,
@@ -199,7 +195,8 @@ export default function DashboardPage() {
       payeeName: payeeById.get(schedule.payeeId)?.name,
     });
 
-    const advanced = advanceSchedule({ id: schedule.id, through: entering.date });
+    const advanced = resolveOccurrence({ id: schedule.id, date: entering.date,
+      status: "recorded", transactionId: result.id });
     // Reported on the page rather than swallowed: the money landed, so the modal
     // has done its job and closing it is right — but the bill will be offered
     // again, and the user has to know why.
@@ -252,12 +249,16 @@ export default function DashboardPage() {
    * Deal with an occurrence without recording anything.
    *
    * A month the gym was closed, a subscription cancelled after the schedule was
-   * written, a bill paid in cash and not worth entering. It moves the cursor and
-   * touches no money at all, which is the one thing a bill reminder has to be able
-   * to do without lying about the books.
+   * written, a bill paid in cash and not worth entering. Resolving only this
+   * occurrence leaves older unpaid reminders visible and touches no money.
    */
   function handleSkip(row) {
-    const result = advanceSchedule({ id: row.schedule.id, through: row.date });
+    const result = resolveOccurrence({ id: row.schedule.id, date: row.date, status: "skipped" });
+    setScheduleError(result.ok ? null : result.error);
+  }
+
+  function handleMatch(row, transactionId) {
+    const result = confirmMatch(row, transactionId);
     setScheduleError(result.ok ? null : result.error);
   }
 
@@ -390,6 +391,8 @@ export default function DashboardPage() {
               setEntering(row);
             }}
             onSkip={handleSkip}
+            matches={matches}
+            onMatch={handleMatch}
           />
           <ReconciliationList
             rows={accountRows}

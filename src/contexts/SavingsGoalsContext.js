@@ -43,7 +43,7 @@ const isAmount = (value) => Number.isInteger(value) && value > 0;
 const isDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 /** The fields `addSavingsGoal` and `updateSavingsGoal` both have to check. */
-function parseGoalFields({ name, target, targetCents, targetDate, budgetId }) {
+function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo }) {
   const trimmed = (name ?? "").trim();
   if (!trimmed) return { ok: false, error: "Give the goal a name." };
 
@@ -60,7 +60,8 @@ function parseGoalFields({ name, target, targetCents, targetDate, budgetId }) {
   // Inert but kept: a string id is stored as-is, "" or non-string becomes null.
   const linkedBudgetId = typeof budgetId === "string" && budgetId ? budgetId : null;
 
-  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId };
+  const goalPhoto = typeof photo === "string" && photo.startsWith("data:image/") && photo.length <= 180_000 ? photo : null;
+  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId, photo: goalPhoto };
 }
 
 /** Ids, deduped. Anything that is not a string was never an account id. */
@@ -138,6 +139,7 @@ function migrateGoals(stored) {
       accountAmounts: storedAmounts(goal.accountAmounts),
       // Inert but kept: a deleted category contributes nothing, resolved where read.
       budgetId: typeof goal.budgetId === "string" ? goal.budgetId : null,
+      photo: typeof goal.photo === "string" && goal.photo.startsWith("data:image/") && goal.photo.length <= 180_000 ? goal.photo : null,
     }));
 }
 
@@ -165,6 +167,7 @@ export const SavingsGoalsProvider = ({ children }) => {
           targetCents: parsed.targetCents,
           targetDate: parsed.targetDate,
           budgetId: parsed.budgetId,
+          photo: parsed.photo,
           // Empty rather than a guess at which account the money is in — the
           // `EmergencyFundContext` rule: naming one the household never agreed
           // to would put a figure on screen nobody stated.
@@ -203,6 +206,7 @@ export const SavingsGoalsProvider = ({ children }) => {
                 targetCents: parsed.targetCents,
                 targetDate: parsed.targetDate,
                 budgetId: parsed.budgetId,
+                photo: parsed.photo,
                 ...holdings.patch,
               }
             : goal

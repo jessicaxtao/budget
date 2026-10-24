@@ -192,6 +192,7 @@ describe("writing one down", () => {
         startDate: "2026-10-01",
         endsOn: null,
         enteredThrough: null,
+        occurrenceDecisions: {},
       },
     ]);
   });

@@ -1,29 +1,15 @@
 import { useMemo } from "react";
 import { useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
-import { occurrencesBetween, upcomingThrough, UPCOMING_DAYS } from "../domain/recurrence";
-import { addDays, daysBetween, todayISO } from "../utils";
+import { upcomingThrough, UPCOMING_DAYS } from "../domain/recurrence";
+import { outstandingOccurrences } from "../domain/scheduleOccurrences";
+import { daysBetween, todayISO } from "../utils";
 
 /**
- * What is due, and what is late.
- *
- * The join between the stored schedules and the calendar, the way
- * `useNextPaycheck` joins the stored pay schedule to `paySchedule.js`. It reads
- * **one store**, so it is not one of the seven cross-store hooks and must not
- * become one: a schedule is a prediction, and the moment this hook read the
- * ledger somebody would be tempted to match an occurrence against a transaction
- * that looks like it — which is guesswork about the household's intent, and wrong
- * the first time a bill is paid twice on purpose.
- *
- * The arithmetic is in `src/recurrence.js`. What is here is the one rule the
- * calendar cannot state: **the window opens at the cursor, not at today.** Every
- * occurrence after `enteredThrough` is still outstanding however long ago it fell,
- * so a bill due on the 1st that nobody entered is on this list on the 9th, marked
- * overdue. A list that started at today would let it disappear in silence, which
- * is the one failure a bill reminder cannot have.
- *
- * One row per occurrence, not per schedule — a weekly bill is genuinely four
- * things to do this month, and each is entered or skipped on its own.
+ * Outstanding calendar occurrences, including overdue bills. Reads schedules
+ * only: ledger matches are suggestions in useSchedulePaymentMatches and never
+ * settle reminders until the user confirms them. Legacy cursors exclude their
+ * handled history; new decisions exclude only their own scheduled dates.
  */
 export default function useUpcoming(today = todayISO(), { days = UPCOMING_DAYS } = {}) {
   const { schedules } = useSchedules();
@@ -33,14 +19,7 @@ export default function useUpcoming(today = todayISO(), { days = UPCOMING_DAYS }
     const rows = [];
 
     for (const schedule of schedules) {
-      // From the day after the cursor: the cursor names a date already dealt
-      // with, so including it would offer the same bill twice.
-      const from =
-        schedule.enteredThrough == null
-          ? schedule.startDate
-          : addDays(schedule.enteredThrough, 1);
-
-      for (const date of occurrencesBetween(schedule, from, through)) {
+      for (const date of outstandingOccurrences(schedule, through)) {
         const dueInDays = daysBetween(today, date);
         rows.push({
           // Keyed by both, because one schedule contributes several rows and the

@@ -96,7 +96,8 @@ function occurrenceAt(schedule, index) {
   const def = recurrence(schedule.cadence);
   if (def.kind === "interval") return addDays(schedule.startDate, index * def.days);
 
-  const { year, month, day } = partsOf(schedule.startDate);
+  const { year, month, day: startDay } = partsOf(schedule.startDate);
+  const day = schedule.anchorDay ?? startDay;
   const cursor = new Date(year, month - 1 + index * def.months, 1);
   const targetYear = cursor.getFullYear();
   const targetMonth = cursor.getMonth() + 1;
@@ -199,7 +200,7 @@ export function describeRecurrence(schedule) {
   if (!def) return "";
   if (!isValidISODate(schedule.startDate)) return def.label.toLowerCase();
 
-  const { day } = partsOf(schedule.startDate);
+  const day = schedule.anchorDay ?? partsOf(schedule.startDate).day;
 
   if (def.kind === "interval") {
     return def.days === 7 ? "every week" : `every ${def.days / 7} weeks`;

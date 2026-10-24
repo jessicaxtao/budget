@@ -28,3 +28,6 @@ electron/shell-config.json
 
 # vercel
 .vercel
+
+# playwright session artifacts
+.playwright-mcp/

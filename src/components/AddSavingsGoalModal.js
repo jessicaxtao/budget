@@ -43,6 +43,8 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   // where only part of it is this goal's.
   const [accountIds, setAccountIds] = useState([]);
   const [amounts, setAmounts] = useState({});
+  const [photo, setPhoto] = useState(null);
+  const [photoError, setPhotoError] = useState(null);
 
   const { addSavingsGoal, updateSavingsGoal } = useSavingsGoals();
   const { budgets } = useBudgets();
@@ -63,6 +65,8 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
     budgetIdRef.current.value = goal?.budgetId ?? "";
     setAccountIds(goal?.accountIds ?? []);
     setAmounts(goal?.accountAmounts ?? {});
+    setPhoto(goal?.photo ?? null);
+    setPhotoError(null);
   }, [show, goal]);
 
   const rows = options.map((row) => ({
@@ -121,6 +125,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
       // rule: unticking an account and ticking it again should not lose the part
       // of it that was stated.
       accountAmounts: amounts,
+      photo,
     };
     const result = editing ? updateSavingsGoal({ id: goal.id, ...fields }) : addSavingsGoal(fields);
 
@@ -131,6 +136,35 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
     }
 
     handleClose();
+  }
+
+  function handlePhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Choose an image file.");
+      return;
+    }
+    const image = new Image();
+    const reader = new FileReader();
+    reader.onload = () => {
+      image.onload = () => {
+        const scale = Math.min(1, 640 / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL("image/jpeg", 0.78);
+        if (compressed.length > 180_000) {
+          setPhotoError("That photo is too large. Try a smaller image.");
+          return;
+        }
+        setPhoto(compressed);
+        setPhotoError(null);
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -157,6 +191,19 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           inputRef={targetDateRef}
           type="date"
         />
+
+        <div className="mb-5 rounded-xl border border-edge bg-panel-raised p-4">
+          <label className="mb-2 block font-sans text-row font-semibold text-chalk" htmlFor="goal-photo">
+            Picture for your goal <span className="font-normal text-chalk-soft">(optional)</span>
+          </label>
+          {photo && <img src={photo} alt="Goal preview" className="mb-3 h-36 w-full rounded-lg object-cover" />}
+          <div className="flex flex-wrap items-center gap-3">
+            <input id="goal-photo" type="file" accept="image/*" onChange={handlePhoto} className="max-w-full font-sans text-row text-chalk-soft file:mr-3 file:rounded-lg file:border-0 file:bg-azure/15 file:px-3 file:py-2 file:text-chalk" />
+            {photo && <button type="button" className="font-sans text-row text-chalk-soft underline" onClick={() => setPhoto(null)}>Remove photo</button>}
+          </div>
+          {photoError && <p role="alert" className="mt-2 font-sans text-row text-vermilion">{photoError}</p>}
+          <p className="mt-2 font-sans text-label text-chalk-soft">A little reminder of what you’re saving for.</p>
+        </div>
 
         <SelectField label="Budget category (optional)" selectRef={budgetIdRef}>
           <option value="">None</option>

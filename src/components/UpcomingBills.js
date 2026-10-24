@@ -41,7 +41,7 @@ function due(row) {
   };
 }
 
-function UpcomingRow({ row, striped, describe, onEnter, onSkip }) {
+function UpcomingRow({ row, striped, describe, onEnter, onSkip, matches = [], onMatch }) {
   const status = due(row);
   const isInflow = row.schedule.kind === TRANSACTION_KINDS.INFLOW;
   const { name, filing } = describe(row.schedule);
@@ -75,6 +75,20 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip }) {
           {formatCents(row.schedule.amountCents)}
         </div>
       </div>
+      {matches.length > 0 && (
+        <div className="mt-3 border-t border-rule pt-2 text-row text-ink">
+          <p>{matches.length === 1 ? "Possible payment already recorded" : "Several payments could match — choose the one for this reminder"}</p>
+          <ul className="mt-1 space-y-2">
+            {matches.map((transaction, index) => <li key={transaction.id}>
+              <p>Payment {index + 1}: {formatDateMedium(transaction.date)} · {formatCents(transaction.amountCents)}{transaction.description ? ` · ${transaction.description}` : ""}</p>
+              <Button variant="row-action" size="sm"
+                aria-label={`Use payment ${index + 1} for ${label}`}
+                onClick={() => onMatch(row, transaction.id)}>Use this payment</Button>
+            </li>)}
+          </ul>
+          <p className="mt-1 text-ink-soft">Marks this reminder handled and keeps the existing ledger entry.</p>
+        </div>
+      )}
 
       <div className="mt-1 flex flex-col gap-y-1">
         <div className="min-w-0 truncate text-label uppercase text-ink-soft">
@@ -114,6 +128,8 @@ export default function UpcomingBills({
   describe,
   onEnter,
   onSkip,
+  matches,
+  onMatch,
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
@@ -166,6 +182,8 @@ export default function UpcomingBills({
             describe={describe}
             onEnter={onEnter}
             onSkip={onSkip}
+            matches={matches?.get(row.key)}
+            onMatch={onMatch}
           />
         ))
       )}

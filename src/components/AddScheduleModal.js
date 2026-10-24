@@ -10,7 +10,7 @@ import { usePayees } from "../contexts/PayeesContext";
 import { SCHEDULE_KINDS, useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { orderPayeesByUse } from "../domain/payeeSearch";
-import { DEFAULT_RECURRENCE, RECURRENCE_KEYS, RECURRENCES } from "../domain/recurrence";
+import { DEFAULT_RECURRENCE, RECURRENCE_KEYS, RECURRENCES, ordinalDay } from "../domain/recurrence";
 import { amountEditing, todayISO } from "../utils";
 
 /**
@@ -40,7 +40,7 @@ import { amountEditing, todayISO } from "../utils";
  * decides which other fields exist and `form.reset()` cannot reach it — the
  * entry form's first exception, for the entry form's reason.
  */
-export default function AddScheduleModal({ show, schedule, handleClose }) {
+export default function AddScheduleModal({ show, schedule, draft, handleClose }) {
   const formRef = useRef();
   const amountRef = useRef();
   const startDateRef = useRef();
@@ -53,6 +53,8 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
   const [kind, setKind] = useState(TRANSACTION_KINDS.OUTFLOW);
   const [payeeId, setPayeeId] = useState(null);
   const [payeeName, setPayeeName] = useState("");
+  const [anchorDay, setAnchorDay] = useState(null);
+  const seed = schedule ?? draft;
   // Whether the category question has a real answer behind it. `AddBudgetModal`'s
   // idiom: a choice already made is not a default. It starts answered when
   // editing, since the stored record *is* the answer.
@@ -82,12 +84,15 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
   useEffect(() => {
     if (!show) return;
     setError(null);
-    setKind(SCHEDULE_KINDS.includes(schedule?.kind) ? schedule.kind : TRANSACTION_KINDS.OUTFLOW);
-    setPayeeId(schedule?.payeeId ?? null);
+    setKind(SCHEDULE_KINDS.includes(seed?.kind) ? seed.kind : TRANSACTION_KINDS.OUTFLOW);
+    setPayeeId(seed?.payeeId ?? null);
+    setAnchorDay(seed?.anchorDay ?? null);
     setPayeeName("");
-    chosenBudgetRef.current = editing;
-    chosenKindRef.current = editing;
-    chosenAccountRef.current = editing;
+    chosenBudgetRef.current = Boolean(seed);
+    chosenKindRef.current = Boolean(seed);
+    chosenAccountRef.current = Boolean(seed);
+    pendingBudgetRef.current = { kind: seed?.kind ?? TRANSACTION_KINDS.OUTFLOW,
+      budgetId: seed?.budgetId ?? (seed?.kind === TRANSACTION_KINDS.INFLOW ? "" : budgets[0]?.id ?? "") };
     // Absent while the modal is showing the "nothing to schedule against"
     // message, which renders in place of the form.
     if (!formRef.current) return;
@@ -96,28 +101,28 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
     // `amountEditing` rather than a bare `fromCents`, so a $1,250.50 premium does
     // not seed as "1250.5" — the defect that keeps every money field off
     // `type="number"`.
-    amountRef.current.value = schedule ? amountEditing(schedule.amountCents) : "";
+    amountRef.current.value = seed ? amountEditing(seed.amountCents) : "";
     // Today for a new one: the first occurrence of a bill somebody is writing down
     // now is almost always this month's, and a date in the past would be offered
     // as overdue the moment the form closed.
-    startDateRef.current.value = schedule?.startDate ?? todayISO();
-    endsOnRef.current.value = schedule?.endsOn ?? "";
-    cadenceRef.current.value = schedule?.cadence ?? DEFAULT_RECURRENCE;
-    descriptionRef.current.value = schedule?.description ?? "";
+    startDateRef.current.value = seed?.startDate ?? todayISO();
+    endsOnRef.current.value = seed?.endsOn ?? "";
+    cadenceRef.current.value = seed?.cadence ?? DEFAULT_RECURRENCE;
+    descriptionRef.current.value = seed?.description ?? "";
     // The stored account and category always win, even when the list would not
     // offer them — a `<select>` given a value it has no option for falls back to
     // its first, which would silently re-point the schedule by being looked at.
-    accountIdRef.current.value = schedule?.accountId ?? spendable[0]?.id ?? "";
+    accountIdRef.current.value = seed?.accountId ?? spendable[0]?.id ?? "";
     if (budgetIdRef.current) {
       budgetIdRef.current.value =
-        schedule?.budgetId ??
-        (schedule?.kind === TRANSACTION_KINDS.INFLOW ? "" : budgets[0]?.id ?? "");
+        seed?.budgetId ??
+        (seed?.kind === TRANSACTION_KINDS.INFLOW ? "" : budgets[0]?.id ?? "");
     }
     // `spendable` and `budgets` are rebuilt every render; depending on them would
     // re-seed the form out from under the user. Their contents are read at open,
     // which is when this runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, schedule]);
+  }, [show, seed]);
 
   /**
    * A payee named: an existing record, or a name that is not one yet.
@@ -154,7 +159,7 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
     if (!preferred || chosenBudgetRef.current) return;
     if (!budgets.some((budget) => budget.id === preferred)) return;
     if (turned) {
-      pendingBudgetRef.current = preferred;
+      pendingBudgetRef.current = { kind: payee.defaultKind, budgetId: preferred };
     } else if (budgetIdRef.current) {
       budgetIdRef.current.value = preferred;
     }
@@ -164,8 +169,8 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
   // direction remounted it.
   useEffect(() => {
     const pending = pendingBudgetRef.current;
-    if (!pending || !budgetIdRef.current) return;
-    budgetIdRef.current.value = pending;
+    if (!pending || pending.kind !== kind || !budgetIdRef.current) return;
+    budgetIdRef.current.value = pending.budgetId;
     pendingBudgetRef.current = null;
   });
 
@@ -207,6 +212,7 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
       startDate: startDateRef.current.value,
       endsOn: endsOnRef.current.value || null,
       description: descriptionRef.current.value,
+      anchorDay,
     };
 
     const result = editing ? updateSchedule({ id: schedule.id, ...fields }) : addSchedule(fields);
@@ -310,7 +316,11 @@ export default function AddScheduleModal({ show, schedule, handleClose }) {
           {/* The anchor, and every later occurrence is computed from it — which is
               why the label says which one it is rather than "start date". A bill on
               the 31st is the 28th in February because of this field. */}
-          <Field label="Date of the first one" inputRef={startDateRef} type="date" required />
+          <Field label="Date of the first one" inputRef={startDateRef} type="date" required
+            onChange={() => setAnchorDay(null)} />
+          {anchorDay != null && (
+            <p className="-mt-2 mb-5 text-row text-chalk-soft">Repeats on the {ordinalDay(anchorDay)}, or the last day of a shorter month. Changing the first date uses that date's day instead.</p>
+          )}
           <Field label="Last one, if it ends (optional)" inputRef={endsOnRef} type="date" />
           <SelectField
             label={isOutflow ? "Paid from" : "Paid into"}

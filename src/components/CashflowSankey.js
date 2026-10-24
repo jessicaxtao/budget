@@ -26,6 +26,10 @@ import { formatCents, formatCompactCents } from "../utils";
  * register, the buckets wear `bucketTones`' four as every other view of the split
  * does, and every node is labelled with its name and figure, so nothing here is
  * read off a colour alone. The table twin under it carries every band as a row.
+ *
+ * Labels are rendered as HTML rather than SVG text so that dark-mode browser
+ * extensions can apply proper contrast between text and background — extensions
+ * handle HTML reliably but may misread SVG fill/text pairs.
  */
 
 const BASE_HEIGHT = 300;
@@ -212,20 +216,6 @@ export default function CashflowSankey({ report, payeeName }) {
           role="group"
           aria-label="Income, and where it went"
         >
-          {headings.map((heading, column) =>
-            heading ? (
-              <text
-                key={heading}
-                x={padLeft + stride * column + (column === 0 ? 12 : 0)}
-                y={11}
-                textAnchor={column === 0 ? "end" : "start"}
-                className="fill-chalk-soft text-label uppercase tracking-normal"
-              >
-                {heading}
-              </text>
-            ) : null
-          )}
-
           {layout.bands.map((band) => (
             <path
               key={`${band.source}>${band.target}`}
@@ -240,11 +230,6 @@ export default function CashflowSankey({ report, payeeName }) {
           {order.map((node, index) => {
             const tone = toneOf(node);
             const first = node.column === 0;
-            const last = node.column === lastColumn;
-            const chars = first ? leftChars : last ? rightChars : middleChars;
-            const x = first ? node.x - 6 : node.x + node.width + 6;
-            const name = clip(node.label, chars);
-            const figure = formatCompactCents(node.valueCents);
             return (
               <g key={node.id}>
                 <rect
@@ -255,32 +240,6 @@ export default function CashflowSankey({ report, payeeName }) {
                   rx={2}
                   className={tone.fill}
                 />
-                {/* A label in the middle column sits over the bands leaving its
-                    node. A thin halo was not enough there — over a dark band in
-                    dark mode the figure under the name all but vanished — so it
-                    gets a backing in the card's own colour, sized to the words. */}
-                {!first && !last && (
-                  <rect
-                    x={x - 4}
-                    y={node.centre - 13}
-                    width={Math.max(name.length, figure.length) * CHAR_WIDTH + 8}
-                    height={28}
-                    rx={3}
-                    className="fill-panel"
-                    fillOpacity={0.92}
-                  />
-                )}
-                <text
-                  x={x}
-                  y={node.centre - 2}
-                  textAnchor={first ? "end" : "start"}
-                  className="fill-chalk font-sans text-label tracking-normal"
-                >
-                  {name}
-                  <tspan x={x} dy={12} className="fill-chalk-soft font-mono tabular-nums">
-                    {figure}
-                  </tspan>
-                </text>
                 {/* The hit area is the node's whole slot and its label, so the
                     target is the name the reader is looking at rather than a
                     sliver of colour. */}
@@ -308,6 +267,58 @@ export default function CashflowSankey({ report, payeeName }) {
             );
           })}
         </svg>
+
+        {/* Column headings as HTML so dark-mode extensions read them correctly. */}
+        {headings.map((heading, column) =>
+          heading ? (
+            <div
+              key={heading}
+              className="absolute pointer-events-none"
+              style={{
+                left: `${((padLeft + stride * column + (column === 0 ? 12 : 0)) / width) * 100}%`,
+                top: `${(11 / height) * 100}%`,
+                transform: column === 0 ? "translate(-100%, -50%)" : "translateY(-50%)",
+              }}
+            >
+              <span className="font-sans text-label uppercase tracking-normal text-chalk-soft whitespace-nowrap">
+                {heading}
+              </span>
+            </div>
+          ) : null
+        )}
+
+        {/* Node labels as HTML for the same reason. Middle-column labels get a
+            panel background because they sit over the bands. */}
+        {order.map((node) => {
+          const first = node.column === 0;
+          const last = node.column === lastColumn;
+          const chars = first ? leftChars : last ? rightChars : middleChars;
+          const labelX = first ? node.x - 6 : node.x + node.width + 6;
+          const name = clip(node.label, chars);
+          const figure = formatCompactCents(node.valueCents);
+          const middle = !first && !last;
+
+          return (
+            <div
+              key={node.id}
+              className="absolute pointer-events-none"
+              style={{
+                left: `${(labelX / width) * 100}%`,
+                top: `${(node.centre / height) * 100}%`,
+                transform: first ? "translate(-100%, -50%)" : "translateY(-50%)",
+              }}
+            >
+              <div className={middle ? "rounded bg-panel/95 px-1 py-0.5" : ""}>
+                <div className="font-sans text-label tracking-normal text-chalk whitespace-nowrap">
+                  {name}
+                </div>
+                <div className="font-mono text-label tabular-nums text-chalk-soft whitespace-nowrap">
+                  {figure}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

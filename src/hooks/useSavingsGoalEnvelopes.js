@@ -125,6 +125,7 @@ export default function useSavingsGoalEnvelopes(period) {
         name: goal.name,
         targetCents: goal.targetCents,
         targetDate: goal.targetDate,
+        photo: goal.photo ?? null,
         categoryName,
         carriedInCents: row.carriedInCents,
         assignedCents: row.assignedCents,

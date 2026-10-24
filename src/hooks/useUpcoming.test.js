@@ -114,6 +114,7 @@ describe("what a schedule has to say for itself", () => {
         // thing it offers. Seeding the cursor to today would silently swallow an
         // occurrence the user deliberately backdated.
         enteredThrough: null,
+        occurrenceDecisions: {},
       },
     ]);
   });

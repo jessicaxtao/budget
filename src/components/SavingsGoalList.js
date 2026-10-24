@@ -3,80 +3,31 @@ import Button from "./Button";
 import { SortableList, useSortableItem } from "./Sortable";
 import { currentPeriod, formatCents, formatDateMedium, toCents, toPeriod } from "../utils";
 
-/**
- * The goals recorded so far: what each is saving towards, what has accumulated,
- * and — where there is a target date — how much is needed each month to arrive
- * on time. The month does not appear anywhere: a savings goal is about a total,
- * not a monthly budget line.
- *
- * **`savedCents` is the money that is there, wherever it sits**: the goal's
- * cumulative assignment out of the budget (`availableCents`) plus whatever it
- * holds in off-budget accounts (`heldCents`).
- *
- * Where a goal holds both, **the two are named apart** — the holding under the
- * goal's own name, the assignment under the headline figure — because they are
- * two piles of money and the household is the only thing that can move one into
- * the other.
- */
-
 const TICKS = 24;
 
 function GoalMeter({ ratio, label }) {
   const filled = Math.max(0, Math.min(TICKS, Math.round(ratio * TICKS)));
-  const tone = ratio >= 1 ? "bg-verdant" : ratio >= 0.5 ? "bg-sulfur" : "bg-azure";
-
   return (
-    <div
-      className="flex gap-[3px]"
-      role="progressbar"
-      aria-label={label}
-      aria-valuenow={Math.round(Math.min(ratio, 1) * 100)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      {Array.from({ length: TICKS }, (_, index) => (
-        <span key={index} className={`h-3 w-[3px] ${index < filled ? tone : "bg-edge"}`} />
-      ))}
+    <div className="flex gap-1" role="progressbar" aria-label={label} aria-valuenow={Math.round(Math.min(ratio, 1) * 100)} aria-valuemin={0} aria-valuemax={100}>
+      {Array.from({ length: TICKS }, (_, i) => <span key={i} className={`h-2 flex-1 rounded-full ${i < filled ? (ratio >= 1 ? "bg-verdant" : "bg-azure") : "bg-edge"}`} />)}
     </div>
   );
 }
 
-const figureClass = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
-
-const headClass = "whitespace-nowrap py-2 text-label uppercase text-chalk";
-
-const COLUMNS = [
-  { key: "goal", label: () => "Goal", className: "px-4 text-left" },
-  { key: "target", label: () => "Target", className: "px-3 text-right" },
-  { key: "saved", label: () => "Saved", className: "px-3 text-right" },
-  { key: "remaining", label: () => "Remaining", className: "px-3 text-right" },
-  { key: "pace", label: () => "Pace", className: "px-3 text-right" },
-  { key: "this-month", label: () => "This month", className: "px-3 text-right" },
-  { key: "add", label: () => "Add", className: "px-3 text-right" },
-  { key: "actions", label: () => <span className="sr-only">Actions</span>, className: "w-32 px-3" },
-];
-
-const FULL_SPAN = COLUMNS.length; // goal, target, saved, this month, remaining, pace, add, actions
-
-const rowBg = (striped) => (striped ? "bg-sheet-alt" : "bg-sheet");
-
-/**
- * Months from `now` (a period string) to the target date's period.
- * Positive = future, zero = this month, negative = past, null = no target date.
- */
 function monthsUntil(targetDate, now) {
-  const targetPeriod = toPeriod(targetDate);
-  if (!targetPeriod || !now) return null;
+  const target = toPeriod(targetDate);
+  if (!target || !now) return null;
   const [ty, tm] = now.split("-").map(Number);
-  const [gy, gm] = targetPeriod.split("-").map(Number);
-  return (gy - ty) * 12 + (gm - tm);
+  const [gy, gm] = target.split("-").map(Number);
+  return (gy - ty) * 12 + gm - tm;
 }
 
-function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) {
+function GoalEnvelope({ row, onAssign, onEdit, onDelete, error, sortable }) {
   const item = useSortableItem(row.goalId, { disabled: !sortable });
+  const [opened, setOpened] = useState(false);
+  const [confirmation, setConfirmation] = useState(null);
   const ratio = row.targetCents > 0 ? row.savedCents / row.targetCents : 0;
   const months = monthsUntil(row.targetDate, currentPeriod());
-  const [confirmation, setConfirmation] = useState(null);
 
   useEffect(() => {
     if (confirmation === null) return;
@@ -84,144 +35,69 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
     return () => clearTimeout(id);
   }, [confirmation]);
 
-  let paceContent;
-  if (row.savedCents >= row.targetCents || months === null) {
-    paceContent = <span className="text-ink-soft/40">—</span>;
-  } else if (months <= 0) {
-    const overdue = Math.abs(months);
-    paceContent = (
-      <span className="text-vermilion-ink text-label uppercase">
-        {overdue === 0 ? "Due this month" : `${overdue}mo overdue`}
-      </span>
-    );
-  } else {
-    const monthlyCents = Math.ceil(row.remainingCents / months);
-    const monthsLabel = months === 1 ? "1 month left" : `${months} months left`;
-    paceContent = (
-      <div>
-        <div className="text-ink">{formatCents(monthlyCents)}/mo</div>
-        <div className="text-label uppercase text-ink-soft">{monthsLabel}</div>
-      </div>
-    );
-  }
-
-  function handleBlur(e) {
-    const raw = e.target.value.trim();
-    if (raw === "") return;
+  function handleBlur(event) {
+    const raw = event.target.value.trim();
+    if (!raw) return;
     const delta = toCents(raw);
-    // Invalid or zero input — clear the field silently.
-    if (delta === null || delta === 0) {
-      e.target.value = "";
-      return;
-    }
+    if (delta === null || delta === 0) { event.target.value = ""; return; }
     const result = onAssign(row, row.assignedCents + delta);
-    e.target.value = "";
+    event.target.value = "";
     if (result.ok) setConfirmation(delta);
   }
 
+  const pace = row.savedCents >= row.targetCents || months === null ? null : months <= 0
+    ? (months === 0 ? "Due this month" : `${Math.abs(months)}mo overdue`)
+    : `${formatCents(Math.ceil(row.remainingCents / months))}/mo · ${months} ${months === 1 ? "month" : "months"} left`;
+
   return (
-    <>
-      <tr ref={item.ref} style={item.style} {...item.handle} className={rowBg(striped)}>
-        <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
-          {row.name}
-          {row.targetDate && (
-            <div className="mt-0.5 text-label uppercase text-ink-soft">
-              By {formatDateMedium(row.targetDate)}
-            </div>
-          )}
-          {row.categoryName && (
-            <div className="mt-0.5 text-label uppercase text-ink-soft">
-              Category: {row.categoryName}
-            </div>
-          )}
-        </th>
-        <td data-label="Target" className={`${figureClass} text-ink-soft`}>
-          {formatCents(row.targetCents)}
-        </td>
-        <td data-label="Saved" className={figureClass}>
+    <article ref={item.ref} style={item.style} {...item.handle} className={`relative overflow-hidden rounded-2xl border border-edge bg-panel shadow-sm transition-shadow hover:shadow-lg ${item.isDragging ? "z-10" : ""}`}>
+      <div className="relative min-h-52 overflow-hidden bg-gradient-to-br from-[#f5b75c] via-[#e99a52] to-[#d77b50] p-5 text-[#2b2118]">
+        {row.photo ? <img src={row.photo} alt="" className="absolute inset-0 h-full w-full object-cover opacity-85" /> : (
+          <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-7xl opacity-25">✦</div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/5" />
+        <div className="relative z-[1] flex min-h-40 flex-col justify-between">
+          <div className="flex items-start justify-between gap-3">
+            <span className="rounded-full bg-black/25 px-3 py-1 font-sans text-label uppercase tracking-wide text-white backdrop-blur-sm">{row.targetDate ? `By ${formatDateMedium(row.targetDate)}` : "Saving up"}</span>
+            <button id={`savings-goal-add-${row.goalId}`} type="button" onClick={() => setOpened((value) => !value)} aria-expanded={opened} className="rounded-full bg-white/90 px-3 py-2 font-sans text-label font-semibold text-[#34291e] shadow transition hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+              {opened ? "Close envelope ↑" : "Open envelope ↓"}
+            </button>
+          </div>
           <div>
-            <div className="font-medium text-ink">{formatCents(row.savedCents)}</div>
-            <div className="mt-1 flex justify-end">
-              <GoalMeter
-                ratio={ratio}
-                label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the way to ${row.name}`}
-              />
-            </div>
+            <h3 className="font-sans text-xl font-semibold text-white drop-shadow">{row.name}</h3>
+            <p className="mt-1 font-mono text-row text-white/90">{formatCents(row.savedCents)} <span className="font-sans text-label">of {formatCents(row.targetCents)}</span></p>
           </div>
-        </td>
-        <td
-          data-label="Remaining"
-          className={`${figureClass} ${
-            row.remainingCents === 0 ? "font-medium text-verdant" : "text-ink-soft"
-          }`}
-        >
-          {row.remainingCents === 0 ? "Funded" : formatCents(row.remainingCents)}
-        </td>
-        <td data-label="Pace" className={`${figureClass}`}>
-          {paceContent}
-        </td>
-        <td data-label="This month" className={`${figureClass} ${row.assignedCents ? "text-ink" : "text-ink-soft/40"}`}>
-          {row.assignedCents ? formatCents(row.assignedCents) : "—"}
-        </td>
-        <td data-label="Add" className="px-3 py-2 text-right">
-          <input
-            key={row.assignedCents}
-            id={`savings-goal-add-${row.goalId}`}
-            type="text"
-            inputMode="decimal"
-            defaultValue=""
-            placeholder="$0"
-            aria-label={`Add to ${row.name}`}
-            onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
-            onBlur={handleBlur}
-            className="w-24 border-0 border-b-2 border-rule bg-transparent px-0 py-1 text-right font-mono text-row tabular-nums text-ink outline-none transition-colors placeholder:text-ink-soft/60 focus:border-azure"
-          />
-          {confirmation !== null && (
-            <div
-              className={`mt-1 text-label uppercase ${confirmation > 0 ? "text-verdant" : "text-ink-soft"}`}
-            >
-              {confirmation > 0 ? "+" : ""}
-              {formatCents(confirmation)}
+        </div>
+        <div aria-hidden="true" className={`absolute inset-x-0 bottom-0 z-0 h-16 origin-bottom border-t border-white/20 bg-[#f3b766]/75 transition-transform duration-500 ${opened ? "-translate-y-10 -skew-y-6 opacity-30" : "[clip-path:polygon(0_0,100%_0,50%_88%)]"}`} />
+      </div>
+
+      <div className={`grid transition-[grid-template-rows] duration-300 ${opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden" aria-hidden={!opened} inert={!opened}>
+          <div className="space-y-4 p-5">
+            <GoalMeter ratio={ratio} label={`${Math.round(Math.min(ratio, 1) * 100)} percent of the way to ${row.name}`} />
+            <div className="flex items-center justify-between gap-2 font-sans text-row">
+              <span className="text-chalk-soft">{row.remainingCents === 0 ? "Goal reached! 🎉" : `${formatCents(row.remainingCents)} to go`}</span>
+              {pace && <span className="text-label text-chalk-soft">{pace}</span>}
             </div>
-          )}
-        </td>
-        <td className="px-3 py-2 text-right">
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="row-action"
-              size="sm"
-              aria-label={`Edit goal: ${row.name}`}
-              onClick={() => onEdit(row)}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="row"
-              size="sm"
-              aria-label={`Remove goal: ${row.name}`}
-              onClick={() => onDelete(row)}
-            >
-              Remove
-            </Button>
+            {row.categoryName && <p className="text-label text-chalk-soft">Linked to {row.categoryName}</p>}
+            <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-3">
+              <label className="font-sans text-label uppercase text-chalk-soft" htmlFor={`goal-add-${row.goalId}`}>Add money</label>
+              <input key={row.assignedCents} id={`goal-add-${row.goalId}`} type="text" inputMode="decimal" placeholder="$0" aria-label={`Add to ${row.name}`} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} onBlur={handleBlur} className="w-28 border-b-2 border-rule bg-transparent px-1 py-1 text-right font-mono text-row text-chalk outline-none focus:border-azure" />
+              {confirmation !== null && <span className="text-label text-verdant">{confirmation > 0 ? "+" : ""}{formatCents(confirmation)}</span>}
+              <span className="flex-1" />
+              <Button variant="row-action" size="sm" aria-label={`Edit goal: ${row.name}`} onClick={() => onEdit(row)}>Edit</Button>
+              <Button variant="row" size="sm" aria-label={`Remove goal: ${row.name}`} onClick={() => onDelete(row)}>Remove</Button>
+            </div>
+            {error && <p role="alert" className="font-sans text-row text-vermilion">{error}</p>}
           </div>
-        </td>
-      </tr>
-      {error && (
-        <tr className={rowBg(striped)}>
-          <td colSpan={FULL_SPAN} className="px-3 pb-2">
-            <p role="alert" className="font-sans text-row text-vermilion-ink">
-              {error}
-            </p>
-          </td>
-        </tr>
-      )}
-    </>
+        </div>
+      </div>
+    </article>
   );
 }
 
 export default function SavingsGoalList({ rows, onAssign, onEdit, onDelete, onReorder }) {
   const [error, setError] = useState(null);
-
   function commit(row, cents) {
     const result = onAssign(row, cents);
     setError(result.ok ? null : { id: row.goalId, message: result.error });
@@ -229,54 +105,22 @@ export default function SavingsGoalList({ rows, onAssign, onEdit, onDelete, onRe
   }
 
   return (
-    <section
-      aria-label="Savings goals"
-      className="overflow-hidden rounded-2xl border border-edge bg-panel"
-    >
-      <div className="border-b border-edge px-4 py-3">
-        <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Goals</h2>
+    <section aria-label="Savings goals" className="overflow-hidden rounded-2xl border border-edge bg-panel">
+      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+        <div><h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Your goal envelopes</h2><p className="font-sans text-label text-chalk-soft">Open one to add money and see your progress.</p></div>
+        <span aria-hidden="true" className="text-2xl">✉️</span>
       </div>
-
       {rows.length === 0 ? (
-        <p className="px-4 py-5 font-sans text-row text-chalk-soft">
-          No savings goals yet. Add one for anything expected to exceed the normal budget — a
-          camera, a wedding, a special event.
-        </p>
+        <p className="px-4 py-6 font-sans text-row text-chalk-soft">No savings goals yet. Add one for something you’re excited about — a trip, a new camera, or a cozy home upgrade.</p>
       ) : (
-        <div className="scroll-x">
-          <table className="stack w-full border-collapse">
-            <thead>
-              <tr className="bg-panel-raised">
-                {COLUMNS.map((column) => (
-                  <th key={column.key} scope="col" className={`${headClass} ${column.className}`}>
-                    {column.label()}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <SortableList
-                ids={rows.map((row) => row.goalId)}
-                onReorder={onReorder ?? (() => {})}
-              >
-                {rows.map((row, index) => (
-                  <GoalRow
-                    key={row.goalId}
-                    row={row}
-                    striped={index % 2 === 1}
-                    error={error?.id === row.goalId ? error.message : null}
-                    onAssign={commit}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    sortable={onReorder != null}
-                  />
-                ))}
-              </SortableList>
-            </tbody>
-          </table>
+        <div className="p-4 sm:p-5">
+          <SortableList ids={rows.map((row) => row.goalId)} onReorder={onReorder ?? (() => {})}>
+            <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {rows.map((row) => <GoalEnvelope key={row.goalId} row={row} onAssign={commit} onEdit={onEdit} onDelete={onDelete} error={error?.id === row.goalId ? error.message : null} sortable={onReorder != null} />)}
+            </div>
+          </SortableList>
         </div>
       )}
-
     </section>
   );
 }

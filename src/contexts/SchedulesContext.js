@@ -1,8 +1,9 @@
-import React, { useCallback, useContext, useMemo } from "react";
+import React, { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { v4 as uuidV4 } from "uuid";
 import useSyncedState from "../hooks/useSyncedState";
 import { TRANSACTION_KINDS } from "./TransactionsContext";
 import { isRecurring, recurrence } from "../domain/recurrence";
+import { isOccurrenceOutstanding, isScheduleOccurrence, readOccurrenceDecisions } from "../domain/scheduleOccurrences";
 import { isValidISODate, toCents } from "../utils";
 
 /**
@@ -13,7 +14,7 @@ import { isValidISODate, toCents } from "../utils";
  * A record is:
  *
  *   schedule { id, kind, payeeId, amountCents, accountId, budgetId, description,
- *              cadence, startDate, endsOn, enteredThrough }
+ *              cadence, startDate, endsOn, enteredThrough, occurrenceDecisions, anchorDay? }
  *
  * **A schedule is a standing intention and holds no money.** It is the same split
  * `SavingsGoalsContext` keeps against its assignments and `BudgetsContext` keeps
@@ -31,19 +32,12 @@ import { isValidISODate, toCents } from "../utils";
  * trusting the balance. What a schedule buys instead is that the row is *offered*,
  * pre-filled, the moment it is due — and that an unpaid one is visible as unpaid.
  *
- * **`enteredThrough` is the cursor, and it is the one stored date.** Every
- * occurrence on or before it has been dealt with — entered, or deliberately
- * skipped. The occurrences themselves are a closed form over `startDate` (see
- * `src/recurrence.js`), for the reason envelope rollover is: a stored "next date"
- * needs advancing by something. A decision, by contrast, cannot be derived — the
- * books cannot tell "this month's rent has not been paid" from "this month's rent
- * was paid in cash and never recorded" — so the decision is what gets stored.
- *
- * It is deliberately *not* a link from the transaction back to the schedule that
- * suggested it. A `scheduleId` on the ledger would make "has this one been
- * entered?" derivable, and then correcting the date of a rent payment would
- * silently un-enter it and the row would be offered a second time. The cursor
- * cannot be disturbed by editing the money.
+ * `enteredThrough` preserves the legacy handled-history boundary. New actions
+ * resolve one scheduled date in `occurrenceDecisions`, so paying a newer bill
+ * cannot hide an older unpaid one. Each decision has a recorded/skipped status
+ * and may name the ledger transaction the user chose. That reference is evidence,
+ * not a derivation: editing or deleting the payment never reopens a reminder.
+ * Reopening is an explicit action and never changes the ledger.
  *
  * **Every reference on a schedule is inert but kept**, the rule a payee's
  * `defaultBudgetId` follows and for the same reason: this store reads no other, so
@@ -95,6 +89,7 @@ function parseScheduleFields({
   cadence,
   startDate,
   endsOn,
+  anchorDay,
 }) {
   if (!SCHEDULE_KINDS.includes(kind)) {
     return { ok: false, error: "Choose whether this is money out or money in." };
@@ -115,6 +110,15 @@ function parseScheduleFields({
   if (recurrence(cadence) == null) return { ok: false, error: "Choose how often this repeats." };
   if (!isValidISODate(startDate)) {
     return { ok: false, error: "Enter the date of the first one, as YYYY-MM-DD." };
+  }
+  if (anchorDay != null && (!Number.isInteger(anchorDay) || anchorDay < 1 || anchorDay > 31)) {
+    return { ok: false, error: "Choose a recurring day between 1 and 31." };
+  }
+  if (anchorDay != null && recurrence(cadence).kind === "months") {
+    const [year, month, day] = startDate.split("-").map(Number);
+    if (day !== Math.min(anchorDay, new Date(year, month, 0).getDate())) {
+      return { ok: false, error: "The first date must fall on the recurring day (or the last day of a shorter month)." };
+    }
   }
 
   const ends = endsOn || null;
@@ -141,6 +145,7 @@ function parseScheduleFields({
       cadence,
       startDate,
       endsOn: ends,
+      ...(anchorDay != null && recurrence(cadence).kind === "months" ? { anchorDay } : {}),
     },
   };
 }
@@ -165,40 +170,55 @@ function migrateSchedules(stored) {
       // Null is "nothing has been dealt with yet", which is what a schedule
       // starts on and what makes its first occurrence the first thing offered.
       enteredThrough: isValidISODate(schedule.enteredThrough) ? schedule.enteredThrough : null,
+      occurrenceDecisions: readOccurrenceDecisions(schedule.occurrenceDecisions),
+      ...(Number.isInteger(schedule.anchorDay) && schedule.anchorDay >= 1 && schedule.anchorDay <= 31
+        ? { anchorDay: schedule.anchorDay } : {}),
     }));
 }
 
 export const SchedulesProvider = ({ children }) => {
   const [schedules, setSchedules] = useSyncedState("schedules", [], migrateSchedules);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState([]);
+  const dismissSuggestion = useCallback((key) => {
+    setDismissedSuggestions((previous) => previous.includes(key) ? previous : [...previous, key]);
+  }, []);
+  // Also include accepted mutations before React renders, so a double action
+  // cannot resolve two occurrences using the same transaction in one event.
+  const current = useRef(schedules);
+  current.current = schedules;
+  const commit = useCallback((change) => {
+    current.current = change(current.current);
+    setSchedules(current.current);
+  }, [setSchedules]);
 
   const addSchedule = useCallback(
     (input) => {
       const parsed = parseScheduleFields(input);
       if (!parsed.ok) return parsed;
+      if (input.recordedTransactionId != null && (typeof input.recordedTransactionId !== "string" ||
+          !input.recordedTransactionId || current.current.some((schedule) =>
+            Object.values(schedule.occurrenceDecisions ?? {}).some((decision) => decision.transactionId === input.recordedTransactionId)))) {
+        return { ok: false, error: "Choose a payment that is not already linked to an occurrence." };
+      }
 
-      // A new schedule has dealt with nothing, so its own `startDate` is the
-      // first thing it offers — seeding the cursor would otherwise silently
-      // swallow an occurrence the user deliberately backdated. The one caller
-      // that passes `enteredThrough` is the entry form turning a transaction it
-      // just recorded into a schedule: that transaction *is* the first
-      // occurrence, so swallowing it is the point rather than an accident, and
-      // the dashboard offers the next one instead of re-asking for what was
-      // just entered. Junk is dropped back to null, so the field is inert for
-      // every other caller.
+      // Legacy callers may seed the cursor. New entry forms instead link the
+      // first occurrence to the transaction they just saved.
       const seededCursor = isValidISODate(input.enteredThrough) ? input.enteredThrough : null;
 
       const id = uuidV4();
-      setSchedules((previous) => [
+      commit((previous) => [
         ...previous,
         {
           id,
           ...parsed.fields,
           enteredThrough: seededCursor,
+          occurrenceDecisions: input.recordedTransactionId
+            ? { [parsed.fields.startDate]: { status: "recorded", transactionId: input.recordedTransactionId } } : {},
         },
       ]);
       return { ok: true, id };
     },
-    [setSchedules]
+    [commit]
   );
 
   /**
@@ -206,11 +226,8 @@ export const SchedulesProvider = ({ children }) => {
    * caller and asks for all of them — so this validates a whole record rather
    * than a patch, unlike the ledger's `updateTransaction`.
    *
-   * **The cursor is not a field here.** Editing what a bill is does not change
-   * how much of it has been dealt with: correcting the rent from $1,800 to $1,850
-   * must not re-offer every month already entered, and must not skip the one
-   * coming. Moving the cursor is `advanceSchedule`'s job and it is only ever moved
-   * forward.
+   * Editing the standing order preserves its historical occurrence decisions
+   * and legacy cursor. Neither is inferred again from ledger entries.
    *
    * Refuses an id it cannot find rather than letting a `map` that matches nothing
    * report the write as landed — `updateSavingsGoal`'s rule, for its reason: a
@@ -218,42 +235,26 @@ export const SchedulesProvider = ({ children }) => {
    */
   const updateSchedule = useCallback(
     ({ id, ...input }) => {
-      const existing = schedules.find((schedule) => schedule.id === id);
+      const existing = current.current.find((schedule) => schedule.id === id);
       if (!existing) return { ok: false, error: "That schedule no longer exists." };
 
       const parsed = parseScheduleFields(input);
       if (!parsed.ok) return parsed;
 
-      setSchedules((previous) =>
+      commit((previous) =>
         previous.map((schedule) =>
-          schedule.id === id ? { ...schedule, ...parsed.fields } : schedule
+          schedule.id === id ? { ...schedule, anchorDay: undefined, ...parsed.fields } : schedule
         )
       );
       return { ok: true, id };
     },
-    [schedules, setSchedules]
+    [commit]
   );
 
-  /**
-   * Mark everything up to and including `through` as dealt with.
-   *
-   * Called twice from the same panel and meaning the same thing both times: after
-   * a transaction has been written for an occurrence, and when one is skipped
-   * outright. The store cannot tell those apart and does not need to — what it
-   * records is that the user has decided about that date.
-   *
-   * **It only ever moves forward.** `Math.max` on the two dates rather than a
-   * plain assignment, because the same occurrence can be actioned twice — two
-   * devices, or a stale render of the list — and a cursor that could move
-   * backwards would re-offer a bill that was already paid.
-   *
-   * The date is the **scheduled** one, never the date the transaction was given.
-   * A bill due on the 1st and paid on the 3rd has had its 1st dealt with; stamping
-   * the 3rd would swallow anything else due in between.
-   */
+  /** Legacy compatibility only. New UI actions resolve individual occurrences. */
   const advanceSchedule = useCallback(
     ({ id, through }) => {
-      const existing = schedules.find((schedule) => schedule.id === id);
+      const existing = current.current.find((schedule) => schedule.id === id);
       if (!existing) return { ok: false, error: "That schedule no longer exists." };
       if (!isValidISODate(through)) return { ok: false, error: "That is not a date." };
 
@@ -263,15 +264,57 @@ export const SchedulesProvider = ({ children }) => {
           : through;
       if (cursor === existing.enteredThrough) return { ok: true, id };
 
-      setSchedules((previous) =>
+      commit((previous) =>
         previous.map((schedule) =>
           schedule.id === id ? { ...schedule, enteredThrough: cursor } : schedule
         )
       );
       return { ok: true, id };
     },
-    [schedules, setSchedules]
+    [commit]
   );
+
+  const resolveOccurrence = useCallback(({ id, date, status, transactionId }) => {
+    const existing = current.current.find((schedule) => schedule.id === id);
+    if (!existing) return { ok: false, error: "That schedule no longer exists." };
+    if (!isOccurrenceOutstanding(existing, date)) {
+      return { ok: false, error: "That occurrence is no longer outstanding." };
+    }
+    if (!["recorded", "skipped"].includes(status) ||
+        (transactionId != null && (status !== "recorded" || typeof transactionId !== "string" || !transactionId))) {
+      return { ok: false, error: "Choose whether this occurrence was recorded or skipped." };
+    }
+    if (transactionId && current.current.some((schedule) =>
+      Object.values(schedule.occurrenceDecisions ?? {}).some((decision) => decision.transactionId === transactionId))) {
+      return { ok: false, error: "That payment is already linked to another occurrence." };
+    }
+    commit((previous) => previous.map((schedule) => schedule.id !== id ? schedule : {
+      ...schedule, occurrenceDecisions: { ...schedule.occurrenceDecisions,
+        [date]: { status, ...(transactionId ? { transactionId } : {}) } },
+    }));
+    return { ok: true, id };
+  }, [commit]);
+
+  const reopenOccurrence = useCallback(({ id, date }) => {
+    const existing = current.current.find((schedule) => schedule.id === id);
+    if (!existing) return { ok: false, error: "That schedule no longer exists." };
+    if (!isValidISODate(date) || !existing.occurrenceDecisions?.[date]) {
+      return { ok: false, error: "That occurrence has no decision to reopen." };
+    }
+    if (existing.enteredThrough && date <= existing.enteredThrough) {
+      return { ok: false, error: "That date belongs to the schedule's previously handled history." };
+    }
+    if (!isScheduleOccurrence(existing, date)) {
+      return { ok: false, error: "The schedule has changed and no longer has an occurrence on that date." };
+    }
+    commit((previous) => previous.map((schedule) => {
+      if (schedule.id !== id) return schedule;
+      const occurrenceDecisions = { ...schedule.occurrenceDecisions };
+      delete occurrenceDecisions[date];
+      return { ...schedule, occurrenceDecisions };
+    }));
+    return { ok: true, id };
+  }, [commit]);
 
   /**
    * Remove a schedule. Never refused, and nothing else moves: it holds no money,
@@ -281,17 +324,19 @@ export const SchedulesProvider = ({ children }) => {
    */
   const deleteSchedule = useCallback(
     ({ id }) => {
-      setSchedules((previous) => previous.filter((schedule) => schedule.id !== id));
+      commit((previous) => previous.filter((schedule) => schedule.id !== id));
       return { ok: true };
     },
-    [setSchedules]
+    [commit]
   );
 
   // Memoised so a change in any other store does not re-render every consumer of
   // this one.
   const value = useMemo(
-    () => ({ schedules, addSchedule, updateSchedule, advanceSchedule, deleteSchedule }),
-    [schedules, addSchedule, updateSchedule, advanceSchedule, deleteSchedule]
+    () => ({ schedules, addSchedule, updateSchedule, advanceSchedule, resolveOccurrence, reopenOccurrence, deleteSchedule,
+      dismissedSuggestions, dismissSuggestion }),
+    [schedules, addSchedule, updateSchedule, advanceSchedule, resolveOccurrence, reopenOccurrence, deleteSchedule,
+      dismissedSuggestions, dismissSuggestion]
   );
 
   return <SchedulesContext.Provider value={value}>{children}</SchedulesContext.Provider>;

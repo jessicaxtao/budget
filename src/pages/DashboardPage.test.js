@@ -428,7 +428,7 @@ test("an empty file renders the page rather than a wall of zeroes with no way ou
 /**
  * Upcoming bills, through the real stores — because what is worth checking here is
  * that pressing Enter lands *both* writes: the transaction, and the schedule's
- * cursor. The panel's own contract is in `UpcomingBills.test.js` and the calendar
+ * occurrence decision. The panel's own contract is in `UpcomingBills.test.js` and the calendar
  * arithmetic in `recurrence.test.js`; neither of those can see that the money
  * arrived in the ledger.
  */
@@ -493,7 +493,7 @@ describe("what is due", () => {
       date,
       description: "Rent",
     });
-    expect(stored("schedules")[0].enteredThrough).toBe(date);
+    expect(stored("schedules")[0].occurrenceDecisions[date]).toEqual({ status: "recorded", transactionId: entered.id });
     // And it is off the list, so it cannot be entered twice by accident.
     expect(screen.queryByRole("button", { name: /^Enter Landlord/ })).not.toBeInTheDocument();
   });
@@ -531,7 +531,7 @@ describe("what is due", () => {
     // The money moved today; the occurrence it settled was six days ago. Stamping
     // today would swallow anything else falling in between.
     expect(ledger().find((row) => row.id !== "t1").date).toBe(TODAY);
-    expect(stored("schedules")[0].enteredThrough).toBe(date);
+    expect(stored("schedules")[0].occurrenceDecisions[date]).toEqual({ status: "recorded", transactionId: ledger().find((row) => row.id !== "t1").id });
   });
 
   test("a refused figure keeps the form open on what was typed", () => {
@@ -546,7 +546,7 @@ describe("what is due", () => {
     expect(stored("schedules")[0].enteredThrough).toBeNull();
   });
 
-  test("skipping moves the cursor and touches no money at all", () => {
+  test("skipping resolves only the chosen occurrence and touches no money at all", () => {
     const date = openDue();
 
     fireEvent.click(screen.getByRole("button", { name: `Skip Landlord due ${formatDateMedium(date)}` }));
@@ -554,7 +554,7 @@ describe("what is due", () => {
     // A month the gym was closed. The one thing a bill reminder has to be able to
     // do without lying about the books.
     expect(ledger()).toHaveLength(1);
-    expect(stored("schedules")[0].enteredThrough).toBe(date);
+    expect(stored("schedules")[0].occurrenceDecisions[date]).toEqual({ status: "skipped" });
     expect(screen.queryByRole("button", { name: /^Skip Landlord/ })).not.toBeInTheDocument();
   });
 

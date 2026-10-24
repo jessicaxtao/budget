@@ -1,7 +1,0 @@
-- iframe [ref=f10e1]:
-  - generic [ref=f11e2]:
-    - generic [ref=f11e3]: "Compiled with problems:"
-    - button "Dismiss" [ref=f11e4] [cursor=pointer]: ×
-    - generic [ref=f11e6]:
-      - generic [ref=f11e7]: ERROR
-      - generic [ref=f11e8]: "[eslint] src\\components\\UpcomingBills.js Line 51:32: 'formatDateMedium' is not defined no-undef Search for the keywords to learn more about each error."

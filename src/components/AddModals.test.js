@@ -591,7 +591,7 @@ describe("one form for both directions", () => {
 describe("repeating a transaction as a schedule", () => {
   const repeatBox = () => screen.queryByRole("checkbox", { name: /repeat this transaction/i });
 
-  test("ticking Repeat lays down a schedule from the same answers, its cursor past the entry just made", () => {
+  test("ticking Repeat lays down a schedule and links its first occurrence to the entry just made", () => {
     seedBudgets(TWO_BUDGETS);
     seedAccounts();
     render(
@@ -610,8 +610,8 @@ describe("repeating a transaction as a schedule", () => {
     expect(JSON.parse(localStorage.getItem("transactions"))).toHaveLength(1);
 
     // And a schedule sits beside it, built from the same answers and anchored to
-    // this entry's date. Its cursor is that same date, so the occurrence just
-    // recorded is already dealt with and the dashboard offers the next one rather
+    // this entry's date. Its first occurrence links to that entry, so it is
+    // already dealt with and the dashboard offers the next one rather
     // than re-asking for the one entered.
     const payees = JSON.parse(localStorage.getItem("payees"));
     expect(JSON.parse(localStorage.getItem("schedules"))).toEqual([
@@ -626,7 +626,9 @@ describe("repeating a transaction as a schedule", () => {
         cadence: "monthly",
         startDate: todayISO(),
         endsOn: null,
-        enteredThrough: todayISO(),
+        enteredThrough: null,
+        occurrenceDecisions: { [todayISO()]: { status: "recorded",
+          transactionId: JSON.parse(localStorage.getItem("transactions"))[0].id } },
       },
     ]);
   });
