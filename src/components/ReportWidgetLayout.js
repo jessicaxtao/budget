@@ -52,7 +52,7 @@ function HeightButton({ active, onClick, children }) {
 }
 
 export default function ReportWidgetLayout({ children }) {
-  const [widgets, setWidgets] = useSyncedState("reportWidgets", DEFAULT_WIDGETS, migrateWidgets);
+  const [widgets] = useSyncedState("reportWidgets", DEFAULT_WIDGETS, migrateWidgets);
   const content = useMemo(() => {
     const byId = new Map();
     const other = [];

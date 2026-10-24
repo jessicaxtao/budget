@@ -59,7 +59,7 @@ export default function CashflowCalendarWidget({ report }) {
 
       for (const schedule of schedules) {
         const occurrences = occurrencesBetween(schedule, from, to);
-        for (const _ of occurrences) {
+        for (let occurrenceIndex = 0; occurrenceIndex < occurrences.length; occurrenceIndex += 1) {
           if (schedule.kind === TRANSACTION_KINDS.INFLOW) {
             scheduledIncomeCents += schedule.amountCents;
           } else {
