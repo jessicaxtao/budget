@@ -312,9 +312,9 @@ describe("income, spending and what was left", () => {
     const report = read("3m");
 
     expect(report.incomeSources).toEqual([
-      { payeeId: "employer", incomeCents: 1000000 },
-      { payeeId: "bank", incomeCents: 20000 },
-      { payeeId: null, incomeCents: 3000 },
+      { payeeId: "employer", incomeCents: 1000000, averageCents: 500000, shareBps: 9775 },
+      { payeeId: "bank", incomeCents: 20000, averageCents: 10000, shareBps: 196 },
+      { payeeId: null, incomeCents: 3000, averageCents: 1500, shareBps: 29 },
     ]);
     expect(report.incomeSources.reduce((sum, source) => sum + source.incomeCents, 0)).toBe(
       report.totalIncomeCents

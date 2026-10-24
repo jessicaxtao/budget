@@ -75,17 +75,10 @@ import {
  * long version.
  */
 
-const VIEW = { width: 760, height: 300 };
+const DEFAULT_HEIGHT = 300;
 // The right margin carries the plan line's own label. It sits beside the line
 // rather than over the last column, which is usually where the line crosses.
 const PAD = { top: 18, right: 62, bottom: 34, left: 66 };
-const PLOT = {
-  left: PAD.left,
-  right: VIEW.width - PAD.right,
-  top: PAD.top,
-  bottom: VIEW.height - PAD.bottom,
-};
-const PLOT_HEIGHT = PLOT.bottom - PLOT.top;
 
 /** How far the stack reaches either side of the baseline. The two add to the
  *  month's net spend, which is what the read-out names. */
@@ -106,7 +99,7 @@ function extentOf(entry) {
  * off the top of the plot — the one month where the chart has good news and the
  * mark carrying it is the one that does not fit.
  */
-function scaleFor(series, plannedCents) {
+function scaleFor(series, plannedCents, plotBottom, plotHeight) {
   let high = plannedCents > 0 ? plannedCents : 0;
   let low = 0;
   for (const entry of series) {
@@ -116,7 +109,7 @@ function scaleFor(series, plannedCents) {
   }
 
   const { min, max, ticks } = axisTicks(low, high);
-  const y = (cents) => PLOT.bottom - ((cents - min) / (max - min)) * PLOT_HEIGHT;
+  const y = (cents) => plotBottom - ((cents - min) / (max - min)) * plotHeight;
   return { y, ticks };
 }
 
@@ -252,13 +245,15 @@ export default function PlanVsActualChart({
   plannedCents,
   coverageStartPeriod = null,
   coverageEndPeriod = null,
+  chartHeight,
 }) {
+  const viewHeight = chartHeight ?? DEFAULT_HEIGHT;
   // Drawn at the width of the box it sits in, so the type stays at its real
   // size on a phone — see `useChartWidth`.
   const box = useRef(null);
   const { view, plot, plotWidth } = chartFrame({
     width: useChartWidth(box),
-    height: VIEW.height,
+    height: viewHeight,
     pad: PAD,
   });
   // Which column the pointer or the keyboard is on. Null is a real state — the
@@ -272,7 +267,8 @@ export default function PlanVsActualChart({
   // words above the chart.
   const hasPlan = plannedCents > 0;
 
-  const { y, ticks } = scaleFor(series, hasPlan ? plannedCents : 0);
+  const plotHeight = plot.bottom - plot.top;
+  const { y, ticks } = scaleFor(series, hasPlan ? plannedCents : 0, plot.bottom, plotHeight);
   const slot = plotWidth / series.length;
   const barWidth = barWidthFor(slot, series.length);
   const radius = radiusFor(barWidth);
@@ -479,7 +475,7 @@ export default function PlanVsActualChart({
                 x={plot.left + slot * index}
                 y={plot.top}
                 width={slot}
-                height={PLOT_HEIGHT}
+                height={plotHeight}
                 fill="transparent"
                 tabIndex={index === (activeIndex ?? lastIndex) ? 0 : -1}
                 role="img"

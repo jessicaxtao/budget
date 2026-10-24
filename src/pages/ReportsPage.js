@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { sankeyFlows } from "../domain/cashflowSankey";
+import CashflowCalendarWidget from "../components/CashflowCalendarWidget";
 import CashflowChart from "../components/CashflowChart";
 import CashflowLineChart from "../components/CashflowLineChart";
 import CashflowSankey from "../components/CashflowSankey";
 import CategoryDetailPanel from "../components/CategoryDetailPanel";
+import IncomeBySourceTable from "../components/IncomeBySourceTable";
+import SavingsRateChart from "../components/SavingsRateChart";
 import PageHeader from "../components/PageHeader";
 import PlanVsActualChart from "../components/PlanVsActualChart";
 import ReportSummary from "../components/ReportSummary";
-import ReportWidgetLayout from "../components/ReportWidgetLayout";
+import ReportWidgetLayout, { CHART_HEIGHTS, useWidgetConfig } from "../components/ReportWidgetLayout";
 import SegmentedControl from "../components/SegmentedControl";
 import SpendingByCategoryTable from "../components/SpendingByCategoryTable";
 import SpendingDonutChart from "../components/SpendingDonutChart";
@@ -20,6 +23,16 @@ import useSpendingReport, {
   REPORT_RANGES,
 } from "../hooks/useSpendingReport";
 import { addMonths, currentPeriod, formatCents, formatPeriod, periodLTE } from "../utils";
+
+/**
+ * Reads the current widget's height tier from the WidgetConfigContext (provided
+ * by ReportWidgetLayout) and calls render(chartHeight). Must be rendered inside
+ * a widget section that is a child of ReportWidgetLayout.
+ */
+function WithWidgetHeight({ widgetId, defaultTier, render }) {
+  const config = useWidgetConfig(widgetId);
+  return render(CHART_HEIGHTS[config.height ?? defaultTier]);
+}
 
 /**
  * What the books have been doing — over a span, which is what makes it a report.
@@ -267,6 +280,9 @@ export default function ReportsPage() {
         <div className="space-y-4">
           <ReportWidgetLayout>
           <div data-widget-id="summary"><ReportSummary report={report} /></div>
+          <section data-widget-id="calendar" className="overflow-hidden rounded-2xl border border-edge bg-panel">
+            <CashflowCalendarWidget report={report} />
+          </section>
           <section data-widget-id="scheduled" className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <div className="border-b border-edge px-4 py-3">
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
@@ -337,19 +353,23 @@ export default function ReportsPage() {
               />
             </div>
 
-            {cashflowView === "bars" ? (
-              <CashflowChart
-                series={report.series}
-                coverageStartPeriod={report.coverageStartPeriod}
-                coverageEndPeriod={report.coverageEndPeriod}
-              />
-            ) : (
-              <CashflowLineChart
-                series={report.series}
-                coverageStartPeriod={report.coverageStartPeriod}
-                coverageEndPeriod={report.coverageEndPeriod}
-              />
-            )}
+            <WithWidgetHeight widgetId="month" defaultTier="md" render={(chartHeight) =>
+              cashflowView === "bars" ? (
+                <CashflowChart
+                  series={report.series}
+                  coverageStartPeriod={report.coverageStartPeriod}
+                  coverageEndPeriod={report.coverageEndPeriod}
+                  chartHeight={chartHeight}
+                />
+              ) : (
+                <CashflowLineChart
+                  series={report.series}
+                  coverageStartPeriod={report.coverageStartPeriod}
+                  coverageEndPeriod={report.coverageEndPeriod}
+                  chartHeight={chartHeight}
+                />
+              )
+            } />
 
             {/* The chart's table twin. Every figure it draws is also readable
                 here, which is what makes the colour encoding safe — and what
@@ -442,6 +462,34 @@ export default function ReportsPage() {
               </div>
             </details>
           </section>
+
+          <section data-widget-id="savings-rate" className="overflow-hidden rounded-2xl border border-edge bg-panel">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
+              <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
+                Savings rate
+              </h2>
+              {report.savingsRateBps != null && (
+                <span className="text-label uppercase text-chalk-soft">
+                  {Math.round(report.savingsRateBps / 100)}% over the window
+                </span>
+              )}
+            </div>
+            <WithWidgetHeight widgetId="savings-rate" defaultTier="sm" render={(chartHeight) =>
+              <SavingsRateChart
+                series={report.series}
+                coverageStartPeriod={report.coverageStartPeriod}
+                coverageEndPeriod={report.coverageEndPeriod}
+                averageRatePct={
+                  report.savingsRateBps != null ? report.savingsRateBps / 100 : null
+                }
+                chartHeight={chartHeight}
+              />
+            } />
+          </section>
+
+          <div data-widget-id="income">
+            <IncomeBySourceTable report={report} payeeName={payeeName} />
+          </div>
 
           {/* The window collapsed to one flow: where the money came from and
               where it went, in proportion. The chart above is the time axis and
@@ -578,12 +626,15 @@ export default function ReportsPage() {
                 happened — not because nothing was spent — so the chart is told
                 both ends of what the books cover and withholds a verdict outside
                 them rather than reporting months the household came in under. */}
-            <PlanVsActualChart
-              series={report.series}
-              plannedCents={report.plannedCents}
-              coverageStartPeriod={report.coverageStartPeriod}
-              coverageEndPeriod={report.coverageEndPeriod}
-            />
+            <WithWidgetHeight widgetId="plan" defaultTier="md" render={(chartHeight) =>
+              <PlanVsActualChart
+                series={report.series}
+                plannedCents={report.plannedCents}
+                coverageStartPeriod={report.coverageStartPeriod}
+                coverageEndPeriod={report.coverageEndPeriod}
+                chartHeight={chartHeight}
+              />
+            } />
 
             {/* The chart's table twin, as the cashflow chart has — the colour
                 encoding is only safe while every figure it draws is also

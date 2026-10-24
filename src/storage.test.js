@@ -16,6 +16,7 @@ import {
   scopedKey,
   setStorageScope,
   snapshotScope,
+  snapshotLocalBooks,
   STORE_KEYS,
   writeKey,
 } from "./storage";
@@ -138,6 +139,20 @@ describe("hasStoredBooks", () => {
 });
 
 describe("moving books between scopes", () => {
+  test("local import snapshot includes guest-scoped books in a browser", () => {
+    setStorageScope(GUEST_SCOPE);
+    writeKey("budgets", [{ id: "guest-budget" }]);
+    setStorageScope(null);
+
+    expect(snapshotLocalBooks()).toEqual({ budgets: [{ id: "guest-budget" }] });
+  });
+
+  test("local import snapshot still falls back to legacy unscoped books", () => {
+    writeKey("budgets", [{ id: "legacy-budget" }]);
+
+    expect(snapshotLocalBooks()).toEqual({ budgets: [{ id: "legacy-budget" }] });
+  });
+
   test("a snapshot carries the current keys and the legacy ones", () => {
     writeKey("budgets", [{ id: "b1" }]);
     writeKey("expenses", [{ id: "e1" }]);

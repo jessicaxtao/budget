@@ -192,6 +192,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           type="date"
         />
 
+
         <div className="mb-5 rounded-xl border border-edge bg-panel-raised p-4">
           <label className="mb-2 block font-sans text-row font-semibold text-chalk" htmlFor="goal-photo">
             Picture for your goal <span className="font-normal text-chalk-soft">(optional)</span>

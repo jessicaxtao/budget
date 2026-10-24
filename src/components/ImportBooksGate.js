@@ -11,7 +11,7 @@ import {
   readKey,
   restoreScope,
   setStorageScope,
-  snapshotScope,
+  snapshotLocalBooks,
   STORE_KEYS,
   writeKey,
 } from "../storage";
@@ -67,9 +67,7 @@ export default function ImportBooksGate({ children }) {
     if (!remote || decided) return null;
     if (hasStoredBooks(getStorageScope())) return null;
 
-    const snapshot = snapshotScope(null);
-    if (!hasStoredBooks(null)) return null;
-    return snapshot;
+    return snapshotLocalBooks();
   }, [remote, decided]);
 
   if (!offer) return children;

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import Button from "./Button";
 import { SortableList, useSortableItem } from "./Sortable";
 import { ACCOUNT_SCOPES, ACCOUNT_TYPES } from "../contexts/AccountsContext";
@@ -56,13 +55,9 @@ function AccountRow({ account, balanceCents, striped, onEdit, onArchive, sortabl
       className={`flex items-center gap-3 px-4 py-2 ${striped ? "bg-sheet-alt" : "bg-sheet"}`}
     >
       <div className="min-w-0 flex-1">
-        <Link
-          to={`/transactions?account=${encodeURIComponent(account.id)}&dates=all`}
-          aria-label={`View transactions for account: ${account.name}`}
-          className="block truncate font-sans text-row text-azure underline decoration-current/30 underline-offset-2 hover:decoration-current"
-        >
+        <span className="block truncate font-sans text-row">
           {account.name}
-        </Link>
+        </span>
       </div>
       {balanceCents != null && (
         <div

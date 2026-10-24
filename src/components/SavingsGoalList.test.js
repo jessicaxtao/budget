@@ -39,7 +39,18 @@ function renderList({ rows = [CAMERA, WEDDING], onAssign } = {}) {
   return assign;
 }
 
-const addField = (name) => screen.getByLabelText(`Add to ${name}`);
+const addField = (name) => screen.getByRole("textbox", { name: `Add to ${name}` });
+
+test("goals show savings, target, remaining, progress and actions together", () => {
+  renderList({ rows: [goal({ name: "Trip", savedCents: 310000, remainingCents: 190000 })] });
+  expect(screen.getByText("$3,100")).toBeVisible();
+  expect(screen.getByText("of $5,000 saved")).toBeVisible();
+  expect(screen.getByText("$1,900 to go")).toBeVisible();
+  expect(screen.getByRole("progressbar", { name: "Savings progress for Trip" })).toHaveAttribute("aria-valuenow", "62");
+  expect(addField("Trip")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Edit goal: Trip" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Remove goal: Trip" })).toBeVisible();
+});
 
 test("the add input always starts blank — it adds, it does not display a stored total", () => {
   renderList();
@@ -94,11 +105,9 @@ test("the message belongs to one row, and a later success clears it", () => {
   fireEvent.change(camera, { target: { value: "500" } });
   fireEvent.blur(camera);
 
-  // The alert sits under the row it is about — inside the table, spanning all
-  // columns. Eight columns: goal, target, saved, this month, remaining, pace, add, actions.
-  const alertRow = screen.getByRole("alert").closest("tr");
-  expect(within(alertRow).getByRole("cell")).toHaveAttribute("colspan", "8");
-  expect(screen.getByRole("table").contains(alertRow)).toBe(true);
+  const card = screen.getByRole("alert").closest("article");
+  expect(within(card).getByRole("heading", { name: "Camera" })).toBeInTheDocument();
+  expect(within(card).queryByRole("heading", { name: "Wedding" })).not.toBeInTheDocument();
 
   assign.mockReturnValue({ ok: true });
   const wedding = addField("Wedding");
@@ -189,7 +198,7 @@ test("held money counts towards the saved total; the breakdown is in the edit mo
   });
   renderList({ rows: [HOUSE] });
 
-  expect(screen.getByRole("columnheader", { name: "Saved" })).toBeInTheDocument();
+  expect(screen.getByText("of $40,000 saved")).toBeVisible();
   expect(screen.getByText("$19,700")).toBeInTheDocument();
   expect(screen.queryByText(/held/)).not.toBeInTheDocument();
   expect(screen.queryByText(/assigned$/)).not.toBeInTheDocument();

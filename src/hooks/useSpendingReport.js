@@ -674,7 +674,12 @@ export default function useSpendingReport(
       // The window's income by who paid it, biggest first. Adds up to
       // `totalIncomeCents` exactly, since it is filled in the same branch.
       incomeSources: [...incomeByPayee.entries()]
-        .map(([payeeId, cents]) => ({ payeeId, incomeCents: cents }))
+        .map(([payeeId, cents]) => ({
+          payeeId,
+          incomeCents: cents,
+          averageCents: perMonth(cents),
+          shareBps: shareBps(cents, totalIncomeCents),
+        }))
         .sort((a, b) => b.incomeCents - a.incomeCents),
 
       totalIncomeCents,

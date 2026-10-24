@@ -55,18 +55,11 @@ import {
 // The plot, in viewBox units. The bottom band is reserved for the month labels
 // rather than shared with the plot — an axis drawn outside its container is the
 // classic way a chart card ends up with its own tiny scrollbar.
-const VIEW = { width: 760, height: 300 };
+const DEFAULT_HEIGHT = 300;
 // The right margin holds the net's end label, which sits *beside* the last
 // column rather than over it: the line ends wherever the net happens to be,
 // which is usually somewhere inside the stack.
 const PAD = { top: 18, right: 54, bottom: 34, left: 66 };
-const PLOT = {
-  left: PAD.left,
-  right: VIEW.width - PAD.right,
-  top: PAD.top,
-  bottom: VIEW.height - PAD.bottom,
-};
-const PLOT_HEIGHT = PLOT.bottom - PLOT.top;
 
 /**
  * The two series, and which way each one points.
@@ -113,7 +106,7 @@ function extentOf(entry) {
   return { up, down };
 }
 
-function scaleFor(series) {
+function scaleFor(series, plotBottom, plotHeight) {
   let high = 0;
   let low = 0;
   for (const entry of series) {
@@ -128,7 +121,7 @@ function scaleFor(series) {
   }
 
   const { min, max, ticks } = axisTicks(low, high);
-  const y = (cents) => PLOT.bottom - ((cents - min) / (max - min)) * PLOT_HEIGHT;
+  const y = (cents) => plotBottom - ((cents - min) / (max - min)) * plotHeight;
   return { y, ticks };
 }
 
@@ -198,13 +191,15 @@ export default function CashflowChart({
   series,
   coverageStartPeriod = null,
   coverageEndPeriod = null,
+  chartHeight,
 }) {
+  const viewHeight = chartHeight ?? DEFAULT_HEIGHT;
   // Drawn at the width of the box it sits in, so the type stays at its real
   // size on a phone — see `useChartWidth`.
   const box = useRef(null);
   const { view, plot, plotWidth } = chartFrame({
     width: useChartWidth(box),
-    height: VIEW.height,
+    height: viewHeight,
     pad: PAD,
   });
   // Which column the pointer or the keyboard is on. Null is a real state, not a
@@ -213,7 +208,8 @@ export default function CashflowChart({
   // The hit areas, so an arrow key can move focus between them.
   const targets = useRef([]);
 
-  const { y, ticks } = scaleFor(series);
+  const plotHeight = plot.bottom - plot.top;
+  const { y, ticks } = scaleFor(series, plot.bottom, plotHeight);
   const slot = plotWidth / series.length;
   const barWidth = barWidthFor(slot, series.length);
   const radius = radiusFor(barWidth);
@@ -433,7 +429,7 @@ export default function CashflowChart({
                 x={plot.left + slot * index}
                 y={plot.top}
                 width={slot}
-                height={PLOT_HEIGHT}
+                height={plotHeight}
                 fill="transparent"
                 tabIndex={index === (activeIndex ?? lastIndex) ? 0 : -1}
                 role="img"

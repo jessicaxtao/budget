@@ -41,9 +41,10 @@ export function useSavingsGoals() {
 
 const isAmount = (value) => Number.isInteger(value) && value > 0;
 const isDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+export const ENVELOPE_COLORS = ["kraft", "sage", "sky", "rose", "lavender", "butter"];
 
 /** The fields `addSavingsGoal` and `updateSavingsGoal` both have to check. */
-function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo }) {
+function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo, envelopeColor }) {
   const trimmed = (name ?? "").trim();
   if (!trimmed) return { ok: false, error: "Give the goal a name." };
 
@@ -61,7 +62,8 @@ function parseGoalFields({ name, target, targetCents, targetDate, budgetId, phot
   const linkedBudgetId = typeof budgetId === "string" && budgetId ? budgetId : null;
 
   const goalPhoto = typeof photo === "string" && photo.startsWith("data:image/") && photo.length <= 180_000 ? photo : null;
-  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId, photo: goalPhoto };
+  const color = ENVELOPE_COLORS.includes(envelopeColor) ? envelopeColor : "kraft";
+  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId, photo: goalPhoto, envelopeColor: color };
 }
 
 /** Ids, deduped. Anything that is not a string was never an account id. */
@@ -140,6 +142,7 @@ function migrateGoals(stored) {
       // Inert but kept: a deleted category contributes nothing, resolved where read.
       budgetId: typeof goal.budgetId === "string" ? goal.budgetId : null,
       photo: typeof goal.photo === "string" && goal.photo.startsWith("data:image/") && goal.photo.length <= 180_000 ? goal.photo : null,
+      envelopeColor: ENVELOPE_COLORS.includes(goal.envelopeColor) ? goal.envelopeColor : "kraft",
     }));
 }
 
@@ -168,6 +171,7 @@ export const SavingsGoalsProvider = ({ children }) => {
           targetDate: parsed.targetDate,
           budgetId: parsed.budgetId,
           photo: parsed.photo,
+          envelopeColor: parsed.envelopeColor,
           // Empty rather than a guess at which account the money is in — the
           // `EmergencyFundContext` rule: naming one the household never agreed
           // to would put a figure on screen nobody stated.
@@ -207,6 +211,7 @@ export const SavingsGoalsProvider = ({ children }) => {
                 targetDate: parsed.targetDate,
                 budgetId: parsed.budgetId,
                 photo: parsed.photo,
+                envelopeColor: parsed.envelopeColor,
                 ...holdings.patch,
               }
             : goal

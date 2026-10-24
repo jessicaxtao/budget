@@ -24,13 +24,8 @@ import {
  * assert a reading nobody took.
  */
 
-const VIEW = { width: 760, height: 300 };
+const DEFAULT_HEIGHT = 300;
 const PAD = { top: 18, right: 54, bottom: 34, left: 66 };
-const PLOT = {
-  top: PAD.top,
-  bottom: VIEW.height - PAD.bottom,
-};
-const PLOT_HEIGHT = PLOT.bottom - PLOT.top;
 
 const LINES = [
   {
@@ -59,7 +54,7 @@ const LINES = [
   },
 ];
 
-function scaleFor(series) {
+function scaleFor(series, plotBottom, plotHeight) {
   let high = 0;
   let low = 0;
   for (const entry of series) {
@@ -68,7 +63,7 @@ function scaleFor(series) {
     low = Math.min(low, entry.netCents);
   }
   const { min, max, ticks } = axisTicks(low, high);
-  const y = (cents) => PLOT.bottom - ((cents - min) / (max - min)) * PLOT_HEIGHT;
+  const y = (cents) => plotBottom - ((cents - min) / (max - min)) * plotHeight;
   return { y, ticks };
 }
 
@@ -116,17 +111,20 @@ export default function CashflowLineChart({
   series,
   coverageStartPeriod = null,
   coverageEndPeriod = null,
+  chartHeight,
 }) {
+  const viewHeight = chartHeight ?? DEFAULT_HEIGHT;
   const box = useRef(null);
   const { view, plot, plotWidth } = chartFrame({
     width: useChartWidth(box),
-    height: VIEW.height,
+    height: viewHeight,
     pad: PAD,
   });
   const [active, setActive] = useState(null);
   const targets = useRef([]);
 
-  const { y, ticks } = scaleFor(series);
+  const plotHeight = plot.bottom - plot.top;
+  const { y, ticks } = scaleFor(series, plot.bottom, plotHeight);
   const slot = plotWidth / series.length;
   const centreOf = (index) => plot.left + slot * (index + 0.5);
   const lastIndex = series.length - 1;
@@ -283,7 +281,7 @@ export default function CashflowLineChart({
                 x={plot.left + slot * index}
                 y={plot.top}
                 width={slot}
-                height={PLOT_HEIGHT}
+                height={plotHeight}
                 fill="transparent"
                 tabIndex={index === (activeIndex ?? lastIndex) ? 0 : -1}
                 role="img"

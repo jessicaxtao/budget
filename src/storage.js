@@ -496,6 +496,13 @@ export function snapshotScope(userId) {
   }
 }
 
+/** Books on this device that may be offered to a newly signed-in account. */
+export function snapshotLocalBooks() {
+  const guestScope = localScope();
+  const source = guestScope !== null && hasStoredBooks(guestScope) ? guestScope : null;
+  return hasStoredBooks(source) ? snapshotScope(source) : null;
+}
+
 /** Write a `{ key: value }` snapshot into one scope. */
 export function restoreScope(userId, snapshot) {
   const previous = scope;
