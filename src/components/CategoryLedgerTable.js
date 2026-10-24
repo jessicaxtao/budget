@@ -86,18 +86,28 @@ function availableTone(cents) {
 /**
  * The category's name, and — only where the envelope is overdrawn — by how
  * much, so the red figure beside it is never the only thing saying so.
+ *
+ * The name is a button rather than a link: clicking an envelope is the gesture
+ * of moving money into it, not navigating to its transaction history (that is
+ * the register's job). The Available figure is the same action — the name
+ * gives it a wider, more obvious target.
  */
-function NameCell({ row }) {
+function NameCell({ row, onMove }) {
   const over = row.availableCents < 0;
   return (
     <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
-      <Link
-        to={`/transactions?category=${encodeURIComponent(row.budgetId)}&dates=all`}
-        aria-label={`${row.name} transactions`}
-        className={`underline decoration-current/30 underline-offset-2 hover:decoration-current ${over ? "font-medium text-vermilion-ink" : "text-azure"}`}
-      >
-        {row.name}
-      </Link>
+      {onMove ? (
+        <button
+          type="button"
+          onClick={() => onMove(row)}
+          aria-label={moveLabel(row)}
+          className={`border-b-2 border-transparent text-left transition-colors hover:border-rule ${over ? "font-medium text-vermilion-ink" : "text-ink"}`}
+        >
+          {row.name}
+        </button>
+      ) : (
+        <span className={over ? "font-medium text-vermilion-ink" : ""}>{row.name}</span>
+      )}
       {over && (
         // Its own line on a phone, where the name and two figures already fill
         // the width; beside the name wherever there is room for it.
@@ -185,7 +195,7 @@ function CategoryRow({ row, striped, onMove, sortable = false }) {
       {...item.handle}
       className={striped ? "bg-sheet-alt" : "bg-sheet"}
     >
-      <NameCell row={row} />
+      <NameCell row={row} onMove={onMove} />
       {COLUMNS.map((column) => {
         const { cents, tone } = cellFor(row, column.key);
         const movable = onMove && column.key === "availableCents";

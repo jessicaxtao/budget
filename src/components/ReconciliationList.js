@@ -1,5 +1,4 @@
 import Button from "./Button";
-import { Link } from "react-router-dom";
 import { ACCOUNT_SCOPES, ACCOUNT_TYPES, scopeLabel } from "../contexts/AccountsContext";
 import { SortableList, useSortableItem } from "./Sortable";
 import { formatCents, formatDateMedium, formatDayDelta } from "../utils";
@@ -111,13 +110,9 @@ function ReconciliationRow({
       className={`px-4 py-2 ${striped ? "bg-sheet-alt" : "bg-sheet"}`}
     >
       <div className="flex items-baseline gap-3">
-        <Link
-          to={`/transactions?account=${encodeURIComponent(account.id)}&dates=all`}
-          aria-label={`View transactions for account: ${account.name}`}
-          className="min-w-0 flex-1 truncate font-sans text-row text-azure underline decoration-current/30 underline-offset-2 hover:decoration-current"
-        >
+        <span className="min-w-0 flex-1 truncate font-sans text-row text-ink">
           {account.name}
-        </Link>
+        </span>
         <div
           className={`shrink-0 font-mono text-row font-medium tabular-nums ${
             overdrawn ? "text-vermilion-ink" : "text-ink"
