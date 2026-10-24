@@ -9,15 +9,18 @@ import { useLayoutEffect, useState } from "react";
  * drawing a viewBox of exactly that width keeps the type at its real size and
  * lets the plot itself be what gets narrower.
  *
- * `max` is the width the charts were designed at, and the cap is what keeps a
- * wide screen exactly as it was: past it the viewBox stops growing and the SVG
- * scales up as it always did. `min` is where a plot stops being a plot.
+ * `max` caps the viewBox width so the SVG does not try to render at a size
+ * nothing was designed at. Past `max` the viewBox stops growing — but the SVG
+ * element is `w-full`, so a container wider than `max` would scale everything
+ * (including type) up. Keep `max` large enough to match any realistic content
+ * width so the chart always renders at 1:1 scale. `min` is where a plot stops
+ * being a plot.
  *
  * Where there is no `ResizeObserver` — jsdom, which is every test in this suite
  * — the chart stays at `max`, so every coordinate a test reads is the one it
  * always read.
  */
-export default function useChartWidth(ref, { max = 760, min = 280 } = {}) {
+export default function useChartWidth(ref, { max = 1400, min = 280 } = {}) {
   const [width, setWidth] = useState(max);
 
   useLayoutEffect(() => {

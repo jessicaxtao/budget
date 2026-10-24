@@ -92,7 +92,7 @@ export function useRowSensors() {
  * wherever this is mounted, goes to `silent()` — so it can sit inside a table — around a `<tbody>`'s rows, or around
  * the `<tbody>`s themselves.
  */
-export function SortableList({ ids, onReorder, children }) {
+export function SortableList({ ids, onReorder, children, strategy = verticalListSortingStrategy }) {
   const sensors = useRowSensors();
 
   function handleDragEnd({ active, over }) {
@@ -110,7 +110,7 @@ export function SortableList({ ids, onReorder, children }) {
       onDragEnd={handleDragEnd}
       accessibility={{ container: silent() }}
     >
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      <SortableContext items={ids} strategy={strategy}>
         {children}
       </SortableContext>
     </DndContext>

@@ -133,7 +133,6 @@ describe("finding transactions", () => {
     expect(visibleNotes()).toEqual(["Note on Current", "Note on Legacy"]);
     fireEvent.click(screen.getByRole("button", { name: "All dates" }));
     expect(visibleNotes()).toEqual(["Note on Current", "Note on Older", "Note on Legacy"]);
-    expect(screen.getByRole("status")).toHaveTextContent("3 transactions across all dates");
     fireEvent.click(screen.getByRole("button", { name: "By month" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
     expect(visibleNotes()).toEqual(["Note on Older", "Note on Legacy"]);
@@ -158,7 +157,6 @@ describe("finding transactions", () => {
     expect(screen.getByLabelText("Transferred from, for Outgoing")).toBeInTheDocument();
     expect(screen.queryByLabelText("Note on Unrelated")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Note on Former transfer")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("3 transactions");
   });
 
   test("category filters read split parts, refunds and effective transfer categories; filters combine and clear", () => {
@@ -176,7 +174,7 @@ describe("finding transactions", () => {
       ],
     });
     renderPage("/transactions?category=b1&dates=all");
-    expect(screen.getByRole("status")).toHaveTextContent("5 transactions");
+    expect(screen.getByRole("status")).toHaveTextContent("Matching split transactions show their full amount.");
     expect(screen.getByLabelText("Note on Refund")).toBeInTheDocument();
     expect(screen.getByLabelText("Split of Split, 2 parts")).toBeInTheDocument();
     expect(screen.getByLabelText("Transferred to, for Invested")).toBeInTheDocument();
@@ -184,21 +182,20 @@ describe("finding transactions", () => {
     expect(screen.queryByLabelText("Transferred to, for Internal")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Transferred to, for Withdrawal")).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Account" }), { target: { value: "acc1" } });
-    expect(screen.getByRole("status")).toHaveTextContent("4 transactions");
     expect(screen.queryByLabelText("Note on Other account")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    expect(screen.getByRole("status")).toHaveTextContent("8 transactions");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Go back" }));
     expect(screen.getByRole("combobox", { name: "Account" })).toHaveValue("acc1");
     expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("b1");
-    expect(screen.getByRole("status")).toHaveTextContent("4 transactions");
+    expect(screen.getByRole("status")).toHaveTextContent("Matching split transactions show their full amount.");
   });
 
   test("an empty filter can be cleared without losing the ledger", () => {
     seed();
     renderPage("/transactions?category=b2&dates=all");
     expect(screen.getByText("No transactions match these filters.", { exact: false })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("0 transactions");
+    expect(screen.getByRole("status")).toHaveTextContent("Matching split transactions show their full amount.");
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByLabelText("Note on Trader Joe's")).toBeInTheDocument();
   });

@@ -219,10 +219,11 @@ export default function TransactionsPage() {
           </label>
           {filtered && <Button variant="outline" size="sm" onClick={clearFilters}>Clear filters</Button>}
         </div>
-        <p role="status" className="mt-2 font-sans text-row text-chalk-soft">
-          {rows.length} {rows.length === 1 ? "transaction" : "transactions"}{allDates ? " across all dates" : " in this view"}.
-          {categoryId && " Matching split transactions show their full amount."}
-        </p>
+        {categoryId && (
+          <p role="status" className="mt-2 font-sans text-row text-chalk-soft">
+            Matching split transactions show their full amount.
+          </p>
+        )}
       </section>
 
       <TransactionRegister
