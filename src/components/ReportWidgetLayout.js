@@ -1,7 +1,5 @@
 import { Children, createContext, isValidElement, useContext, useMemo } from "react";
-import { rectSortingStrategy } from "@dnd-kit/sortable";
 import useSyncedState from "../hooks/useSyncedState";
-import { SortableList, useSortableItem } from "./Sortable";
 
 // Chart height tiers, in SVG viewBox units (same scale as VIEW.width = 760).
 export const CHART_HEIGHTS = { sm: 180, md: 270, lg: 390 };
@@ -53,20 +51,6 @@ function HeightButton({ active, onClick, children }) {
   );
 }
 
-function SortableWidget({ id, colSpan, children }) {
-  const item = useSortableItem(id);
-  return (
-    <div
-      ref={item.ref}
-      style={item.style}
-      {...item.handle}
-      className={colSpan === "full" ? "md:col-span-2" : ""}
-    >
-      {children}
-    </div>
-  );
-}
-
 export default function ReportWidgetLayout({ children }) {
   const [widgets, setWidgets] = useSyncedState("reportWidgets", DEFAULT_WIDGETS, migrateWidgets);
   const content = useMemo(() => {
@@ -79,87 +63,70 @@ export default function ReportWidgetLayout({ children }) {
     return { byId, other };
   }, [children]);
   const ordered = widgets.filter((widget) => content.byId.has(widget.id));
-  const visibleIds = ordered.filter((widget) => widget.visible).map((widget) => widget.id);
-
   const configMap = useMemo(() => new Map(widgets.map((w) => [w.id, w])), [widgets]);
-
-  function toggleVisible(id) {
-    setWidgets((current) => current.map((item) => item.id === id ? { ...item, visible: !item.visible } : item));
-  }
-
-  function toggleWidth(id) {
-    setWidgets((current) => current.map((item) =>
-      item.id === id ? { ...item, width: item.width === "half" ? "full" : "half" } : item
-    ));
-  }
-
-  function setHeight(id, height) {
-    setWidgets((current) => current.map((item) =>
-      item.id === id ? { ...item, height } : item
-    ));
-  }
 
   return (
     <WidgetConfigContext.Provider value={configMap}>
-      <details className="rounded-2xl border border-edge bg-panel px-4 py-3">
-        <summary className="cursor-pointer text-label uppercase text-chalk-soft hover:text-chalk">Report widgets</summary>
-        <p className="mt-2 font-sans text-row text-chalk-soft">
-          Drag widgets to reorder. On wider screens, set any widget to half-width to show two side by side.
-        </p>
-        <div className="mt-3 space-y-1.5">
-          {ordered.map((widget) => (
-            <div key={widget.id} className="flex items-center gap-3">
-              <label className="flex min-w-0 flex-1 items-center gap-2 font-sans text-row text-chalk">
-                <input
-                  type="checkbox"
-                  checked={widget.visible}
-                  onChange={() => toggleVisible(widget.id)}
-                />
-                <span className="truncate">{widget.label}</span>
-              </label>
-              {CHART_WIDGET_IDS.has(widget.id) && (
-                <div className="flex shrink-0 items-center gap-1">
-                  {["sm", "md", "lg"].map((tier) => (
-                    <HeightButton
-                      key={tier}
-                      active={(widget.height ?? "md") === tier}
-                      onClick={() => setHeight(widget.id, tier)}
-                    >
-                      {tier === "sm" ? "S" : tier === "md" ? "M" : "L"}
-                    </HeightButton>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                title={widget.width === "half" ? "Switch to full width" : "Switch to half width"}
-                onClick={() => toggleWidth(widget.id)}
-                className="shrink-0 rounded border border-edge px-2 py-0.5 text-label uppercase text-chalk-soft transition-colors hover:border-chalk hover:text-chalk"
-              >
-                {widget.width === "half" ? "½" : "↔"}
-              </button>
-            </div>
-          ))}
-        </div>
-      </details>
       {content.other}
-      <SortableList
-        ids={visibleIds}
-        strategy={rectSortingStrategy}
-        onReorder={(ids) => setWidgets((current) => {
-          const visible = ids.map((id) => current.find((item) => item.id === id));
-          let index = 0;
-          return current.map((item) => item.visible ? visible[index++] : item);
-        })}
-      >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {ordered.filter((widget) => widget.visible).map((widget) => (
-            <SortableWidget key={widget.id} id={widget.id} colSpan={widget.width ?? "full"}>
-              {content.byId.get(widget.id)}
-            </SortableWidget>
-          ))}
-        </div>
-      </SortableList>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {ordered.filter((widget) => widget.visible).map((widget) => (
+          <div key={widget.id} className={widget.width === "half" ? "" : "md:col-span-2"}>
+            {content.byId.get(widget.id)}
+          </div>
+        ))}
+      </div>
     </WidgetConfigContext.Provider>
+  );
+}
+
+export function ReportWidgetSettings() {
+  const [widgets, setWidgets] = useSyncedState("reportWidgets", DEFAULT_WIDGETS, migrateWidgets);
+  const ordered = widgets;
+
+  function update(id, change) {
+    setWidgets((current) => current.map((item) => item.id === id ? { ...item, ...change } : item));
+  }
+
+  function move(index, offset) {
+    const target = index + offset;
+    if (target < 0 || target >= ordered.length) return;
+    setWidgets((current) => {
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  return (
+    <section className="rounded-2xl border border-edge bg-panel px-4 py-3">
+      <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Report widgets</h2>
+      <p className="mt-1 font-sans text-row text-chalk-soft">Choose what appears in reports and adjust its layout.</p>
+      <div className="mt-3 space-y-2">
+        {ordered.map((widget, index) => (
+          <div key={widget.id} className="flex flex-wrap items-center gap-3">
+            <label className="flex min-w-0 flex-1 items-center gap-2 font-sans text-row text-chalk">
+              <input type="checkbox" checked={widget.visible} onChange={() => update(widget.id, { visible: !widget.visible })} />
+              <span className="truncate">{widget.label}</span>
+            </label>
+            {CHART_WIDGET_IDS.has(widget.id) && (
+              <div className="flex shrink-0 items-center gap-1" aria-label={`${widget.label} chart height`}>
+                {["sm", "md", "lg"].map((tier) => (
+                  <HeightButton key={tier} active={(widget.height ?? "md") === tier} onClick={() => update(widget.id, { height: tier })}>
+                    {tier === "sm" ? "S" : tier === "md" ? "M" : "L"}
+                  </HeightButton>
+                ))}
+              </div>
+            )}
+            <button type="button" title={widget.width === "half" ? "Switch to full width" : "Switch to half width"} onClick={() => update(widget.id, { width: widget.width === "half" ? "full" : "half" })} className="shrink-0 rounded border border-edge px-2 py-0.5 text-label uppercase text-chalk-soft hover:border-chalk hover:text-chalk">
+              {widget.width === "half" ? "½" : "↔"}
+            </button>
+            <div className="flex gap-1">
+              <button type="button" aria-label={`Move ${widget.label} up`} disabled={index === 0} onClick={() => move(index, -1)} className="rounded border border-edge px-2 py-0.5 text-label text-chalk-soft disabled:opacity-40">↑</button>
+              <button type="button" aria-label={`Move ${widget.label} down`} disabled={index === ordered.length - 1} onClick={() => move(index, 1)} className="rounded border border-edge px-2 py-0.5 text-label text-chalk-soft disabled:opacity-40">↓</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

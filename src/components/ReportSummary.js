@@ -70,7 +70,7 @@ function Tile({ label, figure, tone = "text-chalk", note = null }) {
   );
 }
 
-export default function ReportSummary({ report }) {
+export default function ReportSummary({ report, peopleCount = 1 }) {
   const {
     range,
     startPeriod,
@@ -165,6 +165,32 @@ export default function ReportSummary({ report }) {
           }
         />
       </dl>
+
+      <div className="border-t border-edge px-4 py-3" aria-label="Even per-person share">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 className="font-sans text-sm font-semibold text-chalk">Per person</h3>
+          <span className="text-label uppercase text-chalk-soft">
+            Even share across {peopleCount} {peopleCount === 1 ? "person" : "people"}
+          </span>
+        </div>
+        <dl className="mt-2 grid gap-3 sm:grid-cols-3">
+          {[
+            ["Income", totalIncomeCents],
+            ["Spending", netSpentCents],
+            ["Net", netCents],
+          ].map(([label, cents]) => (
+            <div key={label} className="flex items-baseline justify-between gap-2">
+              <dt className="text-label uppercase text-chalk-soft">{label}</dt>
+              <dd className="font-mono text-row tabular-nums text-chalk">
+                {formatCents(Math.round(cents / peopleCount))}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-2 font-sans text-xs text-chalk-soft">
+          Household totals divided evenly; expenses are not individually attributed.
+        </p>
+      </div>
 
       {buckets.length > 0 && (
         <div className="border-t border-edge px-4 py-3">

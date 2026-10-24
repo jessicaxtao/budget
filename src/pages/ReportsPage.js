@@ -16,6 +16,7 @@ import SegmentedControl from "../components/SegmentedControl";
 import SpendingByCategoryTable from "../components/SpendingByCategoryTable";
 import SpendingDonutChart from "../components/SpendingDonutChart";
 import { useAccounts } from "../contexts/AccountsContext";
+import { useHousehold } from "../contexts/HouseholdContext";
 import { usePayees } from "../contexts/PayeesContext";
 import useSpendingReport, {
   CUSTOM_REPORT_RANGE,
@@ -174,6 +175,11 @@ export default function ReportsPage() {
 
   const report = useSpendingReport(endPeriod, rangeKey, chosenStart);
   const { accounts } = useAccounts();
+  // Expenses are recorded for the shared household rather than assigned to a
+  // member. The report's per-person figures are therefore an even share of
+  // household totals, using the active roster (or one person for local books).
+  const household = useHousehold();
+  const peopleCount = Math.max(1, household?.members?.length ?? 1);
   // Names for the drill-in's payee column. Resolved here rather than in
   // `useSpendingReport`, which reads the ledger and the plan's own arrangement and
   // nothing else — a payee's name is not money, and the hook stays about money.
@@ -279,7 +285,7 @@ export default function ReportsPage() {
       ) : (
         <div className="space-y-4">
           <ReportWidgetLayout>
-          <div data-widget-id="summary"><ReportSummary report={report} /></div>
+          <div data-widget-id="summary"><ReportSummary report={report} peopleCount={peopleCount} /></div>
           <section data-widget-id="calendar" className="overflow-hidden rounded-2xl border border-edge bg-panel">
             <CashflowCalendarWidget report={report} />
           </section>

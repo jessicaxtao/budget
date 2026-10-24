@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Savings Goals — Origami Envelope Motifs</title>
+<style>
+  :root{
+    --ledger:#F6F1E7; --panel:#FFFDF8; --raised:#EAE1CF; --edge:#DCCFB6;
+    --ink:#2B211B; --soft:#6B5E52; --canopy:#1F4A36; --coin:#F2B632;
+    --action:#2F6B4F; --azure:#316C72; --rust:#A3401A;
+  }
+  html[data-theme="dark"]{
+    --ledger:#14110E; --panel:#1E1A16; --raised:#2A241E; --edge:#3A3129;
+    --ink:#F1E8DA; --soft:#B3A390; --canopy:#173628; --coin:#F2B632;
+    --action:#7CC79A; --azure:#86BCD6; --rust:#F08A5D;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ledger); color:var(--ink);
+    font-family:"DM Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    background:var(--canopy); color:#FFFDF8; padding:18px 28px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+  header h1{font-family:"Young Serif",Georgia,serif; font-size:20px; margin:0; font-weight:600;}
+  header .sub{color:#C9D8CE; font-size:13px; margin-top:2px;}
+  .toggle{
+    background:transparent; color:#FFFDF8; border:1px solid rgba(255,253,248,.35);
+    border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer;
+  }
+  .toggle:hover{background:rgba(255,253,248,.12)}
+  main{max-width:1060px; margin:0 auto; padding:26px 22px 60px;}
+  .controls{
+    background:var(--panel); border:1px solid var(--edge); border-radius:14px;
+    padding:18px 20px; margin-bottom:26px; display:flex; gap:22px; align-items:center; flex-wrap:wrap;
+  }
+  .readout{min-width:220px}
+  .readout .amt{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:26px; font-weight:600; letter-spacing:-.5px;}
+  .readout .amt .tgt{color:var(--soft); font-size:15px; font-weight:400;}
+  .readout .mood{font-size:13px; color:var(--soft); margin-top:3px;}
+  .sliderwrap{flex:1; min-width:260px}
+  .sliderwrap .pct{font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--soft); display:flex; justify-content:space-between; margin-bottom:6px;}
+  input[type=range]{width:100%; accent-color:var(--action); height:22px;}
+  .ticks{display:flex; justify-content:space-between; font-size:11px; color:var(--soft); margin-top:2px; font-family:"IBM Plex Mono",monospace;}
+  .btn{
+    background:var(--action); color:var(--panel); border:none; border-radius:9px;
+    padding:11px 16px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  html[data-theme="dark"] .btn{color:#0F2A1F}
+  .btn:hover{filter:brightness(1.05)}
+  .btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--edge); font-weight:500;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:20px;}
+  .card{
+    background:var(--panel); border:1px solid var(--edge); border-radius:16px;
+    padding:18px 18px 20px; display:flex; flex-direction:column; align-items:center; text-align:center;
+  }
+  .card h2{font-family:"Young Serif",Georgia,serif; font-size:17px; margin:0 0 2px; font-weight:600;}
+  .card .tag{font-size:12px; color:var(--soft); margin-bottom:12px;}
+  .card svg{width:100%; height:auto; max-width:230px; display:block;}
+  .card .note{font-size:12px; color:var(--soft); line-height:1.5; margin-top:12px;}
+  .card .best{font-size:11px; color:var(--action); font-weight:600; margin-top:8px; letter-spacing:.3px; text-transform:uppercase;}
+  .legend{font-size:12px; color:var(--soft); margin:22px 2px 0; line-height:1.6;}
+  .swatch{display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:middle; margin:0 4px 0 10px;}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Savings Goals — Origami Envelope Motifs</h1>
+    <div class="sub">A goal is an envelope you fold money into · drag the slider or press Contribute</div>
+  </div>
+  <button class="toggle" id="themeBtn">◐ Dark mode</button>
+</header>
+
+<main>
+  <div class="controls">
+    <div class="readout">
+      <div class="amt"><span id="saved">$1,200</span> <span class="tgt">/ $12,000</span></div>
+      <div class="mood" id="mood">Keep folding — plenty of room left.</div>
+    </div>
+    <div class="sliderwrap">
+      <div class="pct"><span>Saved</span><span id="pctlbl">10%</span></div>
+      <input type="range" id="fill" min="0" max="100" value="10" />
+      <div class="ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+    </div>
+    <button class="btn" id="contribute">＋ Contribute $1,000</button>
+    <button class="btn ghost" id="reset">Reset</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>A · The Tato</h2>
+      <div class="tag">Folded pouch — four flaps seal to a pinwheel</div>
+      <div id="svgA"></div>
+      <div class="best">Recommended · detail view</div>
+      <div class="note">The four flaps fold inward as it fills and lock in a pinwheel at 100%. The clearest envelope + origami read.</div>
+    </div>
+    <div class="card">
+      <h2>B · The Crane</h2>
+      <div class="tag">A flat sheet folds stage-by-stage into a crane</div>
+      <div id="svgB"></div>
+      <div class="best" style="color:var(--soft)">Signature screen only</div>
+      <div class="note">Progress is the folding sequence: creased square → bases → wings → crane. Richest, but milestone-shaped and least envelope-like.</div>
+    </div>
+    <div class="card">
+      <h2>C · The Fold Stack</h2>
+      <div class="tag">Folded notes stack inside an open envelope</div>
+      <div id="svgC"></div>
+      <div class="best" style="color:var(--soft)">Signature screen</div>
+      <div class="note">Each contribution drops a folded note on the stack; the flap seals at 100%. The sand note shows money held off-budget.</div>
+    </div>
+    <div class="card">
+      <h2>D · The Opening Flap</h2>
+      <div class="tag">One flap angle + a fill line tell the whole story</div>
+      <div id="svgD"></div>
+      <div class="best">Recommended · list rows</div>
+      <div class="note">The flap eases closed and the paper rises as you save; sealed flat with a gold crease at target. Calm, scales to a tiny glyph.</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="swatch" style="background:var(--panel);border:1px solid var(--edge)"></span>paper (envelope body)
+    <span class="swatch" style="background:var(--raised)"></span>shadowed fold facet
+    <span class="swatch" style="background:var(--action);opacity:.85"></span>saved (fill tone)
+    <span class="swatch" style="background:var(--coin)"></span>gold crease = sealed at 100%
+    <span class="swatch" style="background:var(--raised)"></span>off-budget holding
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const TARGET = 12000;
+
+function pal(){
+  const s = getComputedStyle(document.documentElement);
+  const g = n => s.getPropertyValue(n).trim();
+  return {panel:g('--panel'),raised:g('--raised'),edge:g('--edge'),ink:g('--ink'),
+          soft:g('--soft'),coin:g('--coin'),action:g('--action'),ledger:g('--ledger')};
+}
+const lerp=(a,b,t)=>a+(b-a)*t;
+const poly=(pts,fill,stroke,extra='')=>`<polygon points="${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="1.4" stroke-linejoin="round" ${extra}/>`;
+const line=(a,b,stroke,w=1.4,dash='')=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
+const wrap=inner=>`<svg viewBox="0 0 200 196" xmlns="http://www.w3.org/2000/svg">
+  <defs><filter id="sh" x="-20%" y="-20%" width="140%" height="150%">
+    <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.14"/></filter></defs>
+  ${inner}</svg>`;
+
+/* shared rising-fill helper inside a clip rect */
+function fillBand(t,P,x,y,w,h,id){
+  const fy = y+h*(1-t);
+  return `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>
+    <g clip-path="url(#${id})">
+      <rect x="${x}" y="${fy}" width="${w}" height="${y+h-fy}" fill="${P.action}" fill-opacity="0.20"/>
+      <line x1="${x}" y1="${fy}" x2="${x+w}" y2="${fy}" stroke="${P.action}" stroke-width="2"/>
+    </g>`;
+}
+
+/* ---------- A · TATO ---------- */
+function tato(t,P){
+  const m=26, c=100, cen=[c,c], d=18*Math.min(1,t*1.05);
+  const TL=[m,m],TR=[200-m,m],BR=[200-m,200-m],BL=[m,200-m];
+  const pin=[[c+d,c],[c,c+d],[c-d,c],[c,c-d]]; // top,right,bottom,left swirl points
+  const edges=[[TL,TR],[TR,BR],[BR,BL],[BL,TL]];
+  const base = `<rect x="${m}" y="${m}" width="${200-2*m}" height="${200-2*m}" rx="4" fill="${P.ledger}" stroke="${P.edge}" filter="url(#sh)"/>`;
+  const fill = fillBand(t,P,m,m,200-2*m,200-2*m,'tc');
+  const tone=[P.panel,P.raised,P.panel,P.raised];
+  let flaps='';
+  edges.forEach((e,i)=>{
+    const tip=[lerp((e[0][0]+e[1][0])/2,pin[i][0],t), lerp((e[0][1]+e[1][1])/2,pin[i][1],t)];
+    flaps+=poly([e[0],e[1],tip],tone[i],P.edge);
+    if(t>0.985) flaps+=line(e[1],tip,P.coin,2); // gold seam when sealed
+  });
+  return wrap(base+fill+flaps);
+}
+
+/* ---------- B · CRANE (staged) ---------- */
+function crane(t,P){
+  const E=P.edge,F=P.raised,W=P.panel;
+  if(t<0.18){ // creased flat square (the plan)
+    const sq=[[100,40],[160,100],[100,160],[40,100]];
+    return wrap(poly(sq,W,E,'filter="url(#sh)"')+
+      line([100,40],[100,160],E,1,'4 4')+line([40,100],[160,100],E,1,'4 4')+
+      line([40,100],[160,100],E,0)+line([70,70],[130,130],E,1,'3 4')+line([130,70],[70,130],E,1,'3 4'));
+  }
+  if(t<0.42){ // preliminary base — diamond with two facets
+    return wrap(poly([[100,36],[158,100],[100,164],[42,100]],W,E,'filter="url(#sh)"')+
+      poly([[100,36],[100,164],[42,100]],F,E)+
+      line([100,36],[100,164],E,1.2));
+  }
+  if(t<0.68){ // bird base — narrow kite + flaps
+    return wrap(poly([[100,30],[138,108],[100,170],[62,108]],W,E,'filter="url(#sh)"')+
+      poly([[100,30],[62,108],[100,110]],F,E)+
+      poly([[100,30],[138,108],[100,110]],W,E)+
+      line([100,30],[100,170],E,1.2)+line([62,108],[138,108],E,1));
+  }
+  if(t<0.93){ // wings up, no head yet
+    return wrap(
+      poly([[100,78],[150,70],[128,120]],F,E)+        // right wing
+      poly([[100,78],[50,70],[72,120]],W,E)+          // left wing
+      poly([[100,78],[112,150],[88,150]],W,E,'filter="url(#sh)"')+ // body
+      line([100,78],[100,150],E,1));
+  }
+  // finished crane
+  return wrap(
+    poly([[100,96],[162,64],[132,118]],F,E)+                 // right wing
+    poly([[100,96],[38,64],[68,118]],W,E)+                   // left wing
+    poly([[100,96],[150,150],[128,150]],W,E)+                // tail
+    poly([[100,96],[112,150],[88,150]],W,E,'filter="url(#sh)"')+ // body
+    poly([[100,96],[58,52],[70,70]],F,E)+                    // neck
+    poly([[58,52],[44,56],[58,64]],P.coin,E)+                // beak (gold = reached)
+    line([100,96],[100,150],E,1));
+}
+
+/* ---------- C · FOLD STACK ---------- */
+function foldStack(t,P){
+  const E=P.edge, pocketTop=118, notes=Math.round(t*6);
+  const back=poly([[40,70],[160,70],[160,170],[40,170]],P.ledger,E,'filter="url(#sh)"');
+  // notes stacked inside
+  let stack='';
+  for(let i=0;i<notes;i++){
+    const y=160-i*13, off=(i%2?6:-6);
+    const tone = (i===notes-1 && notes===6)?P.raised:P.panel; // top note = off-budget tone when full-ish
+    stack+=`<g transform="translate(${100+off-30},${y-11}) rotate(${i%2?-3:3} 30 6)">
+      <rect x="0" y="0" width="60" height="13" rx="2" fill="${tone}" stroke="${E}" stroke-width="1.2"/>
+      <line x1="30" y1="1" x2="30" y2="12" stroke="${E}" stroke-width="1"/>
+      <line x1="8" y1="6.5" x2="52" y2="6.5" stroke="${P.action}" stroke-width="1.4" opacity="0.5"/></g>`;
+  }
+  // front pocket (covers lower part of notes)
+  const pocket=poly([[40,pocketTop],[100,150],[160,pocketTop],[160,170],[40,170]],P.panel,E);
+  // flap: open (up/back) until sealed
+  let flap;
+  if(t<0.985){
+    const ay = lerp(18, 70, t*0.4); // apex lifts up when open
+    flap=poly([[40,70],[160,70],[100,70-(70-ay)]],P.raised,E); // underside tone
+  } else {
+    flap=poly([[40,70],[160,70],[100,120]],P.panel,E)+
+         line([40,70],[100,120],P.coin,2)+line([160,70],[100,120],P.coin,2);
+  }
+  return wrap(back+stack+pocket+flap);
+}
+
+/* ---------- D · OPENING FLAP ---------- */
+function openFlap(t,P){
+  const E=P.edge, x=44,y=68,w=112,h=104, top=y, flapLen=42;
+  const body=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${P.ledger}" stroke="${E}" filter="url(#sh)"/>`;
+  const fill=fillBand(t,P,x,y,w,h,'dc');
+  // classic envelope side creases
+  const creases=line([x,y+h],[x+w/2,y+40],E,1,'3 4')+line([x+w,y+h],[x+w/2,y+40],E,1,'3 4');
+  // flap apex travels from above the top edge (open) to below it (closed)
+  const apexY = top + lerp(-flapLen, flapLen, t);
+  const sealed = t>0.985;
+  const flap=poly([[x,top],[x+w,top],[x+w/2,apexY]], sealed?P.panel:P.raised, E);
+  const gold = sealed ? line([x,top],[x+w/2,apexY],P.coin,2)+line([x+w,top],[x+w/2,apexY],P.coin,2) : '';
+  return wrap(body+fill+creases+flap+gold);
+}
+
+function moodFor(t){
+  if(t<=0) return 'An empty envelope, ready for its first fold.';
+  if(t>=1) return 'Sealed — goal reached. 🎉';
+  if(t<0.5) return 'Keep folding — plenty of room left.';
+  return 'More than halfway folded.';
+}
+
+function render(){
+  const t = +$('fill').value/100, P = pal();
+  $('svgA').innerHTML = tato(t,P);
+  $('svgB').innerHTML = crane(t,P);
+  $('svgC').innerHTML = foldStack(t,P);
+  $('svgD').innerHTML = openFlap(t,P);
+  $('pctlbl').textContent = Math.round(t*100)+'%';
+  $('saved').textContent = '$'+Math.round(t*TARGET).toLocaleString();
+  $('mood').textContent = moodFor(t);
+}
+
+function tweenTo(target){
+  const start=+$('fill').value, t0=performance.now(), dur=520;
+  function step(now){
+    const k=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-k,3);
+    $('fill').value = start+(target-start)*e; render();
+    if(k<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+$('fill').addEventListener('input',render);
+$('contribute').addEventListener('click',()=>{
+  const cur=+$('fill').value; tweenTo(Math.min(100, cur + 100*1000/TARGET));
+});
+$('reset').addEventListener('click',()=>tweenTo(0));
+$('themeBtn').addEventListener('click',()=>{
+  const dark = document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme', dark?'':'dark');
+  $('themeBtn').textContent = dark?'◐ Dark mode':'◑ Light mode';
+  render();
+});
+render();
+</script>
+</body>
+</html>

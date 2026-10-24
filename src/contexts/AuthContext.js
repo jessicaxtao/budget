@@ -286,6 +286,20 @@ export const AuthProvider = ({ children }) => {
   const local = status === AUTH_STATUS.GUEST;
 
   useEffect(() => {
+    // Guest books belong only to this browser visit. `pagehide` runs for tab
+    // closure and navigation away, giving shared-computer users a synchronous
+    // cleanup point before the page is discarded.
+    if (!local || isDesktop()) return undefined;
+
+    const discardGuestBooks = () => {
+      clearScope(GUEST_SCOPE);
+      setGuestMode(false);
+    };
+    window.addEventListener("pagehide", discardGuestBooks);
+    return () => window.removeEventListener("pagehide", discardGuestBooks);
+  }, [local]);
+
+  useEffect(() => {
     /**
      * **Local mode does no account work at all, and that is the point.**
      *

@@ -928,6 +928,20 @@ describe("the scope a guest runs in", () => {
     expect(readKey("budgets")).toEqual([{ id: "thisBrowsersOwn" }]);
   });
 
+  test("closing a browser guest session clears its books and guest mode", async () => {
+    setGuestMode(true);
+    mountTree();
+    await act(async () => {});
+
+    setStorageScope(GUEST_SCOPE);
+    localStorage.setItem(`hb:${GUEST_SCOPE}:budgets`, JSON.stringify([{ id: "private" }]));
+
+    act(() => window.dispatchEvent(new Event("pagehide")));
+
+    expect(localStorage.getItem(`hb:${GUEST_SCOPE}:budgets`)).toBeNull();
+    expect(isGuestMode()).toBe(false);
+  });
+
   /**
    * The third case, and not the same as the second: an unconfigured build is a
    * fact about the *build*. There was never an account to decline, and the bare

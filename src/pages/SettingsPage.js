@@ -5,6 +5,7 @@ import BooksFilePanel from "../components/BooksFilePanel";
 import DonationsTaxPanel from "../components/DonationsTaxPanel";
 import HouseholdPanel from "../components/HouseholdPanel";
 import PageHeader from "../components/PageHeader";
+import { ReportWidgetSettings } from "../components/ReportWidgetLayout";
 import PayeeList from "../components/PayeeList";
 import ScheduleList from "../components/ScheduleList";
 import TransactionsExportPanel from "../components/TransactionsExportPanel";
@@ -34,6 +35,7 @@ export default function SettingsPage() {
             Use {dark ? "light" : "dark"} mode
           </Button>
         </section>
+        <ReportWidgetSettings />
         <ScheduleList />
         <PayeeList />
         <TransactionsExportPanel />
