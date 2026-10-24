@@ -825,7 +825,11 @@ create trigger activity_log_notify
 -- Only the triggers above may produce a broadcast from inside the database.
 revoke execute on function realtime.send(jsonb, text, text, boolean) from public, anon, authenticated;
 
-alter table realtime.messages enable row level security;
+-- No `alter table realtime.messages enable row level security` here: Supabase
+-- ships that table with RLS already on, and `postgres` does not own it, so the
+-- statement is refused ("must be owner of table messages") and, the SQL editor
+-- running the script as one transaction, takes every other statement with it.
+-- Creating policies on it is allowed, which is all that follows needs.
 
 -- Restrictive, so a permissive policy added later — here, by the other app
 -- sharing this project, or from the dashboard — cannot widen a budget topic
