@@ -221,6 +221,18 @@ export const SyncProvider = ({ children }) => {
    */
   const known = useRef(new Map());
 
+  /**
+   * key -> the IV of the envelope this device last sent for it.
+   *
+   * A realtime notification names a row rather than carrying it, so telling
+   * our own echo apart *before* fetching it back needs something the
+   * notification can carry that the server cannot have produced on its own.
+   * The envelope's IV is that: public by design, and fresh on every seal, so
+   * a match means "the row on the server is still the one we wrote". Purely a
+   * saving — a miss fetches the row, and `known` still recognises it.
+   */
+  const sentIvs = useRef(new Map());
+
   /** key -> Set of listeners, for changes arriving from another device. */
   const listeners = useRef(new Map());
 
@@ -238,6 +250,7 @@ export const SyncProvider = ({ children }) => {
       pending.current.clear();
       pendingDeletes.current.clear();
       known.current.clear();
+      sentIvs.current.clear();
       setHydrated(true);
       setHydrationError(null);
       setSyncState(SYNC_STATE.LOCAL);
@@ -311,6 +324,7 @@ export const SyncProvider = ({ children }) => {
       // ciphertext — see the comment on `known`'s declaration for why a
       // cache of ciphertext could never match anything again.
       known.current.clear();
+      sentIvs.current.clear();
       for (const key of Object.keys(snapshot)) known.current.set(key, canonicalJSON(snapshot[key]));
       restoreScope(scope, snapshot);
 
@@ -461,7 +475,12 @@ export const SyncProvider = ({ children }) => {
       // Only clear the key if nothing newer arrived while this was in flight.
       if (canonicalJSON(pending.current.get(key)) === serialized) pending.current.delete(key);
     }
-    for (const key of drops) pendingDeletes.current.delete(key);
+    // Deletes first, mirroring the order they were sent in.
+    for (const key of drops) {
+      pendingDeletes.current.delete(key);
+      sentIvs.current.delete(key);
+    }
+    for (const row of sealed ?? []) sentIvs.current.set(row.key, row.value.iv);
     persistOutbox();
 
     if (pending.current.size > 0 || pendingDeletes.current.size > 0) {
@@ -614,88 +633,110 @@ export const SyncProvider = ({ children }) => {
     const generation = booksKeyGeneration();
     const work = accountWork.current;
 
-    // Namespaced by app, because the project behind it is no longer this app's
-    // alone. Realtime topics are a flat namespace per project, so `app_state`
-    // on its own names a table that only one of the apps sharing this project
-    // has — hygiene rather than a fix, since the `postgres_changes` bindings
-    // below are per-subscription and would not cross-deliver either way.
-    const channel = getSupabase()
-      .channel(`budget:app_state:${householdId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "app_state",
-          filter: `household_id=eq.${householdId}`,
-        },
-        async (payload) => {
-          const row = payload.new ?? payload.old;
-          if (!row?.key) return;
+    // A private Broadcast topic, not Postgres Changes: see the Realtime section
+    // of `supabase/schema.sql` for why, and for the receive policy that makes
+    // joining it the authorization. Namespaced by app, because the project
+    // behind it is not this app's alone and topics are one flat namespace per
+    // project.
+    //
+    // **The message names a row and never carries one** — `{ key, op, iv }`.
+    // The row is fetched through PostgREST, so its own SELECT policy decides
+    // who reads it, exactly as on hydrate.
+    const supabase = getSupabase();
+    const stale = () => accountWork.current !== work || getStorageScope() !== scope || booksKeyGeneration() !== generation;
+    const channel = supabase
+      .channel(`budget:app_state:${householdId}`, { config: { private: true } })
+      .on("broadcast", { event: "app_state_changed" }, async (message) => {
+        const notice = message?.payload;
+        if (!notice?.key) return;
+        const deleted = notice.op === "DELETE";
 
-          // The session has ended and the render has already moved the cache
-          // to another scope, but this channel is only removed in the commit
-          // after it. A row landing in that gap must not be written back under
-          // a household whose books sign-out or a switch has just cleared off
-          // this device.
-          if (accountWork.current !== work || getStorageScope() !== scope || booksKeyGeneration() !== generation) return;
+        // The session has ended and the render has already moved the cache
+        // to another scope, but this channel is only removed in the commit
+        // after it. A row landing in that gap must not be written back under
+        // a household whose books sign-out or a switch has just cleared off
+        // this device.
+        if (stale()) return;
 
-          // A key we are still trying to send is one this device has a newer
-          // answer for. Letting the server's copy win here would undo an edit
-          // the user can already see on screen.
+        // A key we are still trying to send is one this device has a newer
+        // answer for. Letting the server's copy win here would undo an edit
+        // the user can already see on screen.
+        if (pending.current.has(notice.key)) return;
+
+        // Our own write, echoed back — recognised by the nonce we sealed it
+        // under, so it costs no fetch. A miss falls through to `known` below.
+        if (!deleted && notice.iv && sentIvs.current.get(notice.key) === notice.iv) return;
+
+        let row = { key: notice.key, value: undefined };
+        if (!deleted) {
+          const { data, error } = await supabase
+            .from("app_state")
+            .select("key, value")
+            .eq("household_id", householdId)
+            .eq("key", notice.key)
+            .maybeSingle();
+          // Unreadable, or gone again by the time we asked: either way there
+          // is nothing to apply, and a DELETE has its own notice. The row is
+          // the server's, and the next hydrate fetches it regardless.
+          if (error || !data) return;
+          row = data;
+
+          // Same two guards as above, asked again: the fetch is an `await`,
+          // and both things they protect against can land inside it.
+          if (stale()) return;
           if (pending.current.has(row.key)) return;
-
-          let value = payload.eventType === "DELETE" ? undefined : row.value;
-
-          // Decrypted before anything below ever sees it. A row that will not
-          // decrypt is ignored outright — `useSyncedState`'s existing stance
-          // for a document it cannot read, kept rather than blanked, and there
-          // is no render left here to refuse the way hydrate's does.
-          if (payload.eventType !== "DELETE" && isEncryptedDocument(value)) {
-            const booksKey = getBooksKey();
-            const decrypted =
-              booksKey && envelopeKid(value) === booksKey.kid
-                ? await decryptDocument(booksKey.mk, value)
-                : { ok: false };
-            if (!decrypted.ok) return;
-            value = decrypted.value;
-
-            // **Both guards above are re-asked after the decrypt, and that is
-            // not belt-and-braces.** They were written when this handler was
-            // synchronous, where checking once was checking at the moment of
-            // the write; a decrypt is an `await`, so there is now a gap
-            // between them and the `restoreScope` below, and each guard
-            // protects against something that really can land in it:
-            //
-            //   - the session can end mid-decrypt, moving the cache to
-            //     another scope, and this row would then be written back
-            //     under an account whose books sign-out has just cleared off
-            //     this device;
-            //   - a local edit can land in `pending` mid-decrypt, and the
-            //     server's older copy would overwrite an edit the user can
-            //     already see on screen.
-            //
-            // Returning is right for both: the row is the server's and the
-            // next hydrate fetches it again, while what we would be throwing
-            // away here is either nothing or somebody's own typing.
-            if (accountWork.current !== work || getStorageScope() !== scope || booksKeyGeneration() !== generation) return;
-            if (pending.current.has(row.key)) return;
-          }
-
-          const serialized = canonicalJSON(value);
-          // Our own write, echoed back.
-          if (known.current.get(row.key) === serialized) return;
-
-          known.current.set(row.key, serialized);
-          restoreScope(scope, { [row.key]: value });
-
-          for (const listener of listeners.current.get(row.key) ?? []) listener(value);
         }
-      )
+
+        let value = deleted ? undefined : row.value;
+
+        // Decrypted before anything below ever sees it. A row that will not
+        // decrypt is ignored outright — `useSyncedState`'s existing stance
+        // for a document it cannot read, kept rather than blanked, and there
+        // is no render left here to refuse the way hydrate's does.
+        if (!deleted && isEncryptedDocument(value)) {
+          const booksKey = getBooksKey();
+          const decrypted =
+            booksKey && envelopeKid(value) === booksKey.kid
+              ? await decryptDocument(booksKey.mk, value)
+              : { ok: false };
+          if (!decrypted.ok) return;
+          value = decrypted.value;
+
+          // **Both guards above are re-asked after the decrypt, and that is
+          // not belt-and-braces.** They were written when this handler was
+          // synchronous, where checking once was checking at the moment of
+          // the write; a decrypt is an `await`, so there is now a gap
+          // between them and the `restoreScope` below, and each guard
+          // protects against something that really can land in it:
+          //
+          //   - the session can end mid-decrypt, moving the cache to
+          //     another scope, and this row would then be written back
+          //     under an account whose books sign-out has just cleared off
+          //     this device;
+          //   - a local edit can land in `pending` mid-decrypt, and the
+          //     server's older copy would overwrite an edit the user can
+          //     already see on screen.
+          //
+          // Returning is right for both: the row is the server's and the
+          // next hydrate fetches it again, while what we would be throwing
+          // away here is either nothing or somebody's own typing.
+          if (stale()) return;
+          if (pending.current.has(row.key)) return;
+        }
+
+        const serialized = canonicalJSON(value);
+        // Our own write, echoed back.
+        if (known.current.get(row.key) === serialized) return;
+
+        known.current.set(row.key, serialized);
+        restoreScope(scope, { [row.key]: value });
+
+        for (const listener of listeners.current.get(row.key) ?? []) listener(value);
+      })
       .subscribe();
 
     return () => {
-      getSupabase().removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [remote, hydrated, scope, householdId]);
 

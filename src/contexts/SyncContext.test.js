@@ -51,10 +51,26 @@ const HOUSEHOLD_ID = "h1";
 // The books cache is scoped by household now: `<uid>:<householdId>`.
 const SCOPE = `${USER_ID}:${HOUSEHOLD_ID}`;
 
+/**
+ * What the server holds *after* hydrate, for the realtime handler's fetch of
+ * the one row a notification names. Hydrate reads `rows` below instead, so a
+ * test can stage the two moments separately.
+ */
+let mockServerRows = new Map();
+let fetchRow;
+
 /** A `.from("app_state")` stub covering select, upsert and delete in one shape. */
 function fromStub({ rows = [], upsert, deleteError = null } = {}) {
   return {
-    select: () => ({ eq: () => Promise.resolve({ data: rows, error: null }) }),
+    // `.eq("household_id")` is awaited whole on hydrate; the realtime handler
+    // chains a second `.eq("key")` and `.maybeSingle()` onto it instead.
+    select: () => ({
+      eq: () => {
+        const all = Promise.resolve({ data: rows, error: null });
+        all.eq = (_column, key) => ({ maybeSingle: () => fetchRow(key) });
+        return all;
+      },
+    }),
     upsert: upsert ?? jest.fn(() => Promise.resolve({ error: null })),
     delete: () => ({ eq: () => ({ in: () => Promise.resolve({ error: deleteError }) }) }),
   };
@@ -65,7 +81,7 @@ let capturedChannelCallback = null;
 function stageChannel() {
   capturedChannelCallback = null;
   const channel = {
-    on: jest.fn((_event, _filter, cb) => {
+    on: jest.fn((_type, _filter, cb) => {
       capturedChannelCallback = cb;
       return channel;
     }),
@@ -93,7 +109,25 @@ beforeEach(() => {
 
   mockDb.from.mockReturnValue(fromStub());
   stageChannel();
+  mockServerRows = new Map();
+  fetchRow = jest.fn((key) => Promise.resolve({ data: mockServerRows.get(key) ?? null, error: null }));
 });
+
+/**
+ * Another device's write, as this one hears about it: the row lands on the
+ * server, and the broadcast names it — key, operation and the envelope's IV,
+ * never the document. Not awaited by the race tests below, so the synchronous
+ * part (the row landing) happens before the call returns its promise.
+ */
+function notify(key, value, op = "UPDATE") {
+  if (op === "DELETE") mockServerRows.delete(key);
+  else mockServerRows.set(key, { key, value });
+  return capturedChannelCallback({
+    type: "broadcast",
+    event: "app_state_changed",
+    payload: { key, op, iv: op === "DELETE" ? null : value?.iv ?? null },
+  });
+}
 
 afterEach(() => setStorageScope(null));
 
@@ -339,7 +373,7 @@ describe("an envelope that cannot be opened", () => {
 // 5. Receive.
 // ---------------------------------------------------------------------------
 
-describe("a realtime row", () => {
+describe("a realtime notification", () => {
   test("lands decrypted in the store", async () => {
     const { mk, kid } = await freshKey();
     mockDb.from.mockReturnValue(fromStub({ rows: [] }));
@@ -353,11 +387,7 @@ describe("a realtime row", () => {
 
     const sealed = await encryptDocument(mk, kid, [{ id: "fromAnotherDevice" }]);
     await act(async () => {
-      await capturedChannelCallback({
-        eventType: "UPDATE",
-        new: { key: "budgets", value: sealed.envelope },
-        old: null,
-      });
+      await notify("budgets", sealed.envelope);
     });
 
     expect(listener).toHaveBeenCalledWith([{ id: "fromAnotherDevice" }]);
@@ -380,11 +410,7 @@ describe("a realtime row", () => {
     // A good update first, so there is something to "keep".
     const good = await encryptDocument(mk, kid, [{ id: "good" }]);
     await act(async () => {
-      await capturedChannelCallback({
-        eventType: "UPDATE",
-        new: { key: "budgets", value: good.envelope },
-        old: null,
-      });
+      await notify("budgets", good.envelope);
     });
     expect(listener).toHaveBeenCalledTimes(1);
 
@@ -392,11 +418,7 @@ describe("a realtime row", () => {
     const otherMk = await newMasterKey();
     const bad = await encryptDocument(otherMk, uuidv4(), [{ id: "bad" }]);
     await act(async () => {
-      await capturedChannelCallback({
-        eventType: "UPDATE",
-        new: { key: "budgets", value: bad.envelope },
-        old: null,
-      });
+      await notify("budgets", bad.envelope);
     });
 
     // Ignored outright: no second call, and the cache still holds the good value.
@@ -423,10 +445,77 @@ describe("a realtime row", () => {
     });
 
     await act(async () => {
-      await capturedChannelCallback({ eventType: "DELETE", new: null, old: { key: "budgets" } });
+      await notify("budgets", undefined, "DELETE");
     });
 
     expect(listener).toHaveBeenCalledWith(undefined);
+  });
+
+  test("is heard on the household's private Broadcast topic, not Postgres Changes", async () => {
+    await freshKey();
+    await mountSync();
+
+    expect(mockDb.channel).toHaveBeenCalledWith(`budget:app_state:${HOUSEHOLD_ID}`, { config: { private: true } });
+    const channel = mockDb.channel.mock.results[0].value;
+    expect(channel.on).toHaveBeenCalledWith("broadcast", { event: "app_state_changed" }, expect.any(Function));
+    expect(channel.on).not.toHaveBeenCalledWith("postgres_changes", expect.anything(), expect.anything());
+  });
+
+  /**
+   * The notification names a row and never carries one, so every remote change
+   * costs a fetch — except our own write coming back, which the envelope's IV
+   * identifies before any request is made. A different IV under the same key is
+   * another device's write, and is fetched.
+   */
+  test("our own write echoed back costs no fetch; another device's does", async () => {
+    const { mk, kid } = await freshKey();
+    const upsert = jest.fn(() => Promise.resolve({ error: null }));
+    mockDb.from.mockReturnValue(fromStub({ rows: [], upsert }));
+
+    const { result } = await mountSync();
+    const listener = jest.fn();
+    act(() => {
+      result.current.subscribeRemote("budgets", listener);
+    });
+
+    act(() => result.current.push("budgets", [{ id: "mine" }]));
+    await act(async () => {
+      await result.current.flush();
+    });
+    const [[[sent]]] = upsert.mock.calls;
+
+    await act(async () => {
+      await notify("budgets", sent.value);
+    });
+    expect(fetchRow).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+
+    const theirs = await encryptDocument(mk, kid, [{ id: "theirs" }]);
+    await act(async () => {
+      await notify("budgets", theirs.envelope);
+    });
+    expect(fetchRow).toHaveBeenCalledWith("budgets");
+    expect(listener).toHaveBeenCalledWith([{ id: "theirs" }]);
+  });
+
+  test("a row gone again by the time it is fetched changes nothing", async () => {
+    const { mk, kid } = await freshKey();
+    const { result } = await mountSync();
+    const listener = jest.fn();
+    act(() => {
+      result.current.subscribeRemote("budgets", listener);
+    });
+
+    const sealed = await encryptDocument(mk, kid, [{ id: "brief" }]);
+    fetchRow.mockResolvedValueOnce({ data: null, error: null });
+    await act(async () => {
+      await notify("budgets", sealed.envelope);
+    });
+
+    expect(listener).not.toHaveBeenCalled();
+    setStorageScope(SCOPE);
+    expect(readKey("budgets")).toBeUndefined();
+    setStorageScope(null);
   });
 
   /**
@@ -470,11 +559,7 @@ describe("a realtime row", () => {
     const sealed = await encryptDocument(mk, kid, [{ id: "fromTheServer" }]);
 
     await act(async () => {
-      const inFlight = capturedChannelCallback({
-        eventType: "UPDATE",
-        new: { key: "budgets", value: sealed.envelope },
-        old: null,
-      });
+      const inFlight = notify("budgets", sealed.envelope);
       // The user types while that decrypt is in flight.
       result.current.push("budgets", [{ id: "typedHere" }]);
       await inFlight;
@@ -502,11 +587,7 @@ describe("a realtime row", () => {
     const sealed = await encryptDocument(mk, kid, [{ id: "fromTheServer" }]);
 
     await act(async () => {
-      const inFlight = capturedChannelCallback({
-        eventType: "UPDATE",
-        new: { key: "budgets", value: sealed.envelope },
-        old: null,
-      });
+      const inFlight = notify("budgets", sealed.envelope);
 
       // Sign-out, as this handler actually experiences it: the tree goes and
       // the cache moves off the account, a commit before the channel is torn

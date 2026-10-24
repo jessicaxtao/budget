@@ -553,30 +553,41 @@ $$;
 -- Realtime
 -- ---------------------------------------------------------------------------
 -- What replaces the `storage` event that kept two browser tabs in step, one
--- device wider. Realtime respects RLS, so a subscriber is only ever sent rows
--- for households they belong to.
+-- device wider. **Private Broadcast, not Postgres Changes** — the triggers and
+-- the `realtime.messages` policies are at the foot of this file, after
+-- `activity_log` exists.
+--
+-- Postgres Changes was what this used to be, and it is the reason it is not
+-- any more: while a single client is subscribed, Realtime polls the
+-- replication slot several times a second and decodes *every* table's WAL to
+-- find this one's rows — on a project shared with another app, that poll was
+-- most of the database's CPU while nothing was even being edited. A broadcast
+-- costs one send per committed write and nothing in between.
+--
+-- So `app_state` is taken back *out* of the publication here, and its replica
+-- identity returns to the default (the primary key). FULL existed only so a
+-- DELETE's payload carried the old row for that subscription; with nobody
+-- decoding the WAL, it would only double what every update writes to it — the
+-- old copy of a whole encrypted store, on every save. Both guarded, so a
+-- re-run is a no-op.
 
 do $$
 begin
-  if not exists (
+  if exists (
     select 1
     from pg_publication_tables
     where pubname = 'supabase_realtime'
       and schemaname = 'public'
       and tablename = 'app_state'
   ) then
-    alter publication supabase_realtime add table public.app_state;
+    alter publication supabase_realtime drop table public.app_state;
   end if;
 end
 $$;
 
--- Realtime sends only the replica-identity columns for the old tuple, which by
--- default is the primary key alone. `SyncContext`'s subscription reads
--- `payload.old` on a DELETE, and Supabase evaluates RLS against the old row for
--- UPDATE and DELETE, so the table has to replicate the whole thing. FULL and not
--- the bare statement: `REPLICA IDENTITY` takes a mode or it is a syntax error
--- that rejects the whole script.
-alter table public.app_state replica identity full;
+-- DEFAULT and not the bare statement: `REPLICA IDENTITY` takes a mode or it is
+-- a syntax error that rejects the whole script.
+alter table public.app_state replica identity default;
 
 -- The key tables are deliberately NOT published: a membership or key change is
 -- picked up when a client loads or switches households, not pushed live — the
@@ -694,17 +705,156 @@ create policy "activity_log insert"
   on public.activity_log for insert to authenticated
   with check (member_role(household_id) in ('owner', 'editor'));
 
--- Publish to Realtime so partners see new entries live.
+-- The feed reads the newest fifty for one household. Without this it is a scan
+-- and a sort of every household's log, which only ever grows.
+create index if not exists activity_log_household_created_idx
+  on public.activity_log (household_id, created_at desc);
+
+-- Not published to Postgres Changes — see the Realtime section above. Taken
+-- out here for a database that published it before.
 do $$
 begin
-  if not exists (
+  if exists (
     select 1
     from pg_publication_tables
     where pubname = 'supabase_realtime'
       and schemaname = 'public'
       and tablename = 'activity_log'
   ) then
-    alter publication supabase_realtime add table public.activity_log;
+    alter publication supabase_realtime drop table public.activity_log;
   end if;
 end
 $$;
+
+-- ===========================================================================
+-- Realtime notifications (private Broadcast)
+-- ===========================================================================
+-- Two topics per household, because supabase-js hands back the *same* channel
+-- object for a topic it already has, and the two subscribers (`SyncContext`,
+-- `ActivityContext`) tear down on different schedules:
+--
+--   budget:app_state:<household id>  event `app_state_changed`
+--                                    { key, op, iv }
+--   budget:activity:<household id>   event `activity_added`  { id }
+--
+-- **A notification names a row; it never carries one.** A subscriber fetches
+-- what it was told about through PostgREST, so the row's own SELECT policy is
+-- what decides who sees it, exactly as on hydrate — and an encrypted store can
+-- be far larger than a broadcast payload is allowed to be. `iv` is the
+-- envelope's nonce: public by construction, unique per seal, and what lets the
+-- device that wrote a document recognise the echo of its own write without
+-- fetching it back. A plaintext (pre-encryption) row has none, and is fetched.
+--
+-- The receive policy is the authorization: only a member of the household can
+-- join either topic. Nobody can *publish* on one — no INSERT policy grants it,
+-- and the restrictive policy below refuses it even if one ever did — so the
+-- only producer is the trigger, running as the function owner.
+
+create or replace function public.can_receive_budget_topic(p_topic text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  -- CASE rather than AND: Postgres does not promise to evaluate AND's left
+  -- side first, and a topic that is not ours must never reach the uuid cast.
+  select case
+    when p_topic ~ '^budget:(app_state|activity):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      then public.is_member(right(p_topic, 36)::uuid)
+    else false
+  end;
+$$;
+
+-- Granted to anon as well, though it can only ever answer false there (no
+-- `auth.uid()`, so no membership): the restrictive boundary below applies to
+-- anon too, and Postgres may evaluate this call even for another app's topic.
+revoke all on function public.can_receive_budget_topic(text) from public;
+grant execute on function public.can_receive_budget_topic(text) to anon, authenticated;
+
+create or replace function public.notify_app_state_changed()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row public.app_state%rowtype;
+begin
+  if tg_op = 'DELETE' then v_row := old; else v_row := new; end if;
+  perform realtime.send(
+    jsonb_build_object('key', v_row.key, 'op', tg_op, 'iv', v_row.value ->> 'iv'),
+    'app_state_changed',
+    'budget:app_state:' || v_row.household_id::text,
+    true
+  );
+  return null;
+end;
+$$;
+
+create or replace function public.notify_activity_added()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform realtime.send(
+    jsonb_build_object('id', new.id),
+    'activity_added',
+    'budget:activity:' || new.household_id::text,
+    true
+  );
+  return null;
+end;
+$$;
+
+revoke all on function public.notify_app_state_changed() from public, anon, authenticated;
+revoke all on function public.notify_activity_added() from public, anon, authenticated;
+
+drop trigger if exists app_state_notify on public.app_state;
+create trigger app_state_notify
+  after insert or update or delete on public.app_state
+  for each row execute function public.notify_app_state_changed();
+
+drop trigger if exists activity_log_notify on public.activity_log;
+create trigger activity_log_notify
+  after insert on public.activity_log
+  for each row execute function public.notify_activity_added();
+
+-- Only the triggers above may produce a broadcast from inside the database.
+revoke execute on function realtime.send(jsonb, text, text, boolean) from public, anon, authenticated;
+
+alter table realtime.messages enable row level security;
+
+-- Restrictive, so a permissive policy added later — here, by the other app
+-- sharing this project, or from the dashboard — cannot widen a budget topic
+-- beyond its household. Scoped to `budget:` topics so it says nothing about
+-- anyone else's. **The other app's own boundary must be scoped the same way**:
+-- restrictive policies AND together, so an unscoped one there ("only my
+-- topics") would refuse every budget subscription outright.
+drop policy if exists "budget notification receive boundary" on realtime.messages;
+create policy "budget notification receive boundary" on realtime.messages
+  as restrictive for select to anon, authenticated
+  using (
+    (topic not like 'budget:%' and coalesce((select realtime.topic()), '') not like 'budget:%')
+    or (
+      extension = 'broadcast'
+      and topic = (select realtime.topic())
+      and public.can_receive_budget_topic(topic)
+    )
+  );
+
+drop policy if exists "receive household budget notifications" on realtime.messages;
+create policy "receive household budget notifications" on realtime.messages
+  for select to authenticated
+  using (
+    extension = 'broadcast'
+    and topic = (select realtime.topic())
+    and public.can_receive_budget_topic(topic)
+  );
+
+drop policy if exists "clients cannot publish budget notifications" on realtime.messages;
+create policy "clients cannot publish budget notifications" on realtime.messages
+  as restrictive for insert to anon, authenticated
+  with check (topic not like 'budget:%');

@@ -26,8 +26,9 @@ import { decryptDocument, encryptDocument } from "../booksCrypto";
  * rolls back the mutation. The payload is sealed under the household MK before
  * leaving the client, so the server learns only the `action_type` and timestamp.
  *
- * Real-time: subscribes to INSERT events on `activity_log` for the active
- * household. New entries from a partner appear within seconds of them writing.
+ * Real-time: subscribes to the household's private `budget:activity:<id>`
+ * Broadcast topic, which a trigger on `activity_log` notifies on each insert.
+ * New entries from a partner appear within seconds of them writing.
  * Optimistic-local entries use a client-generated UUID; the realtime handler
  * deduplicates by ID so they appear exactly once.
  *
@@ -124,45 +125,50 @@ export const ActivityProvider = ({ children }) => {
   useEffect(() => {
     if (!remote || !activeHouseholdId) return undefined;
 
+    // A private Broadcast topic carrying only the new entry's id — the same
+    // design as `SyncContext`'s, for the same reason (see the Realtime section
+    // of `supabase/schema.sql`). The row is fetched through PostgREST, so its
+    // own SELECT policy decides who reads it.
     const supabase = getSupabase();
+    let active = true;
     const channel = supabase
-      .channel(`activity:${activeHouseholdId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "activity_log",
-          filter: `household_id=eq.${activeHouseholdId}`,
-        },
-        async (event) => {
-          const row = event.new;
-          // Skip entries this client already added optimistically.
-          if (optimisticIds.current.has(row.id)) return;
+      .channel(`budget:activity:${activeHouseholdId}`, { config: { private: true } })
+      .on("broadcast", { event: "activity_added" }, async (message) => {
+        const id = message?.payload?.id;
+        if (!id) return;
+        // Skip entries this client already added optimistically.
+        if (optimisticIds.current.has(id)) return;
 
-          const bk = getBooksKey();
-          if (!bk) return;
-          const result = await decryptDocument(bk.mk, row.payload);
-          if (!result.ok) return;
+        const { data: row, error } = await supabase
+          .from("activity_log")
+          .select("id, user_id, action_type, payload, created_at")
+          .eq("id", id)
+          .maybeSingle();
+        if (!active || error || !row) return;
 
-          setEntries((prev) => {
-            if (prev.some((e) => e.id === row.id)) return prev;
-            return [
-              {
-                id: row.id,
-                userId: row.user_id,
-                actionType: row.action_type,
-                createdAt: row.created_at,
-                ...result.value,
-              },
-              ...prev,
-            ].slice(0, 50);
-          });
-        }
-      )
+        const bk = getBooksKey();
+        if (!bk) return;
+        const result = await decryptDocument(bk.mk, row.payload);
+        if (!active || !result.ok) return;
+
+        setEntries((prev) => {
+          if (prev.some((e) => e.id === row.id)) return prev;
+          return [
+            {
+              id: row.id,
+              userId: row.user_id,
+              actionType: row.action_type,
+              createdAt: row.created_at,
+              ...result.value,
+            },
+            ...prev,
+          ].slice(0, 50);
+        });
+      })
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
     };
   }, [remote, activeHouseholdId]);
