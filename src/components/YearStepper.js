@@ -31,7 +31,7 @@ export default function YearStepper({ year, onChange }) {
       </Button>
       {/* Fixed width so the controls beside it do not shift as the digits
           change, matching the month stepper. */}
-      <span className="min-w-[4rem] text-center font-mono text-row text-chalk">{year}</span>
+      <span className="min-w-[4rem] text-center text-row text-chalk font-medium">{year}</span>
       <Button
         variant="outline"
         size="sm"

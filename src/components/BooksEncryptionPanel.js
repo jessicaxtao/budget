@@ -70,7 +70,7 @@ export default function BooksEncryptionPanel() {
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">
             Encryption
           </span>
-          <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
+          <span className="ml-3 text-label uppercase text-chalk-soft">
             Password · recovery code
           </span>
         </summary>
@@ -99,10 +99,10 @@ export default function BooksEncryptionPanel() {
               `BooksFilePanel`'s "Kept in" row uses. */}
           {setUpDay && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-edge px-4 py-3">
-              <span className="shrink-0 font-mono text-label uppercase text-chalk-soft">
+              <span className="shrink-0 text-label uppercase text-chalk-soft">
                 Key set up
               </span>
-              <span className="font-mono text-row text-chalk">{setUpDay}</span>
+              <span className="text-row text-chalk">{setUpDay}</span>
             </div>
           )}
 

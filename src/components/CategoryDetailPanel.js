@@ -55,7 +55,7 @@ function TransactionRow({ transaction, accounts, payeeById, striped }) {
           <span className="ml-2 font-sans text-row text-ink-soft">{transaction.description}</span>
         )}
         {transaction.wholeAmountCents != null && (
-          <span className="ml-2 whitespace-nowrap font-mono text-label uppercase text-ink-soft">
+          <span className="ml-2 whitespace-nowrap text-label uppercase text-ink-soft">
             part of {formatCents(transaction.wholeAmountCents)}
           </span>
         )}
@@ -86,7 +86,7 @@ export default function CategoryDetailPanel({
           <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
             {row.name}
           </h2>
-          <p className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+          <p className="mt-0.5 text-label uppercase text-chalk-soft">
             {row.groupName ?? "No group"} · {formatCents(row.netSpentCents)} over {months.length}{" "}
             {months.length === 1 ? "month" : "months"}
             {row.refundCents > 0 && ` · ${formatCents(row.refundCents)} refunded`}
@@ -120,7 +120,7 @@ export default function CategoryDetailPanel({
                   <th
                     key={label}
                     scope="col"
-                    className={`sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 font-mono text-label uppercase text-chalk ${
+                    className={`sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-label uppercase text-chalk ${
                       index === 0 ? "px-4 text-left" : index === 3 ? "text-right" : "text-left"
                     }`}
                   >

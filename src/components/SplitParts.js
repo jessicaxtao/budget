@@ -104,13 +104,13 @@ export default function SplitParts({ parts, budgets, totalCents, onChange }) {
   return (
     <div className="mb-5">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="font-mono text-label uppercase text-chalk-soft">Split between</span>
+        <span className="text-label uppercase text-chalk-soft">Split between</span>
         {/* Announced as it changes rather than only drawn, the way the assign
             form's counter is: it is the figure the user is working towards. And
             where there is nothing left over there is no figure to give — "adds
             up $0" reads as a total of nothing rather than as a division that
             balances. */}
-        <span role="status" className="font-mono text-label uppercase text-chalk-soft">
+        <span role="status" className="text-label uppercase text-chalk-soft">
           {leftCents === 0 ? (
             <span className={`font-medium ${leftTone}`}>Adds up</span>
           ) : (
@@ -127,12 +127,12 @@ export default function SplitParts({ parts, budgets, totalCents, onChange }) {
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-panel-raised">
-            <th scope="col" className="px-3 py-2 text-left font-mono text-label uppercase text-chalk">
+            <th scope="col" className="px-3 py-2 text-left text-label uppercase text-chalk">
               Category
             </th>
             <th
               scope="col"
-              className="w-36 px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+              className="w-36 px-3 py-2 text-right text-label uppercase text-chalk"
             >
               Amount
             </th>

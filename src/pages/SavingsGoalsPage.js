@@ -97,7 +97,7 @@ export default function SavingsGoalsPage() {
             since assigning it to a category is Transactions' "Assign
             income" flow, not this one. */}
         <p className="font-sans text-row text-chalk-soft">
-          <span className="font-mono text-label uppercase text-chalk-soft">To be assigned</span>{" "}
+          <span className="text-label uppercase text-chalk-soft">To be assigned</span>{" "}
           <span className="font-mono text-row font-medium text-chalk">
             {formatCents(toBeAssignedCents)}
           </span>{" "}

@@ -318,7 +318,7 @@ function SyncBadge({ state }) {
         title={`Your edits are safe ${
           isDesktop() ? "on this computer" : "in this browser"
         } and will be sent when the connection is back.`}
-        className={`col-start-1 row-start-1 text-center sm:rounded-lg sm:border sm:border-on-canopy-rust/60 sm:px-2 sm:py-0.5 font-mono text-label uppercase text-on-canopy-rust ${
+        className={`col-start-1 row-start-1 text-center sm:rounded-lg sm:border sm:border-on-canopy-rust/60 sm:px-2 sm:py-0.5 text-label uppercase text-on-canopy-rust ${
           offline ? "" : "invisible"
         }`}
       >

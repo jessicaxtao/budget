@@ -90,17 +90,17 @@ module.exports = {
         "tab-pink": token("tab-pink"),
       },
       fontFamily: {
-        // Young Serif marks the app's name. DM Sans carries page hierarchy and
+        // Young Serif marks the app's name. Inter carries page hierarchy and
         // controls, and the figures stay in Plex Mono.
         display: ["'Young Serif'", "Georgia", "serif"],
-        sans: ["'DM Sans'", "system-ui", "sans-serif"],
-        mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
+        sans: ["'Inter'", "system-ui", "sans-serif"],
+        mono: ["'Inter'", "system-ui", "sans-serif"],
       },
       fontSize: {
-        // A dense scale — this is a data tool, not a marketing page.
-        label: ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.08em" }],
-        row: ["0.8125rem", { lineHeight: "1.25rem" }],
-        figure: ["1.5rem", { lineHeight: "1.875rem", letterSpacing: "-0.01em" }],
+        // Sized for comfortable reading on larger screens.
+        label: ["0.75rem", { lineHeight: "1rem", letterSpacing: "0.08em" }],
+        row: ["0.875rem", { lineHeight: "1.375rem" }],
+        figure: ["1.75rem", { lineHeight: "2.125rem", letterSpacing: "-0.02em" }],
       },
     },
   },

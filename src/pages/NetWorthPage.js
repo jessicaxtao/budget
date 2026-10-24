@@ -123,7 +123,7 @@ export default function NetWorthPage() {
                 <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                   Over time
                 </h2>
-                <span className="font-mono text-label uppercase text-chalk-soft">
+                <span className="text-label uppercase text-chalk-soft">
                   {formatPeriod(windowStartPeriod)} – {formatPeriod(period)}
                 </span>
               </div>
@@ -143,7 +143,7 @@ export default function NetWorthPage() {
                 rows scrolls inside the card rather than pushing the page down,
                 so the header stays put and every column keeps its name. */}
             <details className="border-t border-edge">
-              <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+              <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                 Show these figures as a table
               </summary>
               <div className="max-h-[30rem] overflow-auto border-t border-edge">
@@ -152,7 +152,7 @@ export default function NetWorthPage() {
                     <tr>
                       <th
                         scope="col"
-                        className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                        className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left text-label uppercase text-chalk"
                       >
                         Month
                       </th>
@@ -160,14 +160,14 @@ export default function NetWorthPage() {
                         <th
                           key={slice.key}
                           scope="col"
-                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right text-label uppercase text-chalk"
                         >
                           {slice.label}
                         </th>
                       ))}
                       <th
                         scope="col"
-                        className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                        className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right text-label uppercase text-chalk"
                       >
                         Net worth
                       </th>

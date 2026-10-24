@@ -4,7 +4,7 @@ import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium }
 
 const formatPoints = (points) => points.toLocaleString("en-US");
 
-const term = "font-mono text-label uppercase text-ink-soft";
+const term = "text-label uppercase text-ink-soft";
 const figure = "mt-0.5 font-mono text-row tabular-nums text-ink";
 const inlineInput =
   "w-24 border-0 border-b border-transparent bg-transparent px-0 py-0.5 font-mono text-row tabular-nums text-ink outline-none placeholder:text-ink-soft/50 hover:border-rule focus:border-azure";

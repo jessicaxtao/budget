@@ -89,7 +89,7 @@ export default function ScheduleList() {
     // is. A schedule past its end date has no next one and sorts last.
     .sort((a, b) => (a.next ?? "9999").localeCompare(b.next ?? "9999") || a.name.localeCompare(b.name));
 
-  const headingClass = "px-3 py-2 text-left font-mono text-label uppercase text-chalk";
+  const headingClass = "px-3 py-2 text-left text-label uppercase text-chalk";
 
   return (
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
@@ -98,7 +98,7 @@ export default function ScheduleList() {
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">
             Scheduled transactions
           </span>
-          <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
+          <span className="ml-3 text-label uppercase text-chalk-soft">
             {schedules.length === 0
               ? "Rent, subscriptions, the quarterly premium"
               : `${schedules.length} ${schedules.length === 1 ? "schedule" : "schedules"} · due on the dashboard`}
@@ -114,7 +114,7 @@ export default function ScheduleList() {
           </p>
 
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-edge px-4 py-2.5">
-            <span className="font-mono text-label uppercase text-chalk-soft">
+            <span className="text-label uppercase text-chalk-soft">
               Removing a schedule keeps every transaction already entered from it.
             </span>
             <Button variant="outline" size="sm" onClick={() => setShowAdd(true)}>
@@ -166,7 +166,7 @@ export default function ScheduleList() {
                             name rather than in two more columns — the same stack
                             the register's payee cell uses, and for the same
                             reason: the widths have to add up. */}
-                        <div className="truncate font-mono text-label uppercase text-ink-soft">
+                        <div className="truncate text-label uppercase text-ink-soft">
                           {row.accountName} · {row.categoryName}
                         </div>
                       </td>
@@ -174,7 +174,7 @@ export default function ScheduleList() {
                         <div>
                           {describeRecurrence(row.schedule)}
                           {row.schedule.endsOn && (
-                            <div className="font-mono text-label uppercase text-ink-soft">
+                            <div className="text-label uppercase text-ink-soft">
                               until {formatDateMedium(row.schedule.endsOn)}
                             </div>
                           )}

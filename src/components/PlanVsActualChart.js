@@ -207,7 +207,7 @@ function Readout({ entry, plannedCents, coverageStartPeriod, coverageEndPeriod }
 
   return (
     <div className="pointer-events-none w-max max-w-[18rem] rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">
+      <div className="text-label uppercase text-chalk-soft">
         {formatPeriod(entry.period)}
       </div>
       <div className="mt-0.5 font-sans text-base font-semibold tabular-nums text-chalk">
@@ -219,7 +219,7 @@ function Readout({ entry, plannedCents, coverageStartPeriod, coverageEndPeriod }
           neither, and wears the muted tone it deserves. */}
       {verdict && (
         <div
-          className={`font-mono text-label uppercase ${
+          className={`text-label uppercase ${
             verdict.overCents > 0
               ? "text-vermilion"
               : verdict.overCents < 0
@@ -306,7 +306,7 @@ export default function PlanVsActualChart({
         {present.map((bucket) => (
           <span key={bucket.key} className="flex items-center gap-1.5">
             <Swatch className={bucketTone(bucket.bucket).swatch} />
-            <span className="font-mono text-label uppercase text-chalk-soft">{bucket.label}</span>
+            <span className="text-label uppercase text-chalk-soft">{bucket.label}</span>
           </span>
         ))}
         {hasPlan && (
@@ -317,7 +317,7 @@ export default function PlanVsActualChart({
               className="h-0 w-4 shrink-0 border-t-2 border-dashed border-chalk"
               aria-hidden="true"
             />
-            <span className="font-mono text-label uppercase text-chalk-soft">
+            <span className="text-label uppercase text-chalk-soft">
               Plan {formatCents(plannedCents)}/mo
             </span>
           </span>
@@ -456,7 +456,7 @@ export default function PlanVsActualChart({
                 x={centreOf(label.index)}
                 y={plot.bottom + 16}
                 textAnchor="middle"
-                className="fill-chalk-soft font-mono text-label tracking-normal"
+                className="fill-chalk-soft text-label tracking-normal"
               >
                 {formatPeriodShort(label.period)}
                 {label.year && (

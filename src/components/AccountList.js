@@ -171,7 +171,7 @@ function AccountSection({
         groups.map((group) => (
           <div key={group.label}>
             {labelSides && (
-              <div className="bg-band px-4 py-1 font-mono text-label uppercase text-ink">
+              <div className="bg-band px-4 py-1 text-label uppercase text-ink">
                 {group.label}
               </div>
             )}

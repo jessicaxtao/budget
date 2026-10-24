@@ -3,14 +3,11 @@
 @tailwind utilities;
 
 @import "@fontsource/young-serif/400.css";
-@import "@fontsource/dm-sans/400.css";
-@import "@fontsource/dm-sans/400-italic.css";
-@import "@fontsource/dm-sans/500.css";
-@import "@fontsource/dm-sans/600.css";
-@import "@fontsource/dm-sans/700.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
-@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/400-italic.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 
 /* The Grove's two modes. Every colour token in tailwind.config.js reads one of
    these, as bare RGB channels so opacity modifiers still work. Light is the
@@ -122,7 +119,7 @@ body {
   margin: 0;
   background-color: rgb(var(--c-ledger));
   color: rgb(var(--c-chalk));
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -380,7 +377,7 @@ body {
     content: attr(data-label);
     flex-shrink: 0;
     text-align: left;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-family: "Inter", system-ui, sans-serif;
     font-size: 0.6875rem;
     font-weight: 400;
     letter-spacing: 0.08em;

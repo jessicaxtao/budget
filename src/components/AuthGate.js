@@ -38,7 +38,7 @@ export default function AuthGate({ children }) {
   if (status === AUTH_STATUS.CHECKING) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ledger">
-        <p className="font-mono text-label uppercase tracking-wide text-chalk-soft">Signing in…</p>
+        <p className="text-label uppercase tracking-wide text-chalk-soft">Signing in…</p>
       </div>
     );
   }

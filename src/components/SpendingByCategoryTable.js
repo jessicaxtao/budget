@@ -93,7 +93,7 @@ function ShareBar({ cents, maxCents }) {
   );
 }
 
-const headCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk";
+const headCell = "whitespace-nowrap px-3 py-2 text-right text-label uppercase text-chalk";
 const figureCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
 
 // On a phone the ranking keeps the category, what it cost and what that comes
@@ -136,7 +136,7 @@ function CategoryRow({ row, maxCents, months, striped, selected, onSelect }) {
             that tells a lump from a rate, and the one reading of the average
             that is not in the average. Left off over a single month, where
             every row would read "1 of 1 month". */}
-        <span className="mt-0.5 block font-mono text-label uppercase text-ink-soft">
+        <span className="mt-0.5 block text-label uppercase text-ink-soft">
           {row.groupName ?? "No group"}
           {amortised && ` · ${row.monthsWithSpend} of ${months} months`}
           {row.refundCents > 0 && ` · ${formatCents(row.refundCents)} back`}
@@ -183,7 +183,7 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Where the money went
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {amortised
             ? `Per month is over ${averagedOverMonths} months of records`
             : "One month of records"}
@@ -206,7 +206,7 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-panel-raised">
-                <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   Category
                 </th>
                 <th scope="col" className={headCell}>
@@ -214,7 +214,7 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
                 </th>
                 <th
                   scope="col"
-                  className={`px-3 py-2 text-left font-mono text-label uppercase text-chalk ${wideOnly}`}
+                  className={`px-3 py-2 text-left text-label uppercase text-chalk ${wideOnly}`}
                 >
                   Share
                 </th>
@@ -247,7 +247,7 @@ export default function SpendingByCategoryTable({ report, selectedBudgetId, onSe
                 window's total, not another band inside the sheet. */}
             <tfoot>
               <tr className="bg-panel-raised">
-                <th scope="row" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="row" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   All spending
                 </th>
                 <td className={`${figureCell} font-medium text-chalk`}>

@@ -65,7 +65,7 @@ export default function SetupGuideCallout({ targetId, title, description, childr
         style={{ left: position.arrowLeft }}
       />
       <div className="relative pointer-events-auto">
-        <p className="mb-1 font-mono text-label uppercase text-azure">Getting started</p>
+        <p className="mb-1 text-label uppercase text-azure">Getting started</p>
         <h2 className="font-sans text-base font-semibold text-chalk">{title}</h2>
         <div className="mt-1 font-sans text-row text-chalk-soft">{description}</div>
         {children}

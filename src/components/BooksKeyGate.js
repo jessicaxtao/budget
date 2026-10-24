@@ -29,7 +29,7 @@ export default function BooksKeyGate({ children }) {
   if (status === BOOKS_KEY_STATUS.CHECKING) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ledger">
-        <p className="font-mono text-label uppercase tracking-wide text-chalk-soft">
+        <p className="text-label uppercase tracking-wide text-chalk-soft">
           Loading your books…
         </p>
       </div>

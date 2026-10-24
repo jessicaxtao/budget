@@ -92,7 +92,7 @@ export default function FixDriftModal({ show, row, period, handleClose }) {
     handleClose();
   }
 
-  const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+  const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
   const inputClass =
     "w-full rounded-lg border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
 
@@ -108,7 +108,7 @@ export default function FixDriftModal({ show, row, period, handleClose }) {
             <Line label={`${row.account.name}, as entered`} cents={row.valueCents} />
             <Line label="What the books make it" cents={row.derivedCents} />
             <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-edge pt-2">
-              <dt className="font-mono text-label uppercase text-chalk">Difference</dt>
+              <dt className="text-label uppercase text-chalk">Difference</dt>
               <dd className="whitespace-nowrap font-mono text-row font-medium tabular-nums text-chalk">
                 {formatCents(driftCents)}
               </dd>

@@ -47,7 +47,7 @@ export const toneFor = (line) => (line.slot == null ? CURRENT_TONE : SLOT_TONES[
 function Readout({ age, lines }) {
   return (
     <div className="pointer-events-none w-max rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">Age {age}</div>
+      <div className="text-label uppercase text-chalk-soft">Age {age}</div>
       <dl className="mt-1 grid grid-cols-[auto_auto] gap-x-3 font-mono text-label tabular-nums">
         {lines.map((line) => {
           const point = line.series.find((entry) => entry.age === age);
@@ -111,7 +111,7 @@ export default function ScenarioCompareChart({ lines }) {
         {drawn.map((line) => (
           <li key={line.key} className="flex items-center gap-1.5">
             <span className={`h-0.5 w-4 shrink-0 ${toneFor(line).swatch}`} aria-hidden="true" />
-            <span className="font-mono text-label uppercase text-chalk-soft">{line.label}</span>
+            <span className="text-label uppercase text-chalk-soft">{line.label}</span>
           </li>
         ))}
       </ul>

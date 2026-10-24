@@ -66,7 +66,7 @@ function BufferMeter({ ratio, label }) {
   );
 }
 
-const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
 
 const inputClass =
   "w-full border-0 border-b-2 border-edge bg-transparent px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
@@ -88,9 +88,9 @@ const TARGET_OPTIONS = [
 function Figure({ label, cents, tone = "text-chalk", note }) {
   return (
     <div className="bg-panel px-4 py-3">
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+      <dt className="text-label uppercase text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-figure font-medium ${tone}`}>{formatCents(cents)}</dd>
-      {note && <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>}
+      {note && <dd className="mt-0.5 text-label uppercase text-chalk-soft">{note}</dd>}
     </div>
   );
 }
@@ -123,7 +123,7 @@ export default function EmergencyFundPanel({
         >
           Emergency fund
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {/* A month count rather than a percentage, because that is the sentence
               the fund exists to answer — and it is readable even before anybody
               has set a target. "0.0 months covered" is not that sentence though:
@@ -173,7 +173,7 @@ export default function EmergencyFundPanel({
               fund.targetCents
             )} target`}
           />
-          <span className="font-mono text-label uppercase text-chalk-soft">
+          <span className="text-label uppercase text-chalk-soft">
             {Math.round(funded * 100)}% funded
           </span>
         </div>

@@ -368,7 +368,7 @@ export default function AuthPage() {
           <>
             <div className="my-5 flex items-center gap-3">
               <span className="h-px flex-1 bg-edge" />
-              <span className="font-mono text-label uppercase text-chalk-soft">or</span>
+              <span className="text-label uppercase text-chalk-soft">or</span>
               <span className="h-px flex-1 bg-edge" />
             </div>
             <Button

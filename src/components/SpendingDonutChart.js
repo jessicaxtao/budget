@@ -150,7 +150,7 @@ export default function SpendingDonutChart({ report }) {
           <span className="font-mono text-sm font-medium tabular-nums text-chalk">
             {formatCents(totalCents)}
           </span>
-          <span className="font-mono text-label uppercase text-chalk-soft">spent</span>
+          <span className="text-label uppercase text-chalk-soft">spent</span>
         </div>
       </div>
 
@@ -161,7 +161,7 @@ export default function SpendingDonutChart({ report }) {
             {/* Bucket heading */}
             <div className="mb-1 flex items-center gap-1.5">
               <span className={`h-2 w-2 shrink-0 ${section.tone.swatch}`} aria-hidden="true" />
-              <span className="font-mono text-label uppercase text-chalk-soft">
+              <span className="text-label uppercase text-chalk-soft">
                 {section.label}
               </span>
             </div>

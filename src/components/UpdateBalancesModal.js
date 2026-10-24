@@ -160,7 +160,7 @@ export default function UpdateBalancesModal({ show, period, tracked, handleClose
       <form ref={formRef} onSubmit={handleSubmit} onChange={recompute}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge bg-panel-raised px-4 py-3">
           <div>
-            <div className="font-mono text-label uppercase text-chalk-soft">
+            <div className="text-label uppercase text-chalk-soft">
               Net worth, as entered
             </div>
             {/* A status region, so the figure is announced as it changes rather
@@ -186,13 +186,13 @@ export default function UpdateBalancesModal({ show, period, tracked, handleClose
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-panel-raised">
-                  <th className="px-3 py-2 text-left font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-left text-label uppercase text-chalk">
                     Account
                   </th>
-                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                     In force
                   </th>
-                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                     {formatPeriod(period)}
                   </th>
                 </tr>
@@ -207,7 +207,7 @@ export default function UpdateBalancesModal({ show, period, tracked, handleClose
                     >
                       <td className="px-3 py-2">
                         <div className="font-sans text-row text-ink">{row.account.name}</div>
-                        <div className="font-mono text-label uppercase text-ink-soft">
+                        <div className="text-label uppercase text-ink-soft">
                           {isOwed(row.account) ? "Amount owed" : scopeLabel(row.account)}
                         </div>
                       </td>
@@ -220,7 +220,7 @@ export default function UpdateBalancesModal({ show, period, tracked, handleClose
                           {formatCents(shown(row.account, row.valueCents))}
                         </div>
                         <div
-                          className={`font-mono text-label uppercase ${
+                          className={`text-label uppercase ${
                             source.stale ? "text-vermilion-ink" : "text-ink-soft"
                           }`}
                         >

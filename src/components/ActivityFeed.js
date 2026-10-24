@@ -78,7 +78,7 @@ function ActivityRow({ entry, striped }) {
         </span>
         <span className="font-sans text-row text-chalk-soft">{description}</span>
       </div>
-      <span className="shrink-0 font-mono text-label uppercase text-chalk-soft">
+      <span className="shrink-0 text-label uppercase text-chalk-soft">
         {relativeTime(entry.createdAt)}
       </span>
     </div>

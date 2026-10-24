@@ -156,7 +156,7 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete, onUse 
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <div>
                 <h3 className="font-sans text-row font-semibold text-ink">{offer.name}</h3>
-                <p className="font-mono text-label uppercase text-ink-soft">
+                <p className="text-label uppercase text-ink-soft">
                   {[row.cardName ?? "A removed account", windowText(offer)].join(" · ")}
                 </p>
               </div>
@@ -233,7 +233,7 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete, onUse 
             </div>
 
             <dl className="mt-2 grid gap-x-6 gap-y-0.5 font-sans text-row text-ink-soft sm:grid-cols-[auto_1fr]">
-              <dt className="font-mono text-label uppercase">Counts</dt>
+              <dt className="text-label uppercase">Counts</dt>
               <dd>
                 {countsText(row)}
                 {row.missing > 0 &&
@@ -241,19 +241,19 @@ export default function CardOfferList({ rows, onEdit, onRepeat, onDelete, onUse 
               </dd>
               {reward && (
                 <>
-                  <dt className="font-mono text-label uppercase">Reward</dt>
+                  <dt className="text-label uppercase">Reward</dt>
                   <dd>{reward}</dd>
                 </>
               )}
               {row.overCents > 0 && (
                 <>
-                  <dt className="font-mono text-label uppercase">Past the limit</dt>
+                  <dt className="text-label uppercase">Past the limit</dt>
                   <dd>{formatCents(row.overCents)} at the card's ordinary rate</dd>
                 </>
               )}
               {showElsewhere && (
                 <>
-                  <dt className="font-mono text-label uppercase">Elsewhere</dt>
+                  <dt className="text-label uppercase">Elsewhere</dt>
                   <dd className="text-vermilion-ink">
                     {formatCents(row.elsewhereCents)} of matching spending went on another account
                     while this offer{" "}

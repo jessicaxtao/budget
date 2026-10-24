@@ -297,7 +297,7 @@ export default function AssignIncomeModal({
       <form ref={formRef} onSubmit={handleSubmit} onChange={recompute}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge bg-panel-raised px-4 py-3">
           <div>
-            <div className="font-mono text-label uppercase text-chalk-soft">Remaining to assign</div>
+            <div className="text-label uppercase text-chalk-soft">Remaining to assign</div>
             {/* A status region, so the figure is announced as it changes
                 rather than only being visible. */}
             <div role="status" className={`font-mono text-figure font-medium ${remainingTone}`}>
@@ -307,7 +307,7 @@ export default function AssignIncomeModal({
                 the same place and weight the tiles elsewhere put a note that
                 qualifies a figure above it. */}
             {notes.length > 0 && (
-              <div className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+              <div className="mt-0.5 text-label uppercase text-chalk-soft">
                 {notes.join(" · ")}
               </div>
             )}
@@ -318,7 +318,7 @@ export default function AssignIncomeModal({
         </div>
 
         {goalRows.length > 0 && (
-          <div className="mb-2 font-mono text-label uppercase text-chalk-soft">Categories</div>
+          <div className="mb-2 text-label uppercase text-chalk-soft">Categories</div>
         )}
         {editable.length === 0 ? (
           <p className="mb-5 font-sans text-row text-chalk-soft">
@@ -329,19 +329,19 @@ export default function AssignIncomeModal({
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-panel-raised">
-                  <th className="px-3 py-2 text-left font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-left text-label uppercase text-chalk">
                     Category
                   </th>
-                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                     Estimate
                   </th>
-                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                     Goal
                   </th>
-                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                     Assign
                   </th>
-                  <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                  <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                     Quick fill
                   </th>
                 </tr>
@@ -351,7 +351,7 @@ export default function AssignIncomeModal({
                   <tr key={row.budgetId} className={i % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
                     <td className="px-3 py-2">
                       <div className="font-sans text-row text-ink">{row.name}</div>
-                      <div className="font-mono text-label uppercase text-ink-soft">
+                      <div className="text-label uppercase text-ink-soft">
                         {formatCents(row.availableCents)} available
                       </div>
                     </td>
@@ -429,20 +429,20 @@ export default function AssignIncomeModal({
 
         {goalRows.length > 0 && (
           <>
-            <div className="mb-2 font-mono text-label uppercase text-chalk-soft">
+            <div className="mb-2 text-label uppercase text-chalk-soft">
               Savings goals
             </div>
             <div className="mb-5 scroll-x">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-panel-raised">
-                    <th className="px-3 py-2 text-left font-mono text-label uppercase text-chalk">
+                    <th className="px-3 py-2 text-left text-label uppercase text-chalk">
                       Goal
                     </th>
-                    <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                    <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                       Remaining
                     </th>
-                    <th className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                    <th className="px-3 py-2 text-right text-label uppercase text-chalk">
                       Assign
                     </th>
                     <th className="w-12 px-3 py-2">
@@ -459,7 +459,7 @@ export default function AssignIncomeModal({
                             funded out of an off-budget holding is that much
                             closer to its target, and Remaining beside it is
                             already read that way. */}
-                        <div className="font-mono text-label uppercase text-ink-soft">
+                        <div className="text-label uppercase text-ink-soft">
                           {formatCents(row.savedCents)} of {formatCents(row.targetCents)}
                         </div>
                       </td>

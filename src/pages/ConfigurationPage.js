@@ -90,7 +90,7 @@ function ColumnHeading({ title, children }) {
         title ? "border-b border-edge pb-2" : ""
       }`}
     >
-      {title ? <h2 className="font-mono text-label uppercase text-chalk">{title}</h2> : <span />}
+      {title ? <h2 className="text-label uppercase text-chalk">{title}</h2> : <span />}
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );

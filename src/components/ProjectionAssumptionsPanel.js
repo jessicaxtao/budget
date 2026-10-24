@@ -34,7 +34,7 @@ const INCOME_OPTIONS = [
 
 // The label style without its `block`, which would turn a header cell into a
 // stacked box and pull the columns out from over the rows they name.
-const headClass = "pb-1.5 font-mono text-label font-normal uppercase text-chalk-soft";
+const headClass = "pb-1.5 text-label font-normal uppercase text-chalk-soft";
 
 const cellInputClass =
   "w-full border-0 border-b border-edge bg-transparent px-0 py-1 font-mono text-row text-chalk outline-none transition-colors focus:border-azure";
@@ -182,7 +182,7 @@ function DebtList({ debtRows, onChange }) {
           <tr key={row.account.id}>
             <th scope="row" className="py-1 pr-4 text-left font-sans text-row font-normal text-chalk">
               {row.account.name}
-              <span className="block font-mono text-label text-chalk-soft">
+              <span className="block text-label text-chalk-soft">
                 {formatCents(row.owedCents)} owed
               </span>
             </th>
@@ -244,7 +244,7 @@ export default function ProjectionAssumptionsPanel({
         >
           Net worth assumptions
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           Nominal rates, before inflation
         </span>
       </div>

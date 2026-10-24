@@ -8,7 +8,7 @@ import { formatBps, formatCents } from "../utils";
  * Each field keeps its stored seed so opening a section never writes a value.
  */
 
-export const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+export const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
 
 export const inputClass =
   "w-full border-0 border-b-2 border-edge bg-transparent px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
@@ -30,8 +30,8 @@ export function Block({ title, hint, children }) {
   return (
     <section className="border-t border-edge px-4 py-4 first:border-t-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="font-mono text-label uppercase text-chalk">{title}</h3>
-        {hint && <span className="font-mono text-label uppercase text-chalk-soft">{hint}</span>}
+        <h3 className="text-label uppercase text-chalk">{title}</h3>
+        {hint && <span className="text-label uppercase text-chalk-soft">{hint}</span>}
       </div>
       <div className="mt-3">{children}</div>
     </section>
@@ -96,7 +96,7 @@ export default function RetirementAssumptionsPanel({
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Investment assumptions
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           Rates before inflation
         </span>
       </div>

@@ -43,7 +43,7 @@ function GoalMeter({ ratio, label }) {
 
 const figureClass = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
 
-const headClass = "whitespace-nowrap py-2 font-mono text-label uppercase text-chalk";
+const headClass = "whitespace-nowrap py-2 text-label uppercase text-chalk";
 
 const COLUMNS = [
   { key: "goal", label: () => "Goal", className: "px-4 text-left" },
@@ -90,7 +90,7 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
   } else if (months <= 0) {
     const overdue = Math.abs(months);
     paceContent = (
-      <span className="text-vermilion-ink font-mono text-label uppercase">
+      <span className="text-vermilion-ink text-label uppercase">
         {overdue === 0 ? "Due this month" : `${overdue}mo overdue`}
       </span>
     );
@@ -100,7 +100,7 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
     paceContent = (
       <div>
         <div className="text-ink">{formatCents(monthlyCents)}/mo</div>
-        <div className="font-mono text-label uppercase text-ink-soft">{monthsLabel}</div>
+        <div className="text-label uppercase text-ink-soft">{monthsLabel}</div>
       </div>
     );
   }
@@ -125,12 +125,12 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
         <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
           {row.name}
           {row.targetDate && (
-            <div className="mt-0.5 font-mono text-label uppercase text-ink-soft">
+            <div className="mt-0.5 text-label uppercase text-ink-soft">
               By {formatDateMedium(row.targetDate)}
             </div>
           )}
           {row.categoryName && (
-            <div className="mt-0.5 font-mono text-label uppercase text-ink-soft">
+            <div className="mt-0.5 text-label uppercase text-ink-soft">
               Category: {row.categoryName}
             </div>
           )}
@@ -178,7 +178,7 @@ function GoalRow({ row, striped, error, onAssign, onEdit, onDelete, sortable }) 
           />
           {confirmation !== null && (
             <div
-              className={`mt-1 font-mono text-label uppercase ${confirmation > 0 ? "text-verdant" : "text-ink-soft"}`}
+              className={`mt-1 text-label uppercase ${confirmation > 0 ? "text-verdant" : "text-ink-soft"}`}
             >
               {confirmation > 0 ? "+" : ""}
               {formatCents(confirmation)}

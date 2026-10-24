@@ -267,7 +267,7 @@ export default function DashboardPage() {
         title="Dashboard"
         actions={
           <div className="text-right">
-            <div className="font-mono text-label uppercase text-chalk-soft">Today</div>
+            <div className="text-label uppercase text-chalk-soft">Today</div>
             <div className="mt-0.5 font-sans text-sm font-medium text-chalk">
               {formatDateLong(today)}
             </div>

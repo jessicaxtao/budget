@@ -164,7 +164,7 @@ const figureInputClass = `${figureClass} border-0 border-b-2 border-rule bg-tran
 function ColumnHeadings() {
   return (
     <div
-      className={`${lineClass} border-b border-rule bg-band px-3 py-1.5 font-mono text-label uppercase text-ink`}
+      className={`${lineClass} border-b border-rule bg-band px-3 py-1.5 text-label uppercase text-ink`}
     >
       <span aria-hidden="true" className={`${handleClass} ${PLACE.handle} invisible`}>
         <GripIcon />
@@ -493,7 +493,7 @@ function Section({
           {/* What a category added here starts on — stated, not offered: the one
               control that sets it lives in the group's own form, where it was
               chosen, and every row beneath already names what it settled on. */}
-          <span className="font-mono text-label uppercase text-chalk-soft">
+          <span className="text-label uppercase text-chalk-soft">
             {section.budgets.length}{" "}
             {section.budgets.length === 1 ? "category" : "categories"} ·{" "}
             <span className="text-chalk">{formatCents(section.plannedCents)}</span>

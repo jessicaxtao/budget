@@ -195,7 +195,7 @@ function Readout({ entry, slices }) {
 
   return (
     <div className="pointer-events-none w-max max-w-[18rem] rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">
+      <div className="text-label uppercase text-chalk-soft">
         {formatPeriod(entry.period)}
       </div>
       <div className="mt-0.5 font-sans text-base font-semibold tabular-nums text-chalk">
@@ -276,12 +276,12 @@ export default function NetWorthChart({ series, slices }) {
         {drawn.map((slice) => (
           <span key={slice.key} className="flex items-center gap-1.5">
             <Swatch className={slice.swatch} shade={slice.shade} />
-            <span className="font-mono text-label uppercase text-chalk-soft">{slice.label}</span>
+            <span className="text-label uppercase text-chalk-soft">{slice.label}</span>
           </span>
         ))}
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 bg-chalk" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">Net worth</span>
+          <span className="text-label uppercase text-chalk-soft">Net worth</span>
         </span>
       </div>
 
@@ -441,7 +441,7 @@ export default function NetWorthChart({ series, slices }) {
                 x={centreOf(label.index)}
                 y={plot.bottom + 16}
                 textAnchor="middle"
-                className="fill-chalk-soft font-mono text-label tracking-normal"
+                className="fill-chalk-soft text-label tracking-normal"
               >
                 {formatPeriodShort(label.period)}
                 {label.year && (

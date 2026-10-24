@@ -133,7 +133,7 @@ function DeductibleCell({ row, onCommit, onReject }) {
             storage: the figure is not wrong, it is out of date, and the claim is
             the clamped one until it is put right. */}
         {row.clamped && (
-          <span className="mt-0.5 block text-right font-mono text-label uppercase text-vermilion-ink">
+          <span className="mt-0.5 block text-right text-label uppercase text-vermilion-ink">
             {formatCents(row.deductibleCents)} claimed
           </span>
         )}
@@ -175,7 +175,7 @@ function ReceiptCell({ row, label, onCommit, onReject, onAttach, onDetach, onOpe
   }
 
   const linkClass =
-    "font-mono text-label uppercase text-azure underline underline-offset-2 hover:text-ink disabled:no-underline disabled:opacity-60";
+    "text-label uppercase text-azure underline underline-offset-2 hover:text-ink disabled:no-underline disabled:opacity-60";
 
   return (
     <td data-label="Receipt" className="px-3 py-1">
@@ -191,13 +191,13 @@ function ReceiptCell({ row, label, onCommit, onReject, onAttach, onDetach, onOpe
           className="h-3.5 w-3.5 shrink-0 accent-ink-soft"
         />
         {row.needsAcknowledgment && (
-          <span className="font-mono text-label uppercase text-vermilion-ink">Needed</span>
+          <span className="text-label uppercase text-vermilion-ink">Needed</span>
         )}
       </label>
       {canFile && (
         <div className="mt-0.5 flex items-center gap-2">
           {busy ? (
-            <span className="font-mono text-label uppercase text-ink-soft">Saving…</span>
+            <span className="text-label uppercase text-ink-soft">Saving…</span>
           ) : row.receipt ? (
             <>
               <button
@@ -216,7 +216,7 @@ function ReceiptCell({ row, label, onCommit, onReject, onAttach, onDetach, onOpe
                   if (!result.ok) onReject(row, result.error);
                 }}
                 aria-label={`Remove receipt for ${label}`}
-                className="font-mono text-label uppercase text-ink-soft hover:text-vermilion-ink"
+                className="text-label uppercase text-ink-soft hover:text-vermilion-ink"
               >
                 ×
               </button>
@@ -268,7 +268,7 @@ function DonationRow({
   return (
     <>
       <tr className={rowBg(index)}>
-        <td data-label="Date" className="whitespace-nowrap px-3 py-1 font-mono text-row text-ink-soft">
+        <td data-label="Date" className="whitespace-nowrap px-3 py-1 text-row text-ink-soft">
           {formatDayShort(row.date)}
         </td>
         <td data-label="Organization" className="px-3 py-1">
@@ -298,7 +298,7 @@ function DonationRow({
             <span className="ml-2 text-ink-soft">{row.description}</span>
           )}
           {row.returned && (
-            <span className="ml-2 font-mono text-label uppercase text-ink-soft">returned</span>
+            <span className="ml-2 text-label uppercase text-ink-soft">returned</span>
           )}
         </td>
         <td data-label="Given" className={`${figureCell} font-medium text-ink`}>
@@ -398,7 +398,7 @@ export default function DonationList({
                   <th
                     key={column.key}
                     scope="col"
-                    className={`whitespace-nowrap px-3 py-2 font-mono text-label uppercase text-chalk ${
+                    className={`whitespace-nowrap px-3 py-2 text-label uppercase text-chalk ${
                       column.width ?? ""
                     } ${column.numeric ? "text-right" : "text-left"}`}
                   >
@@ -436,7 +436,7 @@ export default function DonationList({
                 <th
                   scope="row"
                   colSpan={LEAD_SPAN}
-                  className="px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                  className="px-3 py-2 text-left text-label uppercase text-chalk"
                 >
                   {year}
                 </th>

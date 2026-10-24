@@ -115,14 +115,14 @@ export default function PlanHealthSummary({
     <section className={`mb-4 overflow-hidden rounded-2xl border ${tone.border} bg-panel`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Plan health</h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">Per month</span>
+        <span className="text-label uppercase text-chalk-soft">Per month</span>
       </div>
 
       {/* Hairline dividers drawn by the grid gap showing the edge colour through
           between the tiles, so they stay 1px on every display. */}
       <dl className="grid gap-px bg-edge sm:grid-cols-3">
         <div className="bg-panel px-4 py-3">
-          <dt className="font-mono text-label uppercase text-chalk-soft">Expected income</dt>
+          <dt className="text-label uppercase text-chalk-soft">Expected income</dt>
           <dd className="mt-1 font-mono text-figure font-medium text-verdant">
             {formatCents(expectedIncomeCents)}
           </dd>
@@ -130,7 +130,7 @@ export default function PlanHealthSummary({
               show — otherwise it is exactly what the income sources below add
               up to, and a caption saying so twice is the fact charged twice. */}
           {pretaxMonthlyCents > 0 && (
-            <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+            <dd className="mt-0.5 text-label uppercase text-chalk-soft">
               {formatCents(expectedIncomeCents - pretaxMonthlyCents)} take-home +{" "}
               {formatCents(pretaxMonthlyCents)} pretax
             </dd>
@@ -138,19 +138,19 @@ export default function PlanHealthSummary({
         </div>
 
         <div className="bg-panel px-4 py-3">
-          <dt className="font-mono text-label uppercase text-chalk-soft">Planned expenses</dt>
+          <dt className="text-label uppercase text-chalk-soft">Planned expenses</dt>
           <dd className="mt-1 font-mono text-figure font-medium text-chalk">
             {formatCents(plannedCents)}
           </dd>
           {pretaxMonthlyCents > 0 && (
-            <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+            <dd className="mt-0.5 text-label uppercase text-chalk-soft">
               Includes {formatCents(pretaxMonthlyCents)} pretax retirement
             </dd>
           )}
         </div>
 
         <div className="bg-panel px-4 py-3">
-          <dt className="font-mono text-label uppercase text-chalk-soft">{tone.label}</dt>
+          <dt className="text-label uppercase text-chalk-soft">{tone.label}</dt>
           <dd className={`mt-1 font-mono text-figure font-medium ${tone.text}`}>
             {unknown ? "—" : formatCents(unplannedCents)}
           </dd>
@@ -164,7 +164,7 @@ export default function PlanHealthSummary({
           in it. */}
       <div className="flex flex-wrap items-end gap-4 border-t border-edge px-4 py-3">
         <label className="block sm:w-72">
-          <span className="font-mono text-label uppercase text-chalk-soft">
+          <span className="text-label uppercase text-chalk-soft">
             Pretax retirement contributions
           </span>
           <input
@@ -227,7 +227,7 @@ export default function PlanHealthSummary({
       {splitCents > 0 && (
         <>
           <div className="border-t border-edge px-4 py-3">
-            <h3 className="font-mono text-label uppercase text-chalk">Where it goes</h3>
+            <h3 className="text-label uppercase text-chalk">Where it goes</h3>
           </div>
 
           {/* The same tiles as the figures above, so the eye reads the split as
@@ -243,7 +243,7 @@ export default function PlanHealthSummary({
           <dl className="grid gap-px border-t border-edge bg-edge sm:grid-cols-2 lg:grid-cols-4">
             {bucketRows.map((row) => (
               <div key={row.bucket} className="bg-panel px-4 py-3">
-                <dt className="flex items-center gap-2 font-mono text-label uppercase text-chalk-soft">
+                <dt className="flex items-center gap-2 text-label uppercase text-chalk-soft">
                   <span
                     aria-hidden="true"
                     className={`h-2 w-2 shrink-0 ${bucketTone(row.bucket).swatch}`}
@@ -257,7 +257,7 @@ export default function PlanHealthSummary({
                 >
                   {row.percent}%
                 </dd>
-                <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">
+                <dd className="mt-0.5 text-label uppercase text-chalk-soft">
                   {formatCents(row.plannedCents)} ·{" "}
                   {row.categoryCount === 1 ? "1 category" : `${row.categoryCount} categories`}
                   {/* The one bucket whose total does not equal its categories'

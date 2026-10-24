@@ -159,7 +159,7 @@ function Readout({ entry }) {
 
   return (
     <div className="pointer-events-none w-max max-w-[18rem] rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">
+      <div className="text-label uppercase text-chalk-soft">
         {formatPeriod(entry.period)}
       </div>
       <div
@@ -265,12 +265,12 @@ export default function CashflowChart({
         {SERIES.map((entry) => (
           <span key={entry.key} className="flex items-center gap-1.5">
             <Swatch className={entry.swatch} />
-            <span className="font-mono text-label uppercase text-chalk-soft">{entry.label}</span>
+            <span className="text-label uppercase text-chalk-soft">{entry.label}</span>
           </span>
         ))}
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 bg-chalk" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">Net</span>
+          <span className="text-label uppercase text-chalk-soft">Net</span>
         </span>
       </div>
 
@@ -408,7 +408,7 @@ export default function CashflowChart({
                 x={centreOf(label.index)}
                 y={plot.bottom + 16}
                 textAnchor="middle"
-                className="fill-chalk-soft font-mono text-label tracking-normal"
+                className="fill-chalk-soft text-label tracking-normal"
               >
                 {formatPeriodShort(label.period)}
                 {label.year && (

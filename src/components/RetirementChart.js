@@ -68,7 +68,7 @@ function scaleFor(series, targetCents) {
 function Readout({ point, retirementAge }) {
   return (
     <div className="pointer-events-none w-max rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">
+      <div className="text-label uppercase text-chalk-soft">
         Age {point.age} · {point.age < retirementAge ? "saving" : "retired"}
       </div>
       <div className="mt-0.5 font-sans text-base font-semibold tabular-nums text-chalk">
@@ -121,18 +121,18 @@ export default function RetirementChart({ series, targetCents, retirementAge, de
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 pt-3">
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 bg-azure" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">Savings</span>
+          <span className="text-label uppercase text-chalk-soft">Savings</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 bg-sulfur" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">
+          <span className="text-label uppercase text-chalk-soft">
             Needed at {retirementAge}
           </span>
         </span>
         {depletionAge != null && (
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 shrink-0 bg-vermilion" aria-hidden="true" />
-            <span className="font-mono text-label uppercase text-vermilion">
+            <span className="text-label uppercase text-vermilion">
               Runs out at {depletionAge}
             </span>
           </span>
@@ -225,7 +225,7 @@ export default function RetirementChart({ series, targetCents, retirementAge, de
               x={xOf(splitIndex) + 5}
               y={plot.top + 2}
               dominantBaseline="hanging"
-              className="fill-chalk-soft font-mono text-label tracking-normal"
+              className="fill-chalk-soft text-label tracking-normal"
             >
               RETIRE AT {retirementAge}
             </text>

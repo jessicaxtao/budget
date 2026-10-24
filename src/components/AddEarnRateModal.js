@@ -191,7 +191,7 @@ export default function AddEarnRateModal({ show, rate, accountId, handleClose })
             >
               {!editing && (
                 <div className="mb-2 flex items-baseline justify-between gap-4">
-                  <span className="font-mono text-label uppercase text-chalk-soft">
+                  <span className="text-label uppercase text-chalk-soft">
                     Rate {index + 1}
                   </span>
                   {rows.length > 1 && (

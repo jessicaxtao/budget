@@ -124,7 +124,7 @@ function coverageNote(report) {
 function MonthField({ id, label, value, min, max, onChange }) {
   return (
     <label htmlFor={id} className="flex items-center gap-1.5">
-      <span className="font-mono text-label uppercase text-chalk-soft">{label}</span>
+      <span className="text-label uppercase text-chalk-soft">{label}</span>
       <input
         id={id}
         type="month"
@@ -132,7 +132,7 @@ function MonthField({ id, label, value, min, max, onChange }) {
         min={min}
         max={max}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-edge bg-panel-raised px-2 py-1 font-mono text-label uppercase text-chalk outline-none transition-colors focus:border-azure"
+        className="rounded-lg border border-edge bg-panel-raised px-2 py-1 text-label uppercase text-chalk outline-none transition-colors focus:border-azure"
       />
     </label>
   );
@@ -275,11 +275,11 @@ export default function ReportsPage() {
             </div>
             <dl className="grid gap-px bg-edge sm:grid-cols-2">
               <div className="bg-panel px-4 py-3">
-                <dt className="font-mono text-label uppercase text-chalk-soft">Recorded from a schedule</dt>
+                <dt className="text-label uppercase text-chalk-soft">Recorded from a schedule</dt>
                 <dd className="mt-1 font-mono text-lg tabular-nums text-chalk">{formatCents(report.scheduledNetSpentCents)}</dd>
               </div>
               <div className="bg-panel px-4 py-3">
-                <dt className="font-mono text-label uppercase text-chalk-soft">Other spending</dt>
+                <dt className="text-label uppercase text-chalk-soft">Other spending</dt>
                 <dd className="mt-1 font-mono text-lg tabular-nums text-chalk">{formatCents(report.otherNetSpentCents)}</dd>
               </div>
             </dl>
@@ -357,7 +357,7 @@ export default function ReportsPage() {
                 rows scrolls inside the card rather than pushing the page down,
                 so the header stays put and every column keeps its name. */}
             <details className="border-t border-edge">
-              <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+              <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                 Show these figures as a table
               </summary>
               <div className="max-h-[30rem] overflow-auto border-t border-edge">
@@ -366,7 +366,7 @@ export default function ReportsPage() {
                     <tr>
                       <th
                         scope="col"
-                        className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                        className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left text-label uppercase text-chalk"
                       >
                         Month
                       </th>
@@ -374,7 +374,7 @@ export default function ReportsPage() {
                         <th
                           key={label}
                           scope="col"
-                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right text-label uppercase text-chalk"
                         >
                           {label}
                         </th>
@@ -419,7 +419,7 @@ export default function ReportsPage() {
                     <tr className="bg-panel-raised">
                       <th
                         scope="row"
-                        className="px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                        className="px-4 py-2 text-left text-label uppercase text-chalk"
                       >
                         {report.months.length} months
                       </th>
@@ -455,7 +455,7 @@ export default function ReportsPage() {
                   Where it came from, where it went
                 </h2>
                 {flowsView === "sankey" && flows && (
-                  <span className="font-mono text-label uppercase text-chalk-soft">
+                  <span className="text-label uppercase text-chalk-soft">
                     {flows.shortfallCents > 0
                       ? `${formatCents(flows.shortfallCents)} spent beyond income`
                       : `${formatCents(flows.keptCents)} kept`}
@@ -481,7 +481,7 @@ export default function ReportsPage() {
 
             {flowsView === "sankey" && flows && (
               <details className="border-t border-edge">
-                <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+                <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                   Show the flows as a table
                 </summary>
                 <div className="max-h-[30rem] overflow-auto border-t border-edge">
@@ -492,7 +492,7 @@ export default function ReportsPage() {
                           <th
                             key={label}
                             scope="col"
-                            className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                            className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left text-label uppercase text-chalk"
                           >
                             {label}
                           </th>
@@ -501,7 +501,7 @@ export default function ReportsPage() {
                           <th
                             key={label}
                             scope="col"
-                            className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                            className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right text-label uppercase text-chalk"
                           >
                             {label}
                           </th>
@@ -550,7 +550,7 @@ export default function ReportsPage() {
               <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
                 Against the plan
               </h2>
-              <span className="font-mono text-label uppercase text-chalk-soft">
+              <span className="text-label uppercase text-chalk-soft">
                 {report.plannedCents > 0
                   ? `${formatCents(report.plannedCents)} planned a month`
                   : "No estimates set"}
@@ -594,7 +594,7 @@ export default function ReportsPage() {
                 figures as a table" on one page are two controls a reader
                 tabbing between them cannot tell apart. */}
             <details className="border-t border-edge">
-              <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+              <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                 Show the plan comparison as a table
               </summary>
               <div className="max-h-[30rem] overflow-auto border-t border-edge">
@@ -603,7 +603,7 @@ export default function ReportsPage() {
                     <tr>
                       <th
                         scope="col"
-                        className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                        className="sticky top-0 z-10 bg-panel-raised px-4 py-2 text-left text-label uppercase text-chalk"
                       >
                         Month
                       </th>
@@ -615,7 +615,7 @@ export default function ReportsPage() {
                         <th
                           key={bucket.key}
                           scope="col"
-                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right text-label uppercase text-chalk"
                         >
                           {bucket.label}
                         </th>
@@ -624,7 +624,7 @@ export default function ReportsPage() {
                         <th
                           key={label}
                           scope="col"
-                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                          className="sticky top-0 z-10 whitespace-nowrap bg-panel-raised px-3 py-2 text-right text-label uppercase text-chalk"
                         >
                           {label}
                         </th>

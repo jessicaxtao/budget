@@ -25,7 +25,7 @@ const COLUMNS = [
 function Figure({ label, children, tone = "text-chalk" }) {
   return (
     <div className="bg-panel px-4 py-3">
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+      <dt className="text-label uppercase text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-lg font-medium ${tone}`}>{children}</dd>
     </div>
   );
@@ -54,7 +54,7 @@ export default function NetWorthProjection({ projection, retirementAge, lifeExpe
         >
           Net worth by age
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">Today's dollars</span>
+        <span className="text-label uppercase text-chalk-soft">Today's dollars</span>
       </div>
 
       <dl className="grid gap-px border-b border-edge bg-edge sm:grid-cols-3">
@@ -83,21 +83,21 @@ export default function NetWorthProjection({ projection, retirementAge, lifeExpe
       )}
 
       <details>
-        <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+        <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
           Show every year
         </summary>
         <div className="max-h-96 overflow-auto border-t border-edge">
           <table className="w-full border-collapse">
             <thead className="sticky top-0">
               <tr className="bg-panel-raised">
-                <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   Age
                 </th>
                 {COLUMNS.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
-                    className="px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                    className="px-3 py-2 text-right text-label uppercase text-chalk"
                   >
                     {column.label}
                   </th>
@@ -110,7 +110,7 @@ export default function NetWorthProjection({ projection, retirementAge, lifeExpe
                   <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
                     {point.age}
                     {point.age === retirementAge && (
-                      <span className="ml-2 font-mono text-label uppercase text-ink-soft">Retire</span>
+                      <span className="ml-2 text-label uppercase text-ink-soft">Retire</span>
                     )}
                     {point.events?.length > 0 && (
                       <span className="block font-sans text-label text-ink-soft">

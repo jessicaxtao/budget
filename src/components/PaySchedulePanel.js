@@ -43,7 +43,7 @@ import { formatDateMedium, formatDayDelta } from "../utils";
  * it was not taken.
  */
 
-const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
 
 // No `w-full` here: it has to be layered on by each caller instead of baked
 // in, because Tailwind resolves same-specificity width utilities by their
@@ -87,7 +87,7 @@ export default function PaySchedulePanel({ schedule, paycheck, error, onChange }
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Pay schedule
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           Counts down on the dashboard
         </span>
       </div>

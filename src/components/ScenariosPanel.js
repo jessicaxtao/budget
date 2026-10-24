@@ -22,7 +22,7 @@ import { formatCents } from "../utils";
  * a scenario differs from the current plan only by what was saved in it.
  */
 
-const head = "px-3 py-2 text-right font-mono text-label uppercase text-chalk font-normal";
+const head = "px-3 py-2 text-right text-label uppercase text-chalk font-normal";
 const cell = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums text-ink";
 
 function verdict(outlook) {
@@ -100,14 +100,14 @@ export default function ScenariosPanel({
         <h2 id="scenarios-heading" className="font-sans text-base font-semibold tracking-tight text-chalk">
           Scenarios
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           Up to {MAX_SCENARIOS} saved · today&rsquo;s dollars
         </span>
       </div>
 
       <form onSubmit={save} className="flex flex-wrap items-end gap-3 border-b border-edge px-4 py-3">
         <label className="block min-w-[14rem] flex-1">
-          <span className="mb-1.5 block font-mono text-label uppercase text-chalk-soft">
+          <span className="mb-1.5 block text-label uppercase text-chalk-soft">
             Save the current plan as
           </span>
           <input
@@ -144,7 +144,7 @@ export default function ScenariosPanel({
         <table className="stack w-full border-collapse" aria-label="Plans compared">
           <thead>
             <tr className="bg-panel-raised">
-              <th scope="col" className="px-4 py-2 text-left font-mono text-label font-normal uppercase text-chalk">
+              <th scope="col" className="px-4 py-2 text-left text-label font-normal uppercase text-chalk">
                 Plan
               </th>
               <th scope="col" className={head}>Retire at</th>
@@ -165,7 +165,7 @@ export default function ScenariosPanel({
                     <span className={`h-0.5 w-3 shrink-0 ${toneFor({ slot: row.scenario?.slot ?? null }).swatch}`} aria-hidden="true" />
                     {row.label}
                     {row.inUse && (
-                      <span className="font-mono text-label uppercase text-ink-soft">In use</span>
+                      <span className="text-label uppercase text-ink-soft">In use</span>
                     )}
                   </span>
                 </th>
@@ -211,7 +211,7 @@ export default function ScenariosPanel({
       {sensitivity.length > 0 && (
         <div className="border-t border-edge">
           <div className="px-4 pb-1 pt-3">
-            <h3 className="font-mono text-label uppercase text-chalk">What one point changes</h3>
+            <h3 className="text-label uppercase text-chalk">What one point changes</h3>
             <p className="mt-1 font-sans text-row text-chalk-soft">
               The current plan, rerun with one rate a percentage point higher or lower and everything
               else as it is.
@@ -221,7 +221,7 @@ export default function ScenariosPanel({
             <table className="w-full border-collapse" aria-label="Sensitivity to the rates">
               <thead>
                 <tr className="bg-panel-raised">
-                  <th scope="col" className="px-4 py-2 text-left font-mono text-label font-normal uppercase text-chalk">
+                  <th scope="col" className="px-4 py-2 text-left text-label font-normal uppercase text-chalk">
                     If
                   </th>
                   <th scope="col" className={head}>Against the need</th>

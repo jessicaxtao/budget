@@ -47,7 +47,7 @@ function IncomeRow({ row, index, onDelete, sortable }) {
             {cadenceLabel(row.cadence)}
           </div>
           {note && (
-            <div className="font-mono text-label uppercase text-ink-soft">{note}</div>
+            <div className="text-label uppercase text-ink-soft">{note}</div>
           )}
         </div>
       </td>
@@ -95,7 +95,7 @@ export default function ExpectedIncomeTable({
           Expected income
         </h2>
         <div className="flex flex-wrap items-center gap-4">
-          <span className="font-mono text-label uppercase text-chalk-soft">Per month</span>
+          <span className="text-label uppercase text-chalk-soft">Per month</span>
           {actions}
         </div>
       </div>
@@ -110,16 +110,16 @@ export default function ExpectedIncomeTable({
           <table className="stack w-full border-collapse">
             <thead>
               <tr className="bg-panel-raised">
-                <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   Source
                 </th>
-                <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   Cadence
                 </th>
-                <th scope="col" className="px-4 py-2 text-right font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-right text-label uppercase text-chalk">
                   Per payment
                 </th>
-                <th scope="col" className="px-4 py-2 text-right font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-right text-label uppercase text-chalk">
                   Per month
                 </th>
                 <th className="w-16 px-4 py-2">
@@ -145,7 +145,7 @@ export default function ExpectedIncomeTable({
             </tbody>
             <tfoot>
               <tr className="bg-band">
-                <td colSpan={3} className="px-4 py-2 font-mono text-label uppercase text-ink">
+                <td colSpan={3} className="px-4 py-2 text-label uppercase text-ink">
                   Expected each month
                   {/* The rows above are the sources on file; this total is
                       bigger than their sum by exactly the pretax figure once

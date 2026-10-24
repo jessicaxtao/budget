@@ -95,7 +95,7 @@ export default function PayeeList() {
       <details>
         <summary className="cursor-pointer px-4 py-3 marker:text-chalk-soft">
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">Payees</span>
-          <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
+          <span className="ml-3 text-label uppercase text-chalk-soft">
             {payees.length === 0
               ? "Built as you enter transactions"
               : `${payees.length} ${payees.length === 1 ? "payee" : "payees"} · rename, merge, set what each opens on`}
@@ -113,7 +113,7 @@ export default function PayeeList() {
           </p>
 
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-edge px-4 py-2.5">
-            <span className="font-mono text-label uppercase text-chalk-soft">
+            <span className="text-label uppercase text-chalk-soft">
               Removing a payee keeps its transactions — they simply stop naming anybody.
             </span>
             {/* There is no Edit here, unlike the account and organisation lists:
@@ -154,31 +154,31 @@ export default function PayeeList() {
                       and the remainder is a sensible width. */}
                   <th
                     scope="col"
-                    className="w-72 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                    className="w-72 px-3 py-2 text-left text-label uppercase text-chalk"
                   >
                     Payee
                   </th>
                   <th
                     scope="col"
-                    className="w-56 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                    className="w-56 px-3 py-2 text-left text-label uppercase text-chalk"
                   >
                     Usually filed under
                   </th>
                   <th
                     scope="col"
-                    className="w-44 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                    className="w-44 px-3 py-2 text-left text-label uppercase text-chalk"
                   >
                     Usually paid through
                   </th>
                   <th
                     scope="col"
-                    className="w-36 px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                    className="w-36 px-3 py-2 text-left text-label uppercase text-chalk"
                   >
                     Opens as
                   </th>
                   <th
                     scope="col"
-                    className="w-20 px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                    className="w-20 px-3 py-2 text-right text-label uppercase text-chalk"
                   >
                     Rows
                   </th>

@@ -34,7 +34,7 @@ export default function HouseholdPanel() {
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">
             Household sharing
           </span>
-          <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
+          <span className="ml-3 text-label uppercase text-chalk-soft">
             {household.activeHousehold?.name ?? "Household"} · {household.role}
           </span>
         </summary>
@@ -96,7 +96,7 @@ function NewHereExplainer() {
 function HouseholdSwitcher({ household }) {
   return (
     <div className="border-b border-edge px-4 py-3">
-      <label className="mb-1 block font-mono text-label uppercase text-chalk-soft">Active household</label>
+      <label className="mb-1 block text-label uppercase text-chalk-soft">Active household</label>
       <select
         value={household.activeHouseholdId}
         onChange={(e) => household.switchActive(e.target.value)}
@@ -120,7 +120,7 @@ function RenameHousehold({ household, canEdit }) {
   if (!canEdit) {
     return (
       <div className="border-b border-edge px-4 py-3">
-        <span className="font-mono text-label uppercase text-chalk-soft">Household</span>
+        <span className="text-label uppercase text-chalk-soft">Household</span>
         <span className="ml-3 font-sans text-row text-chalk">{household.activeHousehold?.name}</span>
       </div>
     );
@@ -137,7 +137,7 @@ function RenameHousehold({ household, canEdit }) {
 
   return (
     <div className="border-b border-edge px-4 py-3">
-      <label className="mb-1 block font-mono text-label uppercase text-chalk-soft" htmlFor="household-name">
+      <label className="mb-1 block text-label uppercase text-chalk-soft" htmlFor="household-name">
         Household name
       </label>
       <div className="flex flex-wrap items-center gap-2">
@@ -184,7 +184,7 @@ function MemberRoster({ household, isOwner }) {
             {pendingInvites.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 font-sans text-row">
                 <span className="text-chalk">{i.email}</span>
-                <span className="font-mono text-label uppercase text-chalk-soft">
+                <span className="text-label uppercase text-chalk-soft">
                   {i.role} · waiting for them to set up
                 </span>
               </li>
@@ -236,14 +236,14 @@ function MemberRow({ member, isSelf, isOwner, household }) {
           <select
             value={member.role}
             onChange={(e) => changeRole(e.target.value)}
-            className="rounded-lg border border-edge bg-ledger px-2 py-1 font-mono text-label uppercase text-chalk"
+            className="rounded-lg border border-edge bg-ledger px-2 py-1 text-label uppercase text-chalk"
           >
             {Object.values(ROLES).map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
         ) : (
-          <span className="font-mono text-label uppercase text-chalk-soft">{member.role}</span>
+          <span className="text-label uppercase text-chalk-soft">{member.role}</span>
         )}
         {isOwner && !isSelf && (
           <>
@@ -298,7 +298,7 @@ function InviteMember({ household }) {
         onChange={(e) => setEmail(e.target.value)}
         required
       />
-      <label className="mb-1 block font-mono text-label uppercase text-chalk-soft" htmlFor="invite-role">
+      <label className="mb-1 block text-label uppercase text-chalk-soft" htmlFor="invite-role">
         Role
       </label>
       <select

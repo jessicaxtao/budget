@@ -194,7 +194,7 @@ export default function LifeEventsPanel({
                 <span className="font-sans text-row text-chalk-soft">
                   {describeWhen(event, plan.currentAge)}
                 </span>
-                <span className="block font-mono text-label text-chalk-soft">{describeEffect(event, propertyNames)}</span>
+                <span className="block text-label text-chalk-soft">{describeEffect(event, propertyNames)}</span>
               </div>
               <Button variant="outline" aria-label={`Edit ${event.name}`} onClick={() => onEdit(event)}>
                 Edit
@@ -208,7 +208,7 @@ export default function LifeEventsPanel({
       )}
 
       <div className="border-t border-edge px-4 py-3">
-        <h3 className="mb-2 font-mono text-label uppercase text-chalk-soft">Start from</h3>
+        <h3 className="mb-2 text-label uppercase text-chalk-soft">Start from</h3>
         {ready ? (
           <div className="flex flex-wrap gap-2">
             {LIFE_EVENT_TEMPLATES.map((template) => (

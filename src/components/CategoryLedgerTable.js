@@ -70,7 +70,7 @@ const COLUMNS = [
 /** Whole class names, never interpolated — see `bucketTones.js`. */
 const visibility = (column) => (column.wide ? "hidden sm:table-cell" : "");
 
-const headCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk";
+const headCell = "whitespace-nowrap px-3 py-2 text-right text-label uppercase text-chalk";
 
 /**
  * What a row holds, as a tone — whole class names, never interpolated (see
@@ -209,7 +209,7 @@ function CategoryRow({ row, striped, onMove, sortable = false }) {
 function GroupBand({ name, totals, handle }) {
   return (
     <tr className="bg-band" {...handle}>
-      <th scope="colgroup" className="px-4 py-1.5 text-left font-mono text-label uppercase text-ink">
+      <th scope="colgroup" className="px-4 py-1.5 text-left text-label uppercase text-ink">
         {name}
       </th>
       {COLUMNS.map((column) => (
@@ -326,7 +326,7 @@ export default function CategoryLedgerTable({
               <tr className="bg-panel-raised">
                 <th
                   scope="col"
-                  className="px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                  className="px-4 py-2 text-left text-label uppercase text-chalk"
                 >
                   Category
                 </th>
@@ -381,7 +381,7 @@ export default function CategoryLedgerTable({
               <tr className="bg-panel-raised">
                 <th
                   scope="row"
-                  className="px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                  className="px-4 py-2 text-left text-label uppercase text-chalk"
                 >
                   All categories
                 </th>

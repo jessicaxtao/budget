@@ -3,7 +3,7 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { toSections } from "../domain/planLayout";
 
-const legend = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+const legend = "mb-1.5 block text-label uppercase text-chalk-soft";
 const chipBase =
   "border px-2 py-0.5 font-sans text-label tracking-wide transition-colors";
 const chipOn = "border-azure bg-azure/20 font-medium text-chalk";
@@ -107,7 +107,7 @@ export default function SpendingMapFields({
           <legend className={legend}>Counts spending in these categories</legend>
           {sections.map((section) => (
             <div key={section.groupId ?? "ungrouped"} className="mb-1.5">
-              <div className="mb-1 font-mono text-label uppercase text-chalk-soft/70">
+              <div className="mb-1 text-label uppercase text-chalk-soft/70">
                 {section.name}
               </div>
               <div className="flex flex-wrap gap-1.5">

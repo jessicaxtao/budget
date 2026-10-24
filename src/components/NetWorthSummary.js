@@ -39,7 +39,7 @@ const signedBps = (bps) => `${bps > 0 ? "+" : ""}${formatBps(bps)}`;
 function Band({ label, swatch, cents, tone = "text-chalk" }) {
   return (
     <div className="bg-panel px-4 py-3">
-      <dt className="flex items-center gap-1.5 font-mono text-label uppercase text-chalk-soft">
+      <dt className="flex items-center gap-1.5 text-label uppercase text-chalk-soft">
         <span className={`h-2 w-2 shrink-0 ${swatch}`} aria-hidden="true" />
         {label}
       </dt>
@@ -65,7 +65,7 @@ export default function NetWorthSummary({ period, current, change }) {
     >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-edge px-4 py-4">
         <div>
-          <div className="font-mono text-label uppercase text-chalk-soft">
+          <div className="text-label uppercase text-chalk-soft">
             Net worth · {formatPeriod(period)}
           </div>
           {/* The page's one hero figure. Same sans as everything else — a
@@ -84,7 +84,7 @@ export default function NetWorthSummary({ period, current, change }) {
             {/* The term before the figures rather than under them, so what is
                 being measured is read before the measurement — and so the base
                 month and the base figure travel together. */}
-            <dt className="font-mono text-label uppercase text-chalk-soft">
+            <dt className="text-label uppercase text-chalk-soft">
               Change since {formatPeriod(change.fromPeriod)} · was{" "}
               {formatCents(change.fromCents)}
             </dt>

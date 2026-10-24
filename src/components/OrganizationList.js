@@ -51,7 +51,7 @@ function OrganizationRow({ row, striped, onEdit, onRemove }) {
         </div>
       </div>
       <div className="mt-0.5 flex items-center gap-3">
-        <div className="min-w-0 flex-1 truncate font-mono text-label uppercase text-ink-soft">
+        <div className="min-w-0 flex-1 truncate text-label uppercase text-ink-soft">
           {unfiled
             ? "Removed — refile these gifts"
             : row.deductibleByDefault

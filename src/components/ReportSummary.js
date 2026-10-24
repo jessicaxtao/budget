@@ -116,7 +116,7 @@ export default function ReportSummary({ report }) {
             ? formatPeriod(startPeriod)
             : `${formatPeriod(startPeriod)} – ${formatPeriod(endPeriod)}`}
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {months.length} {months.length === 1 ? "month" : "months"} · {range.name}
         </span>
       </div>
@@ -181,7 +181,7 @@ export default function ReportSummary({ report }) {
                 }))}
               />
             )}
-            <span className="font-mono text-label uppercase text-chalk-soft">
+            <span className="text-label uppercase text-chalk-soft">
               Where it went, over {averagedOverMonths}{" "}
               {averagedOverMonths === 1 ? "month" : "months"}
             </span>
@@ -199,13 +199,13 @@ export default function ReportSummary({ report }) {
                   className={`h-2 w-2 shrink-0 ${bucketTone(entry.bucket).swatch}`}
                   aria-hidden="true"
                 />
-                <dt className="font-mono text-label uppercase text-chalk-soft">{entry.label}</dt>
+                <dt className="text-label uppercase text-chalk-soft">{entry.label}</dt>
                 <dd className="font-mono text-row tabular-nums text-chalk">
                   {formatCents(entry.netSpentCents)}
                 </dd>
                 {/* The share always; the monthly rate only where it differs
                     from the figure beside it, the tiles' own rule. */}
-                <dd className="font-mono text-label uppercase text-chalk-soft">
+                <dd className="text-label uppercase text-chalk-soft">
                   {entry.shareBps == null ? "—" : formatBps(entry.shareBps)}
                   {amortised && ` · ${formatCents(entry.averageCents)}/mo`}
                 </dd>

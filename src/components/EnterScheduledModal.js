@@ -96,7 +96,7 @@ export default function EnterScheduledModal({ show, row, name, filing, onEnter, 
                   index > 0 ? "border-t border-edge" : ""
                 }`}
               >
-                <dt className="font-mono text-label uppercase text-chalk-soft">{item.term}</dt>
+                <dt className="text-label uppercase text-chalk-soft">{item.term}</dt>
                 <dd className="font-sans text-row text-chalk">{item.value}</dd>
               </div>
             ))}

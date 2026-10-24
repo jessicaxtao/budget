@@ -53,9 +53,9 @@ function GivenMeter({ ratio, label }) {
 function Tile({ label, figure, tone = "text-chalk", note }) {
   return (
     <div className="bg-panel px-4 py-3">
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+      <dt className="text-label uppercase text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-figure font-medium tabular-nums ${tone}`}>{figure}</dd>
-      <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>
+      <dd className="mt-0.5 text-label uppercase text-chalk-soft">{note}</dd>
     </div>
   );
 }
@@ -118,7 +118,7 @@ export default function GivingSummary({ giving }) {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">{year}</h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {giftCount} {giftCount === 1 ? "gift" : "gifts"} · {organizations}{" "}
           {organizations === 1 ? "organization" : "organizations"}
         </span>

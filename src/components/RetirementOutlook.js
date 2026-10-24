@@ -44,7 +44,7 @@ function FundedMeter({ ratio, label }) {
 function Band({ label, children, tone = "text-chalk" }) {
   return (
     <div className="bg-panel px-4 py-3">
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+      <dt className="text-label uppercase text-chalk-soft">{label}</dt>
       <dd className={`mt-1 font-mono text-lg font-medium ${tone}`}>{children}</dd>
     </div>
   );
@@ -143,7 +143,7 @@ export default function RetirementOutlook({ projection, inputs, retirementAge, c
     >
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-edge px-4 py-4">
         <div>
-          <div className="font-mono text-label uppercase text-chalk-soft">
+          <div className="text-label uppercase text-chalk-soft">
             At {retirementAge} · today&rsquo;s dollars
           </div>
           {/* The page's one hero figure: what the plan is on course to be worth
@@ -163,13 +163,13 @@ export default function RetirementOutlook({ projection, inputs, retirementAge, c
 
         <dl className="flex flex-wrap gap-x-8 gap-y-2">
           <div>
-            <dt className="font-mono text-label uppercase text-chalk-soft">You will need</dt>
+            <dt className="text-label uppercase text-chalk-soft">You will need</dt>
             <dd className="mt-0.5 font-mono text-lg font-medium text-chalk">
               {formatCents(needCents)}
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-label uppercase text-chalk-soft">
+            <dt className="text-label uppercase text-chalk-soft">
               {short ? "Short by" : "Spare"}
             </dt>
             <dd

@@ -33,7 +33,7 @@ export default function BooksSummary({ snapshot, label }) {
     // rendering fault rather than as "there is nothing here".
     return (
       <div className="border border-rule bg-sheet px-4 py-2">
-        {label && <p className="font-mono text-label uppercase text-ink-soft">{label}</p>}
+        {label && <p className="text-label uppercase text-ink-soft">{label}</p>}
         <p className="font-sans text-row text-ink-soft">Empty — no books here.</p>
       </div>
     );
@@ -42,7 +42,7 @@ export default function BooksSummary({ snapshot, label }) {
   return (
     <div className="border border-rule bg-sheet">
       {label && (
-        <p className="border-b border-rule px-4 py-2 font-mono text-label uppercase text-ink-soft">
+        <p className="border-b border-rule px-4 py-2 text-label uppercase text-ink-soft">
           {label}
         </p>
       )}

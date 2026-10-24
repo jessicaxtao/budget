@@ -72,7 +72,7 @@ export default function ToBeAssignedBar({
           <span className={`font-mono text-figure font-medium ${tone.text}`}>
             {formatCents(toBeAssignedCents)}
           </span>
-          <span className={`font-mono text-label uppercase ${tone.text}`}>{tone.label}</span>
+          <span className={`text-label uppercase ${tone.text}`}>{tone.label}</span>
         </div>
 
         <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
@@ -95,7 +95,7 @@ export default function ToBeAssignedBar({
               : []),
           ].map(([label, cents]) => (
             <div key={label} className="flex items-baseline gap-2">
-              <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+              <dt className="text-label uppercase text-chalk-soft">{label}</dt>
               <dd className="font-mono text-row tabular-nums text-chalk">{formatCents(cents)}</dd>
             </div>
           ))}

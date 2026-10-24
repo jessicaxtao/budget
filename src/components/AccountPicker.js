@@ -100,7 +100,7 @@ function AccountRow({ row, striped, showSource, compact, onToggle, onPortionChan
       {showSource && (
         <td
           data-label="Source"
-          className="px-3 py-2 text-right font-mono text-label uppercase text-ink-soft"
+          className="px-3 py-2 text-right text-label uppercase text-ink-soft"
         >
           {scopeLabel(row.account)} · {sourceNote(row)}
         </td>
@@ -154,19 +154,19 @@ export default function AccountPicker({
       <table className="stack w-full border-collapse">
         <thead>
           <tr className="bg-panel-raised">
-            <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+            <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
               Account
             </th>
             {showSource && (
-              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+              <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                 Where the figure comes from
               </th>
             )}
-            <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+            <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
               Value
             </th>
             {onPortionChange && (
-              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+              <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                 Counted
               </th>
             )}
@@ -187,7 +187,7 @@ export default function AccountPicker({
         </tbody>
         <tfoot>
           <tr className="bg-panel-raised">
-            <th scope="row" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+            <th scope="row" className="px-4 py-2 text-left text-label uppercase text-chalk">
               {totalLabel}
             </th>
             {showSource && <td />}

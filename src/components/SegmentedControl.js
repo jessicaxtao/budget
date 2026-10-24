@@ -28,7 +28,7 @@ export default function SegmentedControl({ label, options, value, onChange, clas
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`px-2.5 py-1 font-mono text-label uppercase tracking-wide transition-colors ${
+            className={`px-2.5 py-1 text-label uppercase tracking-wide transition-colors ${
               index > 0 ? "border-l border-edge" : ""
             } ${
               selected

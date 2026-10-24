@@ -48,7 +48,7 @@ export default function GivingCategoriesPanel({ budgets, selectedIds, stated, on
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="font-mono text-label uppercase text-azure underline underline-offset-2 hover:text-chalk"
+            className="text-label uppercase text-azure underline underline-offset-2 hover:text-chalk"
           >
             Guess from names
           </button>

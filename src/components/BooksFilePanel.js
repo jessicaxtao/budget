@@ -175,7 +175,7 @@ export default function BooksFilePanel() {
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">
             Your books as a file
           </span>
-          <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
+          <span className="ml-3 text-label uppercase text-chalk-soft">
             Export · restore
           </span>
         </summary>
@@ -215,7 +215,7 @@ export default function BooksFilePanel() {
               safe is something they can do without the app's help at all. */}
           {isDesktop() && booksPath() && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-edge px-4 py-3">
-              <span className="shrink-0 font-mono text-label uppercase text-chalk-soft">
+              <span className="shrink-0 text-label uppercase text-chalk-soft">
                 Kept in
               </span>
               <code className="min-w-0 break-all font-mono text-row text-chalk">{booksPath()}</code>

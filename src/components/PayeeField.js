@@ -342,7 +342,7 @@ export default function PayeeField({
               >
                 {creating ? (
                   <span>
-                    <span className={`font-mono text-label uppercase ${HINT_SURFACE[surface]}`}>
+                    <span className={`text-label uppercase ${HINT_SURFACE[surface]}`}>
                       New payee
                     </span>{" "}
                     {typed}
@@ -352,7 +352,7 @@ export default function PayeeField({
                     <span className="block truncate">{option.name}</span>
                     {hint && (
                       <span
-                        className={`block truncate font-mono text-label uppercase ${HINT_SURFACE[surface]}`}
+                        className={`block truncate text-label uppercase ${HINT_SURFACE[surface]}`}
                       >
                         {hint}
                       </span>
@@ -368,7 +368,7 @@ export default function PayeeField({
             // truncated list never looks like a complete one.
             <li
               aria-hidden="true"
-              className={`px-3 py-1 font-mono text-label uppercase ${HINT_SURFACE[surface]}`}
+              className={`px-3 py-1 text-label uppercase ${HINT_SURFACE[surface]}`}
             >
               +{moreCount} more — keep typing
             </li>
@@ -390,7 +390,7 @@ export default function PayeeField({
     <div className="mb-5">
       <label
         htmlFor={inputId}
-        className="mb-2 block font-mono text-label uppercase text-chalk-soft"
+        className="mb-2 block text-label uppercase text-chalk-soft"
       >
         {label}
       </label>

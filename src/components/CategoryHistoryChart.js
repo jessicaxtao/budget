@@ -107,7 +107,7 @@ function describe(entry, trendCents) {
 function Readout({ entry, trendCents }) {
   return (
     <div className="pointer-events-none w-max max-w-[16rem] rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">
+      <div className="text-label uppercase text-chalk-soft">
         {formatPeriod(entry.period)}
       </div>
       <div
@@ -123,7 +123,7 @@ function Readout({ entry, trendCents }) {
         </div>
       )}
       {trendCents != null && (
-        <div className="mt-1 border-t border-edge pt-1 font-mono text-label uppercase text-chalk-soft">
+        <div className="mt-1 border-t border-edge pt-1 text-label uppercase text-chalk-soft">
           {TREND_MONTHS}-month avg {formatCents(trendCents)}
         </div>
       )}
@@ -212,11 +212,11 @@ export default function CategoryHistoryChart({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 pt-3">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 shrink-0 bg-vermilion" aria-hidden="true" />
-            <span className="font-mono text-label uppercase text-chalk-soft">Spent</span>
+            <span className="text-label uppercase text-chalk-soft">Spent</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-0.5 w-4 shrink-0 bg-chalk" aria-hidden="true" />
-            <span className="font-mono text-label uppercase text-chalk-soft">
+            <span className="text-label uppercase text-chalk-soft">
               {TREND_MONTHS}-month average
             </span>
           </span>
@@ -356,7 +356,7 @@ export default function CategoryHistoryChart({
                 x={centreOf(label.index)}
                 y={plot.bottom + 16}
                 textAnchor="middle"
-                className="fill-chalk-soft font-mono text-label tracking-normal"
+                className="fill-chalk-soft text-label tracking-normal"
               >
                 {formatPeriodShort(label.period)}
                 {label.year && (

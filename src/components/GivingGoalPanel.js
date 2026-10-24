@@ -26,7 +26,7 @@ import { amountAtRest, amountField, formatBps, formatCents, toCents } from "../u
  * successful one re-seeds from what was actually saved.
  */
 
-const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
 
 const inputClass =
   "w-full border-0 border-b-2 border-edge bg-transparent px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
@@ -48,7 +48,7 @@ export default function GivingGoalPanel({ year, goal, error, onChange }) {
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Goal for {year}
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {goal.stated ? formatCents(goal.targetCents) : "Not set"}
         </span>
       </div>

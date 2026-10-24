@@ -196,7 +196,7 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
         <>
           <form onSubmit={handleSubmit}>
             <label className="mb-2 block">
-              <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
+              <span className="mb-2 block text-label uppercase text-chalk-soft">
                 What happened?
               </span>
               <input
@@ -225,12 +225,12 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="font-mono text-label uppercase text-chalk-soft underline-offset-4 hover:text-chalk hover:underline"
+                  className="text-label uppercase text-chalk-soft underline-offset-4 hover:text-chalk hover:underline"
                 >
                   {PROVIDERS[status.provider].label} · {status.model} — change
                 </button>
               ) : (
-                <label className="flex items-center gap-2 font-mono text-label uppercase text-chalk-soft">
+                <label className="flex items-center gap-2 text-label uppercase text-chalk-soft">
                   Model
                   <select
                     value={model ?? ""}
@@ -258,7 +258,7 @@ export default function AskModal({ handleClose, onDraft, onMove }) {
             <RefilePreview key={refile.payee.id + refile.budget.id} refile={refile} />
           ) : (
             <div className="mt-6 border-t border-edge pt-4">
-              <p className="mb-2 font-mono text-label uppercase text-chalk-soft">For example</p>
+              <p className="mb-2 text-label uppercase text-chalk-soft">For example</p>
               <ul className="space-y-1 font-sans text-row text-chalk-soft">
                 {EXAMPLES.map((example) => (
                   <li key={example}>
@@ -328,7 +328,7 @@ function SetupPanel({ config, onSaved, onCancel }) {
   return (
     <div className="font-sans text-row text-chalk">
       <label className="mb-4 block">
-        <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">Model</span>
+        <span className="mb-2 block text-label uppercase text-chalk-soft">Model</span>
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
@@ -345,7 +345,7 @@ function SetupPanel({ config, onSaved, onCancel }) {
       {hosted ? (
         <>
           <label className="mb-1 block">
-            <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
+            <span className="mb-2 block text-label uppercase text-chalk-soft">
               {meta.label} API key
             </span>
             <input
@@ -359,7 +359,7 @@ function SetupPanel({ config, onSaved, onCancel }) {
           <p className="mb-4 font-sans text-label text-chalk-soft">{meta.keyHint}</p>
 
           <label className="mb-1 block">
-            <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
+            <span className="mb-2 block text-label uppercase text-chalk-soft">
               Model name <span className="normal-case">(optional)</span>
             </span>
             <input
@@ -508,7 +508,7 @@ function RefilePreview({ refile }) {
               Transactions from {payee.name} to refile
             </caption>
             <thead>
-              <tr className="border-b border-rule font-mono text-label uppercase text-ink-soft">
+              <tr className="border-b border-rule text-label uppercase text-ink-soft">
                 <th className="w-10 px-2 py-1.5">
                   <span className="sr-only">Refile</span>
                 </th>
@@ -530,7 +530,7 @@ function RefilePreview({ refile }) {
                       }`}
                     />
                   </td>
-                  <td className="px-2 py-1.5 font-mono">{formatDateMedium(entry.date) || "Undated"}</td>
+                  <td className="px-2 py-1.5">{formatDateMedium(entry.date) || "Undated"}</td>
                   <td className="px-2 py-1.5">{nameOf(entry.budgetId)}</td>
                   <td className="px-2 py-1.5 text-right font-mono tabular-nums">
                     {formatCents(entry.amountCents)}

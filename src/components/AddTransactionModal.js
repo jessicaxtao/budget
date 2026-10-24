@@ -1309,7 +1309,7 @@ export default function AddTransactionModal({
           />
           {offers.length > 0 && rememberLabel && (
             <fieldset className="-mt-1 mb-5">
-              <legend className="mb-1 font-mono text-label uppercase text-chalk-soft">
+              <legend className="mb-1 text-label uppercase text-chalk-soft">
                 Next time for {rememberLabel}
               </legend>
               {offers.map((offer) => (

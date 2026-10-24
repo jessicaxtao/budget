@@ -660,7 +660,7 @@ function Band({ name, totals }) {
       <th
         scope="colgroup"
         colSpan={LEAD_SPAN}
-        className="px-3 py-1.5 text-left font-mono text-label uppercase text-ink"
+        className="px-3 py-1.5 text-left text-label uppercase text-ink"
       >
         {name}
       </th>
@@ -774,7 +774,7 @@ export default function TransactionRegister({
                   <th
                     key={column.key}
                     scope="col"
-                    className={`whitespace-nowrap px-3 py-2 font-mono text-xs uppercase tracking-wide text-chalk ${
+                    className={`whitespace-nowrap px-3 py-2 text-xs uppercase tracking-wide text-chalk ${
                       column.width ?? ""
                     } ${column.numeric ? "text-right" : "text-left"}`}
                   >
@@ -806,7 +806,7 @@ export default function TransactionRegister({
                 <th
                   scope="row"
                   colSpan={FULL_SPAN}
-                  className="px-3 py-2 text-left font-mono text-label uppercase text-chalk"
+                  className="px-3 py-2 text-left text-label uppercase text-chalk"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <span>{period ? formatPeriod(period) : "All dates"}{filtered ? " · Filtered transactions" : ""}</span>

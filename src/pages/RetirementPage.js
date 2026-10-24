@@ -296,7 +296,7 @@ export default function RetirementPage() {
                 {viewMode === "deterministic" && (
                   <>
                     <div className="border-b border-edge px-4 py-2">
-                      <span className="font-mono text-label uppercase text-chalk-soft">
+                      <span className="text-label uppercase text-chalk-soft">
                         Age {plan.currentAge} to {plan.lifeExpectancy} ·{" "}
                         {formatBps(projection.realGrowthBps)} then{" "}
                         {formatBps(projection.realDrawdownBps)} real
@@ -314,20 +314,20 @@ export default function RetirementPage() {
                         draws is readable here, which is what stops the hover being the
                         only route to a value on a fifty-year series. */}
                     <details className="border-t border-edge">
-                      <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+                      <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                         Show these figures as a table
                       </summary>
                       <div className="max-h-96 overflow-auto border-t border-edge">
                         <table className="w-full border-collapse">
                           <thead className="sticky top-0">
                             <tr className="bg-panel-raised">
-                              <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                              <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                                 Age
                               </th>
-                              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                              <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                                 Stage
                               </th>
-                              <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                              <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                                 Savings
                               </th>
                             </tr>
@@ -341,7 +341,7 @@ export default function RetirementPage() {
                                 >
                                   {point.age}
                                 </th>
-                                <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-ink-soft">
+                                <td className="whitespace-nowrap px-3 py-2 text-right text-label uppercase text-ink-soft">
                                   {point.phase === "saving" ? "Saving" : "Retired"}
                                 </td>
                                 <td
@@ -374,12 +374,12 @@ export default function RetirementPage() {
                         type="button"
                         onClick={runCurrentSimulation}
                         disabled={simulation.loading}
-                        className="rounded-lg border border-edge bg-panel-raised px-3 py-1.5 font-mono text-label uppercase text-chalk transition-colors hover:bg-edge disabled:opacity-50"
+                        className="rounded-lg border border-edge bg-panel-raised px-3 py-1.5 text-label uppercase text-chalk transition-colors hover:bg-edge disabled:opacity-50"
                       >
                         {simulation.loading ? "Running…" : "Run simulation"}
                       </button>
                       {viewMode === "monte-carlo" && (
-                        <span className="font-mono text-label uppercase text-chalk-soft">
+                        <span className="text-label uppercase text-chalk-soft">
                           {plan.simulationTrials} trials
                         </span>
                       )}
@@ -409,20 +409,20 @@ export default function RetirementPage() {
 
                         {viewMode === "historical" && (
                           <details className="border-t border-edge">
-                            <summary className="cursor-pointer px-4 py-2.5 font-mono text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
+                            <summary className="cursor-pointer px-4 py-2.5 text-label uppercase text-chalk-soft transition-colors hover:text-chalk">
                               Show every historical starting year
                             </summary>
                             <div className="max-h-96 overflow-auto border-t border-edge">
                               <table className="w-full border-collapse">
                                 <thead className="sticky top-0">
                                   <tr className="bg-panel-raised">
-                                    <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                                    <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                                       Retired in
                                     </th>
-                                    <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                                    <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                                       Outcome
                                     </th>
-                                    <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                                    <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                                       Ending balance
                                     </th>
                                   </tr>
@@ -440,7 +440,7 @@ export default function RetirementPage() {
                                         {cohort.startYear}
                                       </th>
                                       <td
-                                        className={`whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase ${
+                                        className={`whitespace-nowrap px-3 py-2 text-right text-label uppercase ${
                                           cohort.shortfallAge == null ? "text-ink-soft" : "text-vermilion-ink"
                                         }`}
                                       >

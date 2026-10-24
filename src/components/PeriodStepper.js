@@ -29,7 +29,7 @@ export default function PeriodStepper({ period, onChange }) {
       </Button>
       {/* Fixed width so the controls do not shuffle sideways between a short
           month name and a long one. */}
-      <span className="min-w-[8.5rem] text-center font-mono text-row text-chalk">
+      <span className="min-w-[8.5rem] text-center text-row text-chalk font-medium">
         {formatPeriod(period)}
       </span>
       <Button

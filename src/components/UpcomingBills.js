@@ -77,11 +77,11 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip }) {
       </div>
 
       <div className="mt-1 flex flex-col gap-y-1">
-        <div className="min-w-0 truncate font-mono text-label uppercase text-ink-soft">
+        <div className="min-w-0 truncate text-label uppercase text-ink-soft">
           {filing}
         </div>
         <div className="flex items-center gap-x-3">
-          <div className={`whitespace-nowrap font-mono text-label uppercase ${status.tone}`}>
+          <div className={`whitespace-nowrap text-label uppercase ${status.tone}`}>
             {formatDayShort(row.date)} · {status.note}
           </div>
           <span className="ml-auto inline-flex shrink-0 items-center gap-1">
@@ -130,7 +130,7 @@ export default function UpcomingBills({
         </div>
         {rows.length > 0 && (
           <span
-            className={`font-mono text-label uppercase ${
+            className={`text-label uppercase ${
               overdueCount > 0 ? "text-vermilion" : "text-verdant"
             }`}
           >

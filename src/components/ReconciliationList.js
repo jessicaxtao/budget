@@ -142,7 +142,7 @@ function ReconciliationRow({
             moment the two no longer fit, instead of the date being squeezed to
             three ragged lines beside it. On a wider container they share one
             line, and nothing had to name a breakpoint to say so. */}
-        <div className="font-mono text-label uppercase">
+        <div className="text-label uppercase">
           <span className="text-ink-soft">{scopeLabel(account)}</span>
           <span className="text-ink-soft"> · </span>
           {/* Each half is unbreakable on its own, so the wrap falls between
@@ -226,7 +226,7 @@ export default function ReconciliationList({
         </div>
         {rows.length > 0 && (
           <span
-            className={`font-mono text-label uppercase ${
+            className={`text-label uppercase ${
               unchecked > 0 ? "text-sulfur" : "text-verdant"
             }`}
           >

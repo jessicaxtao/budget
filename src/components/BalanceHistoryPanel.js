@@ -251,7 +251,7 @@ export default function BalanceHistoryPanel() {
           <span className="font-sans text-base font-semibold tracking-tight text-chalk">
             Balance history
           </span>
-          <span className="ml-3 font-mono text-label uppercase text-chalk-soft">
+          <span className="ml-3 text-label uppercase text-chalk-soft">
             Optional · fill in past months
           </span>
         </summary>
@@ -287,7 +287,7 @@ export default function BalanceHistoryPanel() {
                       buttons either side do not shuffle as the window moves —
                       from `sm` up. On a phone that width is more than the row
                       has, so the range wraps between the buttons instead. */}
-                  <span className="min-w-0 text-center font-mono text-row text-chalk sm:min-w-[15rem] sm:whitespace-nowrap">
+                  <span className="min-w-0 text-center text-row text-chalk sm:min-w-[15rem] sm:whitespace-nowrap">
                     {formatPeriod(start)} – {formatPeriod(end)}
                   </span>
                   <Button
@@ -306,7 +306,7 @@ export default function BalanceHistoryPanel() {
                     not saved goes with it. Said before the step rather than
                     after it, which is the only point at which it is useful. */}
                 {dirty && (
-                  <span className="font-mono text-label uppercase text-sulfur">
+                  <span className="text-label uppercase text-sulfur">
                     Unsaved changes — save before moving the window
                   </span>
                 )}
@@ -318,7 +318,7 @@ export default function BalanceHistoryPanel() {
                     <tr className="bg-panel-raised">
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left font-mono text-label uppercase text-chalk"
+                        className="px-4 py-2 text-left text-label uppercase text-chalk"
                       >
                         Month
                       </th>
@@ -326,7 +326,7 @@ export default function BalanceHistoryPanel() {
                         <th
                           key={account.id}
                           scope="col"
-                          className="whitespace-nowrap px-3 py-2 text-right font-mono text-label uppercase text-chalk"
+                          className="whitespace-nowrap px-3 py-2 text-right text-label uppercase text-chalk"
                         >
                           <div>
                             {account.name}
@@ -345,7 +345,7 @@ export default function BalanceHistoryPanel() {
                       ))}
                       <th
                         scope="col"
-                        className="whitespace-nowrap px-4 py-2 text-right font-mono text-label uppercase text-chalk"
+                        className="whitespace-nowrap px-4 py-2 text-right text-label uppercase text-chalk"
                       >
                         Net worth
                       </th>

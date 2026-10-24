@@ -73,7 +73,7 @@ function linePath(values, xOf, y) {
 function Readout({ row, retirementAge }) {
   return (
     <div className="pointer-events-none w-max rounded-lg border border-edge bg-ledger px-3 py-2 shadow-lg shadow-black/50">
-      <div className="font-mono text-label uppercase text-chalk-soft">
+      <div className="text-label uppercase text-chalk-soft">
         Age {row.age} · {row.age < retirementAge ? "saving" : "retired"}
       </div>
       <div className="mt-0.5 font-sans text-base font-semibold tabular-nums text-chalk">
@@ -121,22 +121,22 @@ export default function RetirementFanChart({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 pt-3">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-4 shrink-0 bg-azure/25" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">Middle 80%</span>
+          <span className="text-label uppercase text-chalk-soft">Middle 80%</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-4 shrink-0 bg-azure/50" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">Middle 50%</span>
+          <span className="text-label uppercase text-chalk-soft">Middle 50%</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 bg-azure" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">Median</span>
+          <span className="text-label uppercase text-chalk-soft">Median</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 bg-chalk-soft" aria-hidden="true" />
-          <span className="font-mono text-label uppercase text-chalk-soft">As planned</span>
+          <span className="text-label uppercase text-chalk-soft">As planned</span>
         </span>
         {successRate != null && (
-          <span className="font-mono text-label uppercase text-chalk-soft">
+          <span className="text-label uppercase text-chalk-soft">
             {Math.round(successRate * 100)}% kept the money from running out
           </span>
         )}
@@ -219,7 +219,7 @@ export default function RetirementFanChart({
               x={xOf(splitIndex) + 5}
               y={plot.top + 2}
               dominantBaseline="hanging"
-              className="fill-chalk-soft font-mono text-label tracking-normal"
+              className="fill-chalk-soft text-label tracking-normal"
             >
               RETIRE AT {retirementAge}
             </text>

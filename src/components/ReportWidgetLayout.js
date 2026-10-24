@@ -40,7 +40,7 @@ export default function ReportWidgetLayout({ children }) {
 
   return <>
     <details className="rounded-2xl border border-edge bg-panel px-4 py-3">
-      <summary className="cursor-pointer font-mono text-label uppercase text-chalk-soft hover:text-chalk">Report widgets</summary>
+      <summary className="cursor-pointer text-label uppercase text-chalk-soft hover:text-chalk">Report widgets</summary>
       <p className="mt-2 font-sans text-row text-chalk-soft">Drag widgets to change their order. Choose which ones appear below.</p>
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
         {ordered.map((widget) => <label key={widget.id} className="flex items-center gap-2 font-sans text-row text-chalk">

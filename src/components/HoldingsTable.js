@@ -61,7 +61,7 @@ function HoldingRow({ row, striped, onFixDrift, sortable }) {
             aria-label={`Settle the ${formatCents(
               Math.abs(row.driftCents)
             )} difference on ${row.account.name}`}
-            className="mt-0.5 block font-mono text-label uppercase text-vermilion-ink underline decoration-dotted underline-offset-4 transition-colors hover:decoration-solid"
+            className="mt-0.5 block text-label uppercase text-vermilion-ink underline decoration-dotted underline-offset-4 transition-colors hover:decoration-solid"
           >
             {formatCents(row.driftCents)} vs ledger · settle
           </button>
@@ -111,7 +111,7 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-edge px-4 py-3">
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">Holdings</h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {formatPeriod(period)}
         </span>
       </div>
@@ -129,10 +129,10 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
           <table className="stack w-full border-collapse">
             <thead>
               <tr className="bg-panel-raised">
-                <th scope="col" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   Account
                 </th>
-                <th scope="col" className="px-3 py-2 text-right font-mono text-label uppercase text-chalk">
+                <th scope="col" className="px-3 py-2 text-right text-label uppercase text-chalk">
                   Value
                 </th>
               </tr>
@@ -146,7 +146,7 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
                   <tr className="bg-band">
                     <th
                       scope="colgroup"
-                      className="px-4 py-1.5 text-left font-mono text-label uppercase text-ink"
+                      className="px-4 py-1.5 text-left text-label uppercase text-ink"
                     >
                       <span className="flex items-center gap-1.5">
                         <span className={`h-2 w-2 shrink-0 ${section.swatch}`} aria-hidden="true" />
@@ -179,7 +179,7 @@ export default function HoldingsTable({ rows, period, onFixDrift, onReorder }) {
                 page's total rather than another band inside the sheet. */}
             <tfoot>
               <tr className="bg-panel-raised">
-                <th scope="row" className="px-4 py-2 text-left font-mono text-label uppercase text-chalk">
+                <th scope="row" className="px-4 py-2 text-left text-label uppercase text-chalk">
                   Net worth
                 </th>
                 <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-row font-medium tabular-nums text-chalk">

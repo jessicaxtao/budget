@@ -149,7 +149,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
 
   const selectClass =
     "w-full rounded-lg border border-edge bg-panel-raised px-3 py-2 font-sans text-row text-chalk outline-none transition-colors focus:border-azure";
-  const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+  const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
 
   return (
     <Dialog show={show} handleClose={handleClose} title={`Move money · ${formatPeriod(period)}`}>
@@ -225,7 +225,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
           >
             {showPreview ? (
               <>
-                <div className="font-mono text-label uppercase text-chalk-soft">After the move</div>
+                <div className="text-label uppercase text-chalk-soft">After the move</div>
                 <dl className="mt-1.5 grid gap-1">
                   <Outcome
                     name={fromRow.name}

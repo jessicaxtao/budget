@@ -82,7 +82,7 @@ export default function AddIncomeSourceModal({ show, handleClose }) {
             </option>
           ))}
         </SelectField>
-        <p role="status" className="-mt-3 mb-5 font-mono text-label uppercase text-chalk-soft">
+        <p role="status" className="-mt-3 mb-5 text-label uppercase text-chalk-soft">
           Adds{" "}
           <span className="font-medium text-verdant">{formatCents(preview)}</span> to expected
           income each month

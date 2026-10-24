@@ -66,7 +66,7 @@ import { amountAtRest, amountEditing, formatBps, formatCents, formatDateMedium, 
  * edit re-seeds, and say why under the table rather than beside the cell.
  */
 
-const headCell = "px-3 py-2 font-mono text-label uppercase text-chalk";
+const headCell = "px-3 py-2 text-label uppercase text-chalk";
 const numberCell = "whitespace-nowrap px-3 py-2 text-right font-mono text-row tabular-nums";
 const inlineInput =
   "w-28 border-0 border-b border-transparent bg-transparent px-0 py-0.5 text-right font-mono text-row tabular-nums text-ink outline-none placeholder:text-ink-soft/50 hover:border-rule focus:border-azure";
@@ -81,7 +81,7 @@ function Panel({ id, title, note, actions, children }) {
           {title}
         </h2>
         <div className="flex flex-wrap items-center gap-3">
-          {note && <span className="font-mono text-label uppercase text-chalk-soft">{note}</span>}
+          {note && <span className="text-label uppercase text-chalk-soft">{note}</span>}
           {actions}
         </div>
       </div>
@@ -93,9 +93,9 @@ function Panel({ id, title, note, actions, children }) {
 function Tile({ label, cents, note, span = "" }) {
   return (
     <div className={`bg-panel px-4 py-3 ${span}`}>
-      <dt className="font-mono text-label uppercase text-chalk-soft">{label}</dt>
+      <dt className="text-label uppercase text-chalk-soft">{label}</dt>
       <dd className="mt-1 font-mono text-figure font-medium text-chalk">{formatCents(cents)}</dd>
-      {note && <dd className="mt-0.5 font-mono text-label uppercase text-chalk-soft">{note}</dd>}
+      {note && <dd className="mt-0.5 text-label uppercase text-chalk-soft">{note}</dd>}
     </div>
   );
 }
@@ -146,7 +146,7 @@ function BalancesTable({ balances, valuations, resolve, onPoints, onEdit, onDele
                 <th
                   scope="rowgroup"
                   colSpan={5}
-                  className="px-3 py-1.5 text-left font-mono text-label uppercase text-ink-soft"
+                  className="px-3 py-1.5 text-left text-label uppercase text-ink-soft"
                 >
                   {PROGRAM_KIND_LABELS[kind]}
                 </th>
@@ -159,7 +159,7 @@ function BalancesTable({ balances, valuations, resolve, onPoints, onEdit, onDele
                   <tr key={balance.id} className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
                     <th scope="row" className="px-3 py-2 text-left font-sans text-row font-normal text-ink">
                       <div>{program.name}</div>
-                      <div className="font-mono text-label uppercase text-ink-soft">
+                      <div className="text-label uppercase text-ink-soft">
                         {[balance.holder, balance.asOf && `as of ${formatDateMedium(balance.asOf)}`]
                           .filter(Boolean)
                           .join(" · ")}
@@ -283,7 +283,7 @@ function ValuationsTable({ valuations, heldPoints, onValue }) {
               <th
                 scope="rowgroup"
                 colSpan={4}
-                className="px-3 py-1.5 text-left font-mono text-label uppercase text-ink-soft"
+                className="px-3 py-1.5 text-left text-label uppercase text-ink-soft"
               >
                 {PROGRAM_KIND_LABELS[kind]}
               </th>
@@ -369,12 +369,12 @@ function ChoicesTable({ choices }) {
                 <th scope="row" className="px-3 py-2 text-left font-sans text-row font-normal text-ink">
                   <div>{choice.label}</div>
                   {choice.kind === "payee" && (
-                    <div className="font-mono text-label uppercase text-ink-soft">Payee</div>
+                    <div className="text-label uppercase text-ink-soft">Payee</div>
                   )}
                 </th>
                 <td data-label="Reach for" className="px-3 py-2 font-sans text-row text-ink">
                   <div className="font-medium">{best.cardName}</div>
-                  <div className="font-mono text-label uppercase text-ink-soft">
+                  <div className="text-label uppercase text-ink-soft">
                     {rateText({ rate: best.rate, program: best.program })}
                   </div>
                 </td>
@@ -447,7 +447,7 @@ function TripsTable({ plans, onEdit, onDelete }) {
               <tr key={trip.id} className={index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt"}>
                 <th scope="row" className="px-3 py-2 text-left font-sans text-row font-normal text-ink">
                   <div>{trip.name}</div>
-                  <div className="font-mono text-label uppercase text-ink-soft">
+                  <div className="text-label uppercase text-ink-soft">
                     {[program.name, trip.date && formatDateMedium(trip.date)].filter(Boolean).join(" · ")}
                   </div>
                 </th>
@@ -467,7 +467,7 @@ function TripsTable({ plans, onEdit, onDelete }) {
                       <div className={plan.goodValue ? "font-medium text-verdant" : "text-ink"}>
                         {formatPointValue(plan.achievedPer100Cents)}
                       </div>
-                      <div className="font-mono text-label uppercase text-ink-soft">
+                      <div className="text-label uppercase text-ink-soft">
                         {plan.goodValue ? "Beats" : "Under"} your {formatPointValue(plan.valuePer100Cents)}
                       </div>
                     </div>

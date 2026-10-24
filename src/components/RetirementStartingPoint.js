@@ -24,7 +24,7 @@ import { formatCents } from "../utils";
  * each other.
  */
 
-const labelClass = "mb-1.5 block font-mono text-label uppercase text-chalk-soft";
+const labelClass = "mb-1.5 block text-label uppercase text-chalk-soft";
 
 const inputClass =
   "w-full border-0 border-b-2 border-edge bg-transparent px-0 py-1.5 font-mono text-lg text-chalk outline-none transition-colors placeholder:text-chalk-soft/60 focus:border-azure";
@@ -56,7 +56,7 @@ export default function RetirementStartingPoint({
         <h2 className="font-sans text-base font-semibold tracking-tight text-chalk">
           Starting point
         </h2>
-        <span className="font-mono text-label uppercase text-chalk-soft">
+        <span className="text-label uppercase text-chalk-soft">
           {byAccounts
             ? `${chosen} of ${accountRows.length} accounts`
             : "Not read from your accounts"}

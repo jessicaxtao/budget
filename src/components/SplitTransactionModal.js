@@ -140,7 +140,7 @@ export default function SplitTransactionModal({ show, transaction, handleClose }
           </p>
 
           <label className="mb-5 block">
-            <span className="mb-2 block font-mono text-label uppercase text-chalk-soft">
+            <span className="mb-2 block text-label uppercase text-chalk-soft">
               Total
             </span>
             <input
