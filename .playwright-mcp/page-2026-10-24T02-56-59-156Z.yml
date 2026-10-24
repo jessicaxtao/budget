@@ -1,0 +1,793 @@
+- generic [ref=f3e3]:
+  - link "Skip to content" [ref=f3e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f3e5]:
+    - generic [ref=f3e6]:
+      - generic [ref=f3e7]:
+        - generic [ref=f3e8]: Canopy Budget
+        - generic [ref=f3e25]:
+          - generic [ref=f3e26]:
+            - button "Add transaction" [ref=f3e27] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f3e28]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f3e29] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f3e30]: ⇄
+              - text: Transfer
+          - button "Turn on sync" [ref=f3e31] [cursor=pointer]
+      - navigation "Sections" [ref=f3e32]:
+        - link "Configuration" [ref=f3e33] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f3e34] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f3e35] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f3e36] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f3e37] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f3e38] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f3e39] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f3e40] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f3e41] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f3e42] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f3e43]:
+    - generic [ref=f3e45]:
+      - heading "Household setup" [level=1] [ref=f3e46]
+      - paragraph [ref=f3e47]: Manage household preferences, schedules, exports, and your books file.
+    - generic [ref=f3e48]:
+      - generic [ref=f3e49]:
+        - generic [ref=f3e50]:
+          - heading "Appearance" [level=2] [ref=f3e51]
+          - paragraph [ref=f3e52]: "Current theme: Dark"
+        - button "Use light mode" [pressed] [ref=f3e53] [cursor=pointer]
+      - group [ref=f3e55]:
+        - generic "Scheduled transactions6 schedules · due on the dashboard" [ref=f3e56] [cursor=pointer]
+      - group [ref=f3e58]:
+        - generic "Payees21 payees · rename, merge, set what each opens on" [ref=f3e59] [cursor=pointer]
+        - option "None" [selected]
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out"
+        - option "Money in" [selected]
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel" [selected]
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs" [selected]
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities" [selected]
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical" [selected]
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out" [selected]
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance" [selected]
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel" [selected]
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries" [selected]
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving" [selected]
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out" [selected]
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment" [selected]
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving" [selected]
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None" [selected]
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel" [selected]
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent" [selected]
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping" [selected]
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet" [selected]
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone"
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving" [selected]
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+        - option "None"
+        - option "Rent"
+        - option "Utilities"
+        - option "Internet"
+        - option "Home repairs"
+        - option "Groceries"
+        - option "Transit & fuel"
+        - option "Insurance"
+        - option "Phone" [selected]
+        - option "Health & medical"
+        - option "Dining out"
+        - option "Entertainment"
+        - option "Shopping"
+        - option "Travel"
+        - option "Gifts & giving"
+        - option "Miscellaneous"
+        - option "Emergency fund"
+        - option "Car replacement"
+        - option "Roth IRA"
+        - option "Last used" [selected]
+        - option "Everyday checking"
+        - option "High-yield savings"
+        - option "Rewards card"
+        - option "Money out" [selected]
+        - option "Money in"
+      - generic [ref=f3e60]:
+        - generic [ref=f3e61]:
+          - heading "Export transactions" [level=2] [ref=f3e62]
+          - paragraph [ref=f3e63]: Download all 337 ledger transactions as a CSV file, including categories, accounts, and split details.
+        - button "Export transactions CSV" [ref=f3e64] [cursor=pointer]
+      - region [ref=f3e65]:
+        - generic [ref=f3e66]:
+          - generic [ref=f3e67]:
+            - heading "Donations for tax preparation" [level=2] [ref=f3e68]
+            - paragraph [ref=f3e69]: Review the recorded gifts for a year, then download their details for your return.
+          - generic [ref=f3e70]:
+            - button "Previous year" [ref=f3e71] [cursor=pointer]: ‹
+            - generic [ref=f3e72]: "2026"
+            - button "Next year" [ref=f3e73] [cursor=pointer]: ›
+        - heading "Year-end review" [level=3] [ref=f3e74]
+        - list [ref=f3e75]:
+          - listitem [ref=f3e76]:
+            - generic [ref=f3e77]: Gifts without an organization
+            - generic [ref=f3e78]: Clear
+          - listitem [ref=f3e79]:
+            - generic [ref=f3e80]: Written acknowledgments needed
+            - generic [ref=f3e81]: 2 to review
+          - listitem [ref=f3e82]:
+            - generic [ref=f3e83]: Deductible amounts above the current gift
+            - generic [ref=f3e84]: Clear
+          - listitem [ref=f3e85]:
+            - generic [ref=f3e86]: Undated gifts across all years
+            - generic [ref=f3e87]: Clear
+        - paragraph [ref=f3e88]:
+          - link "Review 2026 gifts" [ref=f3e89] [cursor=pointer]:
+            - /url: /donations?year=2026
+        - generic [ref=f3e90]:
+          - paragraph [ref=f3e91]: Export gifts and refunds with recorded deductible amounts and receipt status. Attached receipt files are not included.
+          - button "Export 2026 CSV" [ref=f3e92] [cursor=pointer]
+      - group [ref=f3e94]:
+        - generic "Balance historyOptional · fill in past months" [ref=f3e95] [cursor=pointer]
+      - group [ref=f3e97]:
+        - generic "Your books as a fileExport · restore" [ref=f3e98] [cursor=pointer]
+      - region [ref=f3e99]:
+        - generic [ref=f3e100]:
+          - heading "What a point is worth" [level=2] [ref=f3e101]
+          - generic [ref=f3e102]: Cents per point
+        - paragraph [ref=f3e104]: The catalog value is a typical figure for spending points well. Yours is what you actually get. Leave it blank to use the catalog's value. A trip that earns more per point than your value is a good use of the points.
+        - table [ref=f3e106]:
+          - rowgroup [ref=f3e107]:
+            - row [ref=f3e108]:
+              - columnheader "Program" [ref=f3e109]
+              - columnheader "Catalog value" [ref=f3e110]
+              - columnheader "Your value" [ref=f3e111]
+              - columnheader "You hold" [ref=f3e112]
+          - rowgroup [ref=f3e113]:
+            - row [ref=f3e114]:
+              - rowheader "Card points" [ref=f3e115]
+            - row [ref=f3e116]:
+              - rowheader "Chase Ultimate Rewards" [ref=f3e117]
+              - cell "1.70¢" [ref=f3e118]
+              - cell [ref=f3e119]:
+                - textbox "Your value for Chase Ultimate Rewards, in cents per point" [ref=f3e120]:
+                  - /placeholder: 1.70¢
+                  - text: 1.90¢
+              - cell "245,000" [ref=f3e121]
+            - row [ref=f3e122]:
+              - rowheader "Amex Membership Rewards" [ref=f3e123]
+              - cell "1.70¢" [ref=f3e124]
+              - cell [ref=f3e125]:
+                - textbox "Your value for Amex Membership Rewards, in cents per point" [ref=f3e126]:
+                  - /placeholder: 1.70¢
+              - cell "96,500" [ref=f3e127]
+            - row [ref=f3e128]:
+              - rowheader "Citi ThankYou Points" [ref=f3e129]
+              - cell "1.60¢" [ref=f3e130]
+              - cell [ref=f3e131]:
+                - textbox "Your value for Citi ThankYou Points, in cents per point" [ref=f3e132]:
+                  - /placeholder: 1.60¢
+              - cell "—" [ref=f3e133]
+            - row [ref=f3e134]:
+              - rowheader "Capital One Miles" [ref=f3e135]
+              - cell "1.60¢" [ref=f3e136]
+              - cell [ref=f3e137]:
+                - textbox "Your value for Capital One Miles, in cents per point" [ref=f3e138]:
+                  - /placeholder: 1.60¢
+              - cell "—" [ref=f3e139]
+            - row [ref=f3e140]:
+              - rowheader "Bilt Rewards" [ref=f3e141]
+              - cell "1.80¢" [ref=f3e142]
+              - cell [ref=f3e143]:
+                - textbox "Your value for Bilt Rewards, in cents per point" [ref=f3e144]:
+                  - /placeholder: 1.80¢
+              - cell "—" [ref=f3e145]
+            - row [ref=f3e146]:
+              - rowheader "Airline miles" [ref=f3e147]
+            - row [ref=f3e148]:
+              - rowheader "United MileagePlus" [ref=f3e149]
+              - cell "1.30¢" [ref=f3e150]
+              - cell [ref=f3e151]:
+                - textbox "Your value for United MileagePlus, in cents per point" [ref=f3e152]:
+                  - /placeholder: 1.30¢
+              - cell "42,000" [ref=f3e153]
+            - row [ref=f3e154]:
+              - rowheader "Delta SkyMiles" [ref=f3e155]
+              - cell "1.20¢" [ref=f3e156]
+              - cell [ref=f3e157]:
+                - textbox "Your value for Delta SkyMiles, in cents per point" [ref=f3e158]:
+                  - /placeholder: 1.20¢
+              - cell "—" [ref=f3e159]
+            - row [ref=f3e160]:
+              - rowheader "American AAdvantage" [ref=f3e161]
+              - cell "1.50¢" [ref=f3e162]
+              - cell [ref=f3e163]:
+                - textbox "Your value for American AAdvantage, in cents per point" [ref=f3e164]:
+                  - /placeholder: 1.50¢
+              - cell "15,000" [ref=f3e165]
+            - row [ref=f3e166]:
+              - rowheader "Southwest Rapid Rewards" [ref=f3e167]
+              - cell "1.35¢" [ref=f3e168]
+              - cell [ref=f3e169]:
+                - textbox "Your value for Southwest Rapid Rewards, in cents per point" [ref=f3e170]:
+                  - /placeholder: 1.35¢
+              - cell "—" [ref=f3e171]
+            - row [ref=f3e172]:
+              - rowheader "Alaska Mileage Plan" [ref=f3e173]
+              - cell "1.50¢" [ref=f3e174]
+              - cell [ref=f3e175]:
+                - textbox "Your value for Alaska Mileage Plan, in cents per point" [ref=f3e176]:
+                  - /placeholder: 1.50¢
+              - cell "—" [ref=f3e177]
+            - row [ref=f3e178]:
+              - rowheader "JetBlue TrueBlue" [ref=f3e179]
+              - cell "1.30¢" [ref=f3e180]
+              - cell [ref=f3e181]:
+                - textbox "Your value for JetBlue TrueBlue, in cents per point" [ref=f3e182]:
+                  - /placeholder: 1.30¢
+              - cell "—" [ref=f3e183]
+            - row [ref=f3e184]:
+              - rowheader "Air Canada Aeroplan" [ref=f3e185]
+              - cell "1.50¢" [ref=f3e186]
+              - cell [ref=f3e187]:
+                - textbox "Your value for Air Canada Aeroplan, in cents per point" [ref=f3e188]:
+                  - /placeholder: 1.50¢
+              - cell "—" [ref=f3e189]
+            - row [ref=f3e190]:
+              - rowheader "British Airways Avios" [ref=f3e191]
+              - cell "1.40¢" [ref=f3e192]
+              - cell [ref=f3e193]:
+                - textbox "Your value for British Airways Avios, in cents per point" [ref=f3e194]:
+                  - /placeholder: 1.40¢
+              - cell "—" [ref=f3e195]
+            - row [ref=f3e196]:
+              - rowheader "Air France-KLM Flying Blue" [ref=f3e197]
+              - cell "1.30¢" [ref=f3e198]
+              - cell [ref=f3e199]:
+                - textbox "Your value for Air France-KLM Flying Blue, in cents per point" [ref=f3e200]:
+                  - /placeholder: 1.30¢
+              - cell "—" [ref=f3e201]
+            - row [ref=f3e202]:
+              - rowheader "Virgin Atlantic Flying Club" [ref=f3e203]
+              - cell "1.40¢" [ref=f3e204]
+              - cell [ref=f3e205]:
+                - textbox "Your value for Virgin Atlantic Flying Club, in cents per point" [ref=f3e206]:
+                  - /placeholder: 1.40¢
+              - cell "—" [ref=f3e207]
+            - row [ref=f3e208]:
+              - rowheader "Singapore KrisFlyer" [ref=f3e209]
+              - cell "1.40¢" [ref=f3e210]
+              - cell [ref=f3e211]:
+                - textbox "Your value for Singapore KrisFlyer, in cents per point" [ref=f3e212]:
+                  - /placeholder: 1.40¢
+              - cell "—" [ref=f3e213]
+            - row [ref=f3e214]:
+              - rowheader "Avianca LifeMiles" [ref=f3e215]
+              - cell "1.50¢" [ref=f3e216]
+              - cell [ref=f3e217]:
+                - textbox "Your value for Avianca LifeMiles, in cents per point" [ref=f3e218]:
+                  - /placeholder: 1.50¢
+              - cell "—" [ref=f3e219]
+            - row [ref=f3e220]:
+              - rowheader "Turkish Miles&Smiles" [ref=f3e221]
+              - cell "1.40¢" [ref=f3e222]
+              - cell [ref=f3e223]:
+                - textbox "Your value for Turkish Miles&Smiles, in cents per point" [ref=f3e224]:
+                  - /placeholder: 1.40¢
+              - cell "—" [ref=f3e225]
+            - row [ref=f3e226]:
+              - rowheader "Hotel points" [ref=f3e227]
+            - row [ref=f3e228]:
+              - rowheader "World of Hyatt" [ref=f3e229]
+              - cell "1.80¢" [ref=f3e230]
+              - cell [ref=f3e231]:
+                - textbox "Your value for World of Hyatt, in cents per point" [ref=f3e232]:
+                  - /placeholder: 1.80¢
+                  - text: 1.70¢
+              - cell "61,500" [ref=f3e233]
+            - row [ref=f3e234]:
+              - rowheader "Marriott Bonvoy" [ref=f3e235]
+              - cell "0.80¢" [ref=f3e236]
+              - cell [ref=f3e237]:
+                - textbox "Your value for Marriott Bonvoy, in cents per point" [ref=f3e238]:
+                  - /placeholder: 0.80¢
+              - cell "—" [ref=f3e239]
+            - row [ref=f3e240]:
+              - rowheader "Hilton Honors" [ref=f3e241]
+              - cell "0.50¢" [ref=f3e242]
+              - cell [ref=f3e243]:
+                - textbox "Your value for Hilton Honors, in cents per point" [ref=f3e244]:
+                  - /placeholder: 0.50¢
+              - cell "—" [ref=f3e245]
+            - row [ref=f3e246]:
+              - rowheader "IHG One Rewards" [ref=f3e247]
+              - cell "0.60¢" [ref=f3e248]
+              - cell [ref=f3e249]:
+                - textbox "Your value for IHG One Rewards, in cents per point" [ref=f3e250]:
+                  - /placeholder: 0.60¢
+              - cell "—" [ref=f3e251]
+            - row [ref=f3e252]:
+              - rowheader "Wyndham Rewards" [ref=f3e253]
+              - cell "0.90¢" [ref=f3e254]
+              - cell [ref=f3e255]:
+                - textbox "Your value for Wyndham Rewards, in cents per point" [ref=f3e256]:
+                  - /placeholder: 0.90¢
+              - cell "—" [ref=f3e257]
+            - row [ref=f3e258]:
+              - rowheader "Choice Privileges" [ref=f3e259]
+              - cell "0.60¢" [ref=f3e260]
+              - cell [ref=f3e261]:
+                - textbox "Your value for Choice Privileges, in cents per point" [ref=f3e262]:
+                  - /placeholder: 0.60¢
+              - cell "—" [ref=f3e263]
+            - row [ref=f3e264]:
+              - rowheader "Rail points" [ref=f3e265]
+            - row [ref=f3e266]:
+              - rowheader "Amtrak Guest Rewards" [ref=f3e267]
+              - cell "2.20¢" [ref=f3e268]
+              - cell [ref=f3e269]:
+                - textbox "Your value for Amtrak Guest Rewards, in cents per point" [ref=f3e270]:
+                  - /placeholder: 2.20¢
+              - cell "—" [ref=f3e271]

@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import Button from "../components/Button";
+import SegmentedControl from "../components/SegmentedControl";
 import AddTransactionModal from "../components/AddTransactionModal";
 import AssignIncomeModal from "../components/AssignIncomeModal";
 import PageHeader from "../components/PageHeader";
@@ -6,16 +9,22 @@ import PeriodStepper from "../components/PeriodStepper";
 import ToBeAssignedBar from "../components/ToBeAssignedBar";
 import SplitTransactionModal from "../components/SplitTransactionModal";
 import TransactionRegister from "../components/TransactionRegister";
-import { useAccounts } from "../contexts/AccountsContext";
+import { insideBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
-import { useTransactions } from "../contexts/TransactionsContext";
+import {
+  budgetLegs,
+  isTransfer,
+  TRANSACTION_KINDS,
+  useTransactions,
+} from "../contexts/TransactionsContext";
+import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
 import useEnvelopes from "../hooks/useEnvelopes";
 import { orderPayeesByUse } from "../domain/payeeSearch";
 import { currentPeriod, toPeriod } from "../utils";
 
 /**
- * The books, a month at a time, as the register they are.
+ * The books, by month or across all dates, with shareable account/category views.
  *
  * This page used to be a grid of envelope cards. What each envelope holds is a
  * question about the *plan*, and it is answered on the dashboard, where the
@@ -29,7 +38,33 @@ import { currentPeriod, toPeriod } from "../utils";
  * through, and the flow it opens has nowhere else to be reached from.
  */
 export default function TransactionsPage() {
-  const [period, setPeriod] = useState(currentPeriod);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedPeriod = searchParams.get("month");
+  const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedPeriod ?? "")
+    ? requestedPeriod
+    : currentPeriod();
+  const allDates = searchParams.get("dates") === "all";
+  const accountId = searchParams.get("account") ?? "";
+  const categoryId = searchParams.get("category") ?? "";
+  const filtered = Boolean(accountId || categoryId);
+
+  function setFilter(key, value) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    });
+  }
+
+  function clearFilters() {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.delete("account");
+      next.delete("category");
+      return next;
+    });
+  }
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   // The row being divided, held as an **id** rather than as the record: the
@@ -58,17 +93,27 @@ export default function TransactionsPage() {
     monthsFundedAhead,
   } = useEnvelopes(period);
 
-  // The month's rows, newest first, plus every undated one — those belong to no
-  // month, and a register that dropped them would leave money on the books with
-  // nowhere to correct it. The register bands them separately.
+  // Use effective budget legs so splits and crossing transfers match the
+  // category they actually affect, never an inert category left on the record.
   const rows = useMemo(() => {
-    const inPeriod = transactions.filter((transaction) => {
+    const inside = insideBudget(accounts);
+    const matching = transactions.filter((transaction) => {
       const at = toPeriod(transaction.date);
-      return at == null || at === period;
+      if (!allDates && at != null && at !== period) return false;
+      if (
+        accountId && transaction.accountId !== accountId &&
+        !(isTransfer(transaction) && transaction.toAccountId === accountId)
+      ) return false;
+      if (categoryId && !budgetLegs(transaction, inside).some((leg) => {
+        const effectiveCategory = leg.budgetId ??
+          (leg.kind === TRANSACTION_KINDS.OUTFLOW ? UNCATEGORIZED_BUDGET_ID : null);
+        return effectiveCategory === categoryId;
+      })) return false;
+      return true;
     });
     // Stable, so entries sharing a date stay in the order they were logged.
-    return [...inPeriod].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
-  }, [transactions, period]);
+    return matching.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  }, [transactions, accounts, period, allDates, accountId, categoryId]);
 
   const splitTarget = transactions.find((entry) => entry.id === splitTargetId) ?? null;
 
@@ -109,21 +154,80 @@ export default function TransactionsPage() {
         // No "Add transaction" of its own: the header carries that door on every
         // page, and a second button with the same label on the same screen makes
         // a reader stop and work out whether the two do the same thing.
-        actions={<PeriodStepper period={period} onChange={setPeriod} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <SegmentedControl
+              label="Transaction dates"
+              options={[{ value: "month", label: "By month" }, { value: "all", label: "All dates" }]}
+              value={allDates ? "all" : "month"}
+              onChange={(value) => setFilter("dates", value === "all" ? "all" : "")}
+            />
+            {!allDates && <PeriodStepper period={period} onChange={(value) => setFilter("month", value)} />}
+          </div>
+        }
       />
 
-      <ToBeAssignedBar
-        toBeAssignedCents={toBeAssignedCents}
-        periodIncomeCents={periodIncomeCents}
-        periodAssignedCents={periodAssignedCents}
-        reservedCents={emergencyReservedCents}
-        assignedAheadCents={assignedAheadCents}
-        monthsFundedAhead={monthsFundedAhead}
-        onAssignClick={() => setShowAssignModal(true)}
-      />
+      {!allDates && (
+        <ToBeAssignedBar
+          toBeAssignedCents={toBeAssignedCents}
+          periodIncomeCents={periodIncomeCents}
+          periodAssignedCents={periodAssignedCents}
+          reservedCents={emergencyReservedCents}
+          assignedAheadCents={assignedAheadCents}
+          monthsFundedAhead={monthsFundedAhead}
+          onAssignClick={() => setShowAssignModal(true)}
+        />
+      )}
+
+      <section aria-label="Filter transactions" className="mb-3 rounded-2xl border border-edge bg-panel p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-0 flex-1 basis-48 font-sans text-row text-chalk">
+            Account
+            <select
+              className="mt-1 block w-full rounded-lg border border-edge bg-panel px-3 py-2 text-chalk"
+              value={accountId}
+              onChange={(event) => setFilter("account", event.target.value)}
+            >
+              <option value="">All accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}{account.archived ? " (archived)" : ""}
+                </option>
+              ))}
+              {accountId && !accounts.some((account) => account.id === accountId) && (
+                <option value={accountId}>Unknown account</option>
+              )}
+            </select>
+          </label>
+          <label className="min-w-0 flex-1 basis-48 font-sans text-row text-chalk">
+            Category
+            <select
+              className="mt-1 block w-full rounded-lg border border-edge bg-panel px-3 py-2 text-chalk"
+              value={categoryId}
+              onChange={(event) => setFilter("category", event.target.value)}
+            >
+              <option value="">All categories</option>
+              {budgets.map((budget) => (
+                <option key={budget.id} value={budget.id}>{budget.name}</option>
+              ))}
+              <option value={UNCATEGORIZED_BUDGET_ID}>Uncategorized</option>
+              {categoryId && categoryId !== UNCATEGORIZED_BUDGET_ID &&
+                !budgets.some((budget) => budget.id === categoryId) && (
+                  <option value={categoryId}>Unknown category</option>
+                )}
+            </select>
+          </label>
+          {filtered && <Button variant="outline" size="sm" onClick={clearFilters}>Clear filters</Button>}
+        </div>
+        <p role="status" className="mt-2 font-sans text-row text-chalk-soft">
+          {rows.length} {rows.length === 1 ? "transaction" : "transactions"}{allDates ? " across all dates" : " in this view"}.
+          {categoryId && " Matching split transactions show their full amount."}
+        </p>
+      </section>
 
       <TransactionRegister
-        period={period}
+        period={allDates ? null : period}
+        filtered={filtered}
         transactions={rows}
         budgets={budgets}
         accounts={accounts}

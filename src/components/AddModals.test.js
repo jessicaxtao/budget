@@ -588,6 +588,83 @@ describe("one form for both directions", () => {
   });
 });
 
+describe("repeating a transaction as a schedule", () => {
+  const repeatBox = () => screen.queryByRole("checkbox", { name: /repeat this transaction/i });
+
+  test("ticking Repeat lays down a schedule from the same answers, its cursor past the entry just made", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    fireEvent.change(screen.getByLabelText(/paid to/i), { target: { value: "Landlord" } });
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "1,800" } });
+    fireEvent.click(repeatBox());
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // The entry itself is an ordinary row — nothing about it is marked recurring.
+    expect(JSON.parse(localStorage.getItem("transactions"))).toHaveLength(1);
+
+    // And a schedule sits beside it, built from the same answers and anchored to
+    // this entry's date. Its cursor is that same date, so the occurrence just
+    // recorded is already dealt with and the dashboard offers the next one rather
+    // than re-asking for the one entered.
+    const payees = JSON.parse(localStorage.getItem("payees"));
+    expect(JSON.parse(localStorage.getItem("schedules"))).toEqual([
+      {
+        id: expect.any(String),
+        kind: "outflow",
+        payeeId: payees[0].id,
+        amountCents: 180000,
+        accountId: "acc1",
+        budgetId: "a",
+        description: "",
+        cadence: "monthly",
+        startDate: todayISO(),
+        endsOn: null,
+        enteredThrough: todayISO(),
+      },
+    ]);
+  });
+
+  test("the offer is gone while a receipt is being split — a schedule is one category", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts();
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    expect(repeatBox()).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Split it between categories" }));
+    expect(repeatBox()).not.toBeInTheDocument();
+  });
+
+  test("the offer is gone on a transfer — a transfer is not schedulable", () => {
+    seedBudgets(TWO_BUDGETS);
+    seedAccounts([
+      { id: "acc1", name: "Everyday", openingBalanceCents: 100000 },
+      { id: "acc2", name: "Savings", openingBalanceCents: 0 },
+    ]);
+    render(
+      <Providers>
+        <TransactionHarness budgetIds={["a"]} />
+      </Providers>
+    );
+    fireEvent.click(screen.getByText("open a"));
+
+    expect(repeatBox()).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    expect(repeatBox()).not.toBeInTheDocument();
+  });
+});
+
 describe("forms do not keep stale input", () => {
   test("the transaction form is empty when reopened after a submit", () => {
     seedBudgets(TWO_BUDGETS);

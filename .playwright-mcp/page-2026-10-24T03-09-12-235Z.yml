@@ -1,0 +1,447 @@
+- generic [ref=f7e3]:
+  - link "Skip to content" [ref=f7e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f7e5]:
+    - generic [ref=f7e6]:
+      - generic [ref=f7e7]:
+        - generic [ref=f7e8]: Canopy Budget
+        - generic [ref=f7e25]:
+          - generic [ref=f7e26]:
+            - button "Add transaction" [ref=f7e27] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f7e28]: +
+              - text: Add transaction
+            - button "Transfer" [ref=f7e29] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f7e30]: ⇄
+              - text: Transfer
+          - button "Turn on sync" [ref=f7e31] [cursor=pointer]
+      - navigation "Sections" [ref=f7e32]:
+        - link "Configuration" [ref=f7e33] [cursor=pointer]:
+          - /url: /plan
+        - link "Dashboard" [ref=f7e34] [cursor=pointer]:
+          - /url: /
+        - link "Transactions" [ref=f7e35] [cursor=pointer]:
+          - /url: /transactions
+        - link "Reports" [ref=f7e36] [cursor=pointer]:
+          - /url: /reports
+        - link "Donations" [ref=f7e37] [cursor=pointer]:
+          - /url: /donations
+        - link "Net worth" [ref=f7e38] [cursor=pointer]:
+          - /url: /net-worth
+        - link "Retirement" [ref=f7e39] [cursor=pointer]:
+          - /url: /retirement
+        - link "Savings goals" [ref=f7e40] [cursor=pointer]:
+          - /url: /savings-goals
+        - link "Rewards" [ref=f7e41] [cursor=pointer]:
+          - /url: /rewards
+        - link "Settings" [ref=f7e42] [cursor=pointer]:
+          - /url: /settings
+  - main [ref=f7e43]:
+    - generic [ref=f7e44]:
+      - heading "Dashboard" [level=1] [ref=f7e46]
+      - generic [ref=f7e48]:
+        - generic [ref=f7e49]: Today
+        - generic [ref=f7e50]: Friday, October 23, 2026
+    - generic [ref=f7e51]:
+      - heading "October 2026" [level=2] [ref=f7e53]
+      - generic [ref=f7e54]:
+        - generic [ref=f7e55]:
+          - term [ref=f7e56]: Available to budget
+          - definition [ref=f7e57]: $875
+          - definition [ref=f7e58]: Unassigned
+        - generic [ref=f7e59]:
+          - term [ref=f7e60]: Budgeted this month
+          - definition [ref=f7e61]: $6,668
+          - definition [ref=f7e62]: $270 over the $6,398 plan
+        - generic [ref=f7e63]:
+          - term [ref=f7e64]: Spent this month
+          - definition [ref=f7e65]: $7,039
+          - definition [ref=f7e66]: $6,120 came in
+        - generic [ref=f7e67]:
+          - term [ref=f7e68]: Next paycheck
+          - definition [ref=f7e69]: in 10 days
+          - definition [ref=f7e70]: Nov 2, 2026 · every 2 weeks
+      - generic [ref=f7e71]:
+        - progressbar "Spent this month against the money sitting in envelopes" [ref=f7e72]
+        - generic [ref=f7e97]: $7,039 spent of $20,668 in envelopes
+    - status:
+      - generic [ref=f7e98]:
+        - paragraph [ref=f7e99]: Getting started
+        - heading "A quick guide to your budget" [level=2] [ref=f7e100]
+        - generic [ref=f7e101]:
+          - strong [ref=f7e102]: Available to budget
+          - text: is money in your budget that has not been assigned a job yet.
+          - strong [ref=f7e103]: Budgeted this month
+          - text: is the total you have assigned to categories for this month. Assigning money moves it from available to budget into your categories; budgeted money is planned for a job, while spent money has actually left an envelope.
+        - button "Got it" [ref=f7e104] [cursor=pointer]
+    - generic [ref=f7e105]:
+      - generic [ref=f7e107]:
+        - generic [ref=f7e108]:
+          - heading "Categories" [level=2] [ref=f7e109]
+          - generic [ref=f7e110]:
+            - button "Assign income" [ref=f7e111] [cursor=pointer]
+            - button "Move money" [ref=f7e112] [cursor=pointer]
+        - table [ref=f7e114]:
+          - rowgroup [ref=f7e115]:
+            - row [ref=f7e116]:
+              - columnheader "Category" [ref=f7e117]
+              - columnheader "Available" [ref=f7e118]
+              - columnheader "Budgeted" [ref=f7e119]
+              - columnheader "Activity" [ref=f7e120]
+              - columnheader "Goal" [ref=f7e121]
+          - rowgroup [ref=f7e122]:
+            - row [ref=f7e123]:
+              - columnheader "Home" [ref=f7e124]
+              - cell "-$1,010" [ref=f7e125]
+              - cell "$2,949" [ref=f7e126]
+              - cell "-$4,679" [ref=f7e127]
+              - cell "$3,000" [ref=f7e128]
+            - row [ref=f7e129]:
+              - rowheader "Rent transactions$2,200 over" [ref=f7e130]:
+                - link "Rent transactions" [ref=f7e131] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-rent&dates=all
+                  - text: Rent
+                - generic [ref=f7e132]: $2,200 over
+              - cell [ref=f7e133]:
+                - button "Cover Rent" [ref=f7e134] [cursor=pointer]: "-$2,200"
+              - cell "$2,200" [ref=f7e135]
+              - cell "-$4,400" [ref=f7e136]
+              - cell "—" [ref=f7e137]
+            - row [ref=f7e138]:
+              - rowheader [ref=f7e139]:
+                - link "Utilities transactions" [ref=f7e140] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-utilities&dates=all
+                  - text: Utilities
+              - cell [ref=f7e141]:
+                - button "Move money into Utilities" [ref=f7e142] [cursor=pointer]: $370
+              - cell "$574" [ref=f7e143]
+              - cell "-$204" [ref=f7e144]
+              - cell "—" [ref=f7e145]
+            - row [ref=f7e146]:
+              - rowheader [ref=f7e147]:
+                - link "Internet transactions" [ref=f7e148] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-internet&dates=all
+                  - text: Internet
+              - cell [ref=f7e149]:
+                - button "Move money into Internet" [ref=f7e150] [cursor=pointer]: $0
+              - cell "$75" [ref=f7e151]
+              - cell "-$75" [ref=f7e152]
+              - cell "—" [ref=f7e153]
+            - row [ref=f7e154]:
+              - rowheader [ref=f7e155]:
+                - link "Home repairs transactions" [ref=f7e156] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-repairs&dates=all
+                  - text: Home repairs
+              - cell [ref=f7e157]:
+                - button "Move money into Home repairs" [ref=f7e158] [cursor=pointer]: $820
+              - cell "$100" [ref=f7e159]
+              - cell "$0" [ref=f7e160]
+              - cell "$3,000" [ref=f7e161]
+          - rowgroup [ref=f7e162]:
+            - row [ref=f7e163]:
+              - columnheader "Living" [ref=f7e164]
+              - cell "$1,376" [ref=f7e165]
+              - cell "$1,316" [ref=f7e166]
+              - cell "-$993" [ref=f7e167]
+              - cell "$2,000" [ref=f7e168]
+            - row [ref=f7e169]:
+              - rowheader "Groceries transactions$150 over" [ref=f7e170]:
+                - link "Groceries transactions" [ref=f7e171] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-groceries&dates=all
+                  - text: Groceries
+                - generic [ref=f7e172]: $150 over
+              - cell [ref=f7e173]:
+                - button "Cover Groceries" [ref=f7e174] [cursor=pointer]: "-$150"
+              - cell "$651" [ref=f7e175]
+              - cell "-$559" [ref=f7e176]
+              - cell "—" [ref=f7e177]
+            - row [ref=f7e178]:
+              - rowheader [ref=f7e179]:
+                - link "Transit & fuel transactions" [ref=f7e180] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-transport&dates=all
+                  - text: Transit & fuel
+              - cell [ref=f7e181]:
+                - button "Move money into Transit & fuel" [ref=f7e182] [cursor=pointer]: $81
+              - cell "$180" [ref=f7e183]
+              - cell "-$99" [ref=f7e184]
+              - cell "—" [ref=f7e185]
+            - row [ref=f7e186]:
+              - rowheader [ref=f7e187]:
+                - link "Insurance transactions" [ref=f7e188] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-insurance&dates=all
+                  - text: Insurance
+              - cell [ref=f7e189]:
+                - button "Move money into Insurance" [ref=f7e190] [cursor=pointer]: $0
+              - cell "$245" [ref=f7e191]
+              - cell "-$245" [ref=f7e192]
+              - cell "—" [ref=f7e193]
+            - row [ref=f7e194]:
+              - rowheader [ref=f7e195]:
+                - link "Phone transactions" [ref=f7e196] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-phone&dates=all
+                  - text: Phone
+              - cell [ref=f7e197]:
+                - button "Move money into Phone" [ref=f7e198] [cursor=pointer]: $0
+              - cell "$90" [ref=f7e199]
+              - cell "-$90" [ref=f7e200]
+              - cell "—" [ref=f7e201]
+            - row [ref=f7e202]:
+              - rowheader [ref=f7e203]:
+                - link "Health & medical transactions" [ref=f7e204] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-health&dates=all
+                  - text: Health & medical
+              - cell [ref=f7e205]:
+                - button "Move money into Health & medical" [ref=f7e206] [cursor=pointer]: $1,445
+              - cell "$150" [ref=f7e207]
+              - cell "$0" [ref=f7e208]
+              - cell "$2,000" [ref=f7e209]
+          - rowgroup [ref=f7e210]:
+            - row [ref=f7e211]:
+              - columnheader "Lifestyle" [ref=f7e212]
+              - cell "$3,482" [ref=f7e213]
+              - cell "$1,170" [ref=f7e214]
+              - cell "-$784" [ref=f7e215]
+              - cell "$5,000" [ref=f7e216]
+            - row [ref=f7e217]:
+              - rowheader [ref=f7e218]:
+                - link "Dining out transactions" [ref=f7e219] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-dining&dates=all
+                  - text: Dining out
+              - cell [ref=f7e220]:
+                - button "Move money into Dining out" [ref=f7e221] [cursor=pointer]: $20
+              - cell "$220" [ref=f7e222]
+              - cell "-$200" [ref=f7e223]
+              - cell "—" [ref=f7e224]
+            - row [ref=f7e225]:
+              - rowheader "Entertainment transactions$50 over" [ref=f7e226]:
+                - link "Entertainment transactions" [ref=f7e227] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-fun&dates=all
+                  - text: Entertainment
+                - generic [ref=f7e228]: $50 over
+              - cell [ref=f7e229]:
+                - button "Cover Entertainment" [ref=f7e230] [cursor=pointer]: "-$50"
+              - cell "$150" [ref=f7e231]
+              - cell "-$150" [ref=f7e232]
+              - cell "—" [ref=f7e233]
+            - row [ref=f7e234]:
+              - rowheader [ref=f7e235]:
+                - link "Shopping transactions" [ref=f7e236] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-shopping&dates=all
+                  - text: Shopping
+              - cell [ref=f7e237]:
+                - button "Move money into Shopping" [ref=f7e238] [cursor=pointer]: $52
+              - cell "$200" [ref=f7e239]
+              - cell "-$134" [ref=f7e240]
+              - cell "—" [ref=f7e241]
+            - row [ref=f7e242]:
+              - rowheader [ref=f7e243]:
+                - link "Travel transactions" [ref=f7e244] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-travel&dates=all
+                  - text: Travel
+              - cell [ref=f7e245]:
+                - button "Move money into Travel" [ref=f7e246] [cursor=pointer]: $1,910
+              - cell "$250" [ref=f7e247]
+              - cell "$0" [ref=f7e248]
+              - cell "$5,000" [ref=f7e249]
+            - row [ref=f7e250]:
+              - rowheader [ref=f7e251]:
+                - link "Gifts & giving transactions" [ref=f7e252] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-gifts&dates=all
+                  - text: Gifts & giving
+              - cell [ref=f7e253]:
+                - button "Move money into Gifts & giving" [ref=f7e254] [cursor=pointer]: $1,500
+              - cell "$300" [ref=f7e255]
+              - cell "-$300" [ref=f7e256]
+              - cell "—" [ref=f7e257]
+            - row [ref=f7e258]:
+              - rowheader [ref=f7e259]:
+                - link "Miscellaneous transactions" [ref=f7e260] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-misc&dates=all
+                  - text: Miscellaneous
+              - cell [ref=f7e261]:
+                - button "Move money into Miscellaneous" [ref=f7e262] [cursor=pointer]: $50
+              - cell "$50" [ref=f7e263]
+              - cell "$0" [ref=f7e264]
+              - cell "—" [ref=f7e265]
+          - rowgroup [ref=f7e266]:
+            - row [ref=f7e267]:
+              - columnheader "Future" [ref=f7e268]
+              - cell "$9,781" [ref=f7e269]
+              - cell "$650" [ref=f7e270]
+              - cell "$0" [ref=f7e271]
+              - cell "$38,000" [ref=f7e272]
+            - row [ref=f7e273]:
+              - rowheader [ref=f7e274]:
+                - link "Emergency fund transactions" [ref=f7e275] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-emergency&dates=all
+                  - text: Emergency fund
+              - cell [ref=f7e276]:
+                - button "Move money into Emergency fund" [ref=f7e277] [cursor=pointer]: $4,403.69
+              - cell "$400" [ref=f7e278]
+              - cell "$0" [ref=f7e279]
+              - cell "$18,000" [ref=f7e280]
+            - row [ref=f7e281]:
+              - rowheader [ref=f7e282]:
+                - link "Car replacement transactions" [ref=f7e283] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-car&dates=all
+                  - text: Car replacement
+              - cell [ref=f7e284]:
+                - button "Move money into Car replacement" [ref=f7e285] [cursor=pointer]: $5,377.31
+              - cell "$250" [ref=f7e286]
+              - cell "$0" [ref=f7e287]
+              - cell "$20,000" [ref=f7e288]
+          - rowgroup [ref=f7e289]:
+            - row [ref=f7e290]:
+              - columnheader "Retirement" [ref=f7e291]
+              - cell "$0" [ref=f7e292]
+              - cell "$583" [ref=f7e293]
+              - cell "-$583" [ref=f7e294]
+              - cell [ref=f7e295]
+            - row [ref=f7e296]:
+              - rowheader [ref=f7e297]:
+                - link "Roth IRA transactions" [ref=f7e298] [cursor=pointer]:
+                  - /url: /transactions?category=demo-cat-roth&dates=all
+                  - text: Roth IRA
+              - cell [ref=f7e299]:
+                - button "Move money into Roth IRA" [ref=f7e300] [cursor=pointer]: $0
+              - cell "$583" [ref=f7e301]
+              - cell "-$583" [ref=f7e302]
+              - cell "—" [ref=f7e303]
+          - rowgroup [ref=f7e304]:
+            - row [ref=f7e305]:
+              - rowheader "All categories" [ref=f7e306]
+              - cell "$13,629" [ref=f7e307]
+              - cell "$6,668" [ref=f7e308]
+              - cell "-$7,039" [ref=f7e309]
+              - cell "$48,000" [ref=f7e310]
+      - generic [ref=f7e311]:
+        - generic [ref=f7e312]:
+          - generic [ref=f7e313]:
+            - generic [ref=f7e314]:
+              - heading "Upcoming" [level=2] [ref=f7e315]
+              - paragraph [ref=f7e316]: $2,685 going out in the next 28 days.
+            - generic [ref=f7e317]: 4 are overdue
+          - generic [ref=f7e318]:
+            - generic [ref=f7e319]:
+              - generic [ref=f7e320]: Granite Mutual
+              - generic [ref=f7e321]: −$245
+            - generic [ref=f7e322]:
+              - generic [ref=f7e323]: Everyday checking · Insurance
+              - generic [ref=f7e324]: Oct 3, 2026 · 20 days ago
+              - generic [ref=f7e325]:
+                - button "Enter Granite Mutual due Oct 3, 2026" [ref=f7e326] [cursor=pointer]: Enter
+                - button "Skip Granite Mutual due Oct 3, 2026" [ref=f7e327] [cursor=pointer]: Skip
+          - generic [ref=f7e328]:
+            - generic [ref=f7e329]:
+              - generic [ref=f7e330]: Riverline Fiber
+              - generic [ref=f7e331]: −$75
+            - generic [ref=f7e332]:
+              - generic [ref=f7e333]: Everyday checking · Internet
+              - generic [ref=f7e334]: Oct 8, 2026 · 15 days ago
+              - generic [ref=f7e335]:
+                - button "Enter Riverline Fiber due Oct 8, 2026" [ref=f7e336] [cursor=pointer]: Enter
+                - button "Skip Riverline Fiber due Oct 8, 2026" [ref=f7e337] [cursor=pointer]: Skip
+          - generic [ref=f7e338]:
+            - generic [ref=f7e339]:
+              - generic [ref=f7e340]: Lumen Streaming
+              - generic [ref=f7e341]: −$45
+            - generic [ref=f7e342]:
+              - generic [ref=f7e343]: Rewards card · Entertainment
+              - generic [ref=f7e344]: Oct 15, 2026 · 8 days ago
+              - generic [ref=f7e345]:
+                - button "Enter Lumen Streaming due Oct 15, 2026" [ref=f7e346] [cursor=pointer]: Enter
+                - button "Skip Lumen Streaming due Oct 15, 2026" [ref=f7e347] [cursor=pointer]: Skip
+          - generic [ref=f7e348]:
+            - generic [ref=f7e349]:
+              - generic [ref=f7e350]: Acme Corp
+              - generic [ref=f7e351]: +$2,650
+            - generic [ref=f7e352]:
+              - generic [ref=f7e353]: Everyday checking · Income
+              - generic [ref=f7e354]: Oct 18, 2026 · 5 days ago
+              - generic [ref=f7e355]:
+                - button "Enter Acme Corp due Oct 18, 2026" [ref=f7e356] [cursor=pointer]: Enter
+                - button "Skip Acme Corp due Oct 18, 2026" [ref=f7e357] [cursor=pointer]: Skip
+          - generic [ref=f7e358]:
+            - generic [ref=f7e359]:
+              - generic [ref=f7e360]: Acme Corp
+              - generic [ref=f7e361]: +$2,650
+            - generic [ref=f7e362]:
+              - generic [ref=f7e363]: Everyday checking · Income
+              - generic [ref=f7e364]: Nov 1, 2026 · in 9 days
+              - generic [ref=f7e365]:
+                - button "Enter Acme Corp due Nov 1, 2026" [ref=f7e366] [cursor=pointer]: Enter
+                - button "Skip Acme Corp due Nov 1, 2026" [ref=f7e367] [cursor=pointer]: Skip
+          - generic [ref=f7e368]:
+            - generic [ref=f7e369]:
+              - generic [ref=f7e370]: Oak Street Rentals
+              - generic [ref=f7e371]: −$2,200
+            - generic [ref=f7e372]:
+              - generic [ref=f7e373]: Everyday checking · Rent
+              - generic [ref=f7e374]: Nov 1, 2026 · in 9 days
+              - generic [ref=f7e375]:
+                - button "Enter Oak Street Rentals due Nov 1, 2026" [ref=f7e376] [cursor=pointer]: Enter
+                - button "Skip Oak Street Rentals due Nov 1, 2026" [ref=f7e377] [cursor=pointer]: Skip
+          - generic [ref=f7e378]:
+            - generic [ref=f7e379]:
+              - generic [ref=f7e380]: Riverline Fiber
+              - generic [ref=f7e381]: −$75
+            - generic [ref=f7e382]:
+              - generic [ref=f7e383]: Everyday checking · Internet
+              - generic [ref=f7e384]: Nov 8, 2026 · in 16 days
+              - generic [ref=f7e385]:
+                - button "Enter Riverline Fiber due Nov 8, 2026" [ref=f7e386] [cursor=pointer]: Enter
+                - button "Skip Riverline Fiber due Nov 8, 2026" [ref=f7e387] [cursor=pointer]: Skip
+          - generic [ref=f7e388]:
+            - generic [ref=f7e389]:
+              - generic [ref=f7e390]: Acme Corp
+              - generic [ref=f7e391]: +$2,650
+            - generic [ref=f7e392]:
+              - generic [ref=f7e393]: Everyday checking · Income
+              - generic [ref=f7e394]: Nov 15, 2026 · in 23 days
+              - generic [ref=f7e395]:
+                - button "Enter Acme Corp due Nov 15, 2026" [ref=f7e396] [cursor=pointer]: Enter
+                - button "Skip Acme Corp due Nov 15, 2026" [ref=f7e397] [cursor=pointer]: Skip
+          - generic [ref=f7e398]:
+            - generic [ref=f7e399]:
+              - generic [ref=f7e400]: Lumen Streaming
+              - generic [ref=f7e401]: −$45
+            - generic [ref=f7e402]:
+              - generic [ref=f7e403]: Rewards card · Entertainment
+              - generic [ref=f7e404]: Nov 15, 2026 · in 23 days
+              - generic [ref=f7e405]:
+                - button "Enter Lumen Streaming due Nov 15, 2026" [ref=f7e406] [cursor=pointer]: Enter
+                - button "Skip Lumen Streaming due Nov 15, 2026" [ref=f7e407] [cursor=pointer]: Skip
+        - generic [ref=f7e408]:
+          - generic [ref=f7e409]:
+            - heading "Accounts" [level=2] [ref=f7e411]
+            - generic [ref=f7e412]: 1 need checking
+          - generic [ref=f7e413]:
+            - generic [ref=f7e414]:
+              - 'link "View transactions for account: Everyday checking" [ref=f7e415] [cursor=pointer]':
+                - /url: /transactions?account=demo-acct-checking&dates=all
+                - text: Everyday checking
+              - generic [ref=f7e416]: $7,501
+            - generic [ref=f7e417]:
+              - generic [ref=f7e418]: On budget · Oct 9, 2026 · 14 days ago
+              - generic [ref=f7e419]:
+                - button "Mark Everyday checking accurate today" [ref=f7e420] [cursor=pointer]: Accurate
+                - button "Reconcile Everyday checking" [ref=f7e421] [cursor=pointer]: Reconcile
+          - generic [ref=f7e422]:
+            - generic [ref=f7e423]:
+              - 'link "View transactions for account: High-yield savings" [ref=f7e424] [cursor=pointer]':
+                - /url: /transactions?account=demo-acct-savings&dates=all
+                - text: High-yield savings
+              - generic [ref=f7e425]: $22,000
+            - generic [ref=f7e426]:
+              - generic [ref=f7e427]: On budget · Sep 10, 2026 · 43 days ago
+              - generic [ref=f7e428]:
+                - button "Mark High-yield savings accurate today" [ref=f7e429] [cursor=pointer]: Accurate
+                - button "Reconcile High-yield savings" [ref=f7e430] [cursor=pointer]: Reconcile
+          - generic [ref=f7e431]:
+            - generic [ref=f7e432]:
+              - 'link "View transactions for account: Rewards card" [ref=f7e433] [cursor=pointer]':
+                - /url: /transactions?account=demo-acct-card&dates=all
+                - text: Rewards card
+              - generic [ref=f7e434]: "-$1,797"
+            - generic [ref=f7e435]:
+              - generic [ref=f7e436]: Credit card · Oct 18, 2026 · 5 days ago
+              - button "Record paying off Rewards card" [ref=f7e437] [cursor=pointer]: Paid off

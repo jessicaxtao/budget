@@ -93,6 +93,7 @@ const row = (name) =>
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem("dashboardBudgetExplainerDismissed", "true");
 });
 
 test("states today's date, since every figure on the page is as of today", () => {
@@ -729,7 +730,7 @@ describe("moving money between categories", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cover Groceries" }));
     fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
-    fireEvent.change(screen.getByLabelText("Amount to move"), { target: { value: "300" } });
+    expect(screen.getByLabelText("Amount to move")).toHaveValue("$300");
 
     const preview = screen.getByRole("status");
     expect(preview).toHaveTextContent(/Rent.*\$300.*\$0/);
@@ -751,9 +752,44 @@ describe("moving money between categories", () => {
     fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
     fireEvent.click(screen.getByRole("button", { name: "Move it" }));
 
-    expect(amounts()).toEqual({ rent: "-$100", groceries: "$0" });
+    expect(amounts()).toEqual({ rent: "$0", groceries: "-$100" });
     // The two deltas cancel, so what is left to assign cannot have moved.
     expect(screen.getByText("Available to budget").closest("div").textContent).toBe(poolBefore);
+  });
+
+  test("switching to a source that can cover the shortfall restores the full default", () => {
+    seedShortfall();
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cover Groceries" }));
+    fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
+    expect(screen.getByLabelText("Amount to move")).toHaveValue("$300");
+    fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "to-be-assigned" } });
+    expect(screen.getByLabelText("Amount to move")).toHaveValue("$400");
+  });
+
+  test("a typed amount is kept when choosing a source and can still overdraw it", () => {
+    seedShortfall();
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cover Groceries" }));
+    fireEvent.change(screen.getByLabelText("Amount to move"), { target: { value: "400.00" } });
+    fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
+    expect(screen.getByLabelText("Amount to move")).toHaveValue("400.00");
+    fireEvent.click(screen.getByRole("button", { name: "Move it" }));
+    expect(amounts()).toEqual({ rent: "-$100", groceries: "$0" });
+  });
+
+  test.each([120000, 110000])("a source with no spare money defaults to zero (assigned %i cents)", (assignedCents) => {
+    seedShortfall();
+    localStorage.setItem("assignments", JSON.stringify([
+      { id: "as1", budgetId: "b1", period: PERIOD, assignedCents },
+    ]));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cover Groceries" }));
+    fireEvent.change(screen.getByLabelText("Move from"), { target: { value: "b1" } });
+    expect(screen.getByLabelText("Amount to move")).toHaveValue("$0");
   });
 
   test("a move the store refuses keeps the form open and says why", () => {

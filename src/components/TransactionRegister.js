@@ -615,12 +615,26 @@ function RegisterRow({
         />
         <td data-action="remove" className="px-1 py-1 text-right">
           <Button
+            type="button"
             variant="row"
             size="sm"
             aria-label={`Remove entry: ${label}`}
+            title="Remove transaction"
+            className="h-8 w-8 !p-0 focus-visible:bg-band focus-visible:text-vermilion-ink"
             onClick={() => onDelete(transaction)}
           >
-            &times;
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0"
+            >
+              <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" />
+            </svg>
           </Button>
         </td>
       </tr>
@@ -660,6 +674,7 @@ function Band({ name, totals }) {
 
 export default function TransactionRegister({
   period,
+  filtered = false,
   transactions,
   budgets,
   accounts,
@@ -705,7 +720,7 @@ export default function TransactionRegister({
 
   const dated = transactions.filter((transaction) => transaction.date != null);
   const undated = transactions.filter((transaction) => transaction.date == null);
-  const totals = totalsOf(dated);
+  const totals = totalsOf(period == null ? transactions : dated);
 
   // The zebra runs across the whole table rather than restarting under the
   // undated band, so two rows of the same shade never end up either side of it.
@@ -734,7 +749,7 @@ export default function TransactionRegister({
     <section className="overflow-hidden rounded-2xl border border-edge bg-panel">
       {transactions.length === 0 ? (
         <p className="px-4 py-5 font-sans text-row text-chalk-soft">
-          Nothing recorded in {formatPeriod(period)}.{" "}
+          {filtered ? "No transactions match these filters." : period ? `Nothing recorded in ${formatPeriod(period)}.` : "Nothing recorded yet."}{" "}
           <button
             type="button"
             onClick={onAdd}
@@ -742,7 +757,7 @@ export default function TransactionRegister({
           >
             Add a transaction
           </button>{" "}
-          and it will appear here, editable where it sits.
+          {filtered ? "or change the filters to see more entries." : "and it will appear here, editable where it sits."}
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -794,7 +809,7 @@ export default function TransactionRegister({
                   className="px-3 py-2 text-left font-mono text-label uppercase text-chalk"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <span>{formatPeriod(period)}</span>
+                    <span>{period ? formatPeriod(period) : "All dates"}{filtered ? " · Filtered transactions" : ""}</span>
                     <div className="font-medium normal-case tracking-normal text-row">
                       <FlowTotals totals={totals} onPanel />
                     </div>

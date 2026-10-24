@@ -150,7 +150,7 @@ describe("with nothing on it", () => {
 
     expect(screen.getByRole("link", { name: /add a scheduled transaction/i })).toHaveAttribute(
       "href",
-      "/plan"
+      "/settings"
     );
   });
 

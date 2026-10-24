@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import AccountList from "./AccountList";
+import { MemoryRouter } from "react-router-dom";
 
 /**
  * `AccountList` takes its rows as a prop and holds no state, so these render it
@@ -19,15 +20,17 @@ const section = (title) => screen.getByRole("heading", { name: title }).closest(
 
 function renderList(accounts, balanceById, handlers = {}) {
   render(
-    <AccountList
-      accounts={accounts}
-      balanceById={balanceById}
-      onAdd={() => {}}
-      onEdit={() => {}}
-      onArchive={() => {}}
-      onDelete={() => {}}
-      {...handlers}
-    />
+    <MemoryRouter>
+      <AccountList
+        accounts={accounts}
+        balanceById={balanceById}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onArchive={() => {}}
+        onDelete={() => {}}
+        {...handlers}
+      />
+    </MemoryRouter>
   );
 }
 

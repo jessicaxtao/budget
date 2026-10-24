@@ -45,6 +45,7 @@ import { amountAtRest, amountField, formatCents, formatPeriod, toCents } from ".
  */
 export default function MoveMoneyModal({ show, period, seed, notes, handleClose }) {
   const formRef = useRef();
+  const amountEdited = useRef(false);
   const [error, setError] = useState(null);
   // A mirror of the three fields, for the read-out only. The form is still what
   // submit reads, so there is only ever one answer.
@@ -91,6 +92,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
     const form = formRef.current;
     if (!form) return;
     form.reset();
+    amountEdited.current = false;
     setError(null);
     form.elements.fromBudgetId.value = seed?.fromBudgetId ?? "";
     form.elements.toBudgetId.value = seed?.toBudgetId ?? "";
@@ -98,6 +100,25 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
       seed?.amountCents > 0 ? amountAtRest(seed.amountCents) : "";
     recompute();
   }, [show, period, seed, recompute]);
+
+  function handleChange(e) {
+    if (e.target.name === "amount") amountEdited.current = true;
+    if (
+      !amountEdited.current &&
+      (e.target.name === "fromBudgetId" || e.target.name === "toBudgetId")
+    ) {
+      const form = formRef.current;
+      const from = rowFor(form.elements.fromBudgetId.value);
+      const to = rowFor(form.elements.toBudgetId.value);
+      // Cover only what the source can spare. A typed amount remains the
+      // user's choice, including a deliberate move that overdraws the source.
+      if (from && to && from !== to && to.availableCents < 0) {
+        const cents = Math.min(Math.max(0, from.availableCents), -to.availableCents);
+        form.elements.amount.value = amountAtRest(cents);
+      }
+    }
+    recompute();
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -138,7 +159,7 @@ export default function MoveMoneyModal({ show, period, seed, notes, handleClose 
           have somewhere to go.
         </p>
       ) : (
-        <form ref={formRef} onSubmit={handleSubmit} onChange={recompute}>
+        <form ref={formRef} onSubmit={handleSubmit} onChange={handleChange}>
           {notes?.length > 0 && (
             <ul
               aria-label="Check before saving"

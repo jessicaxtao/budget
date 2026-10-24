@@ -91,7 +91,13 @@ function NameCell({ row }) {
   const over = row.availableCents < 0;
   return (
     <th scope="row" className="px-4 py-2 text-left font-sans text-row font-normal text-ink">
-      <span className={over ? "font-medium text-vermilion-ink" : undefined}>{row.name}</span>
+      <Link
+        to={`/transactions?category=${encodeURIComponent(row.budgetId)}&dates=all`}
+        aria-label={`${row.name} transactions`}
+        className={`underline decoration-current/30 underline-offset-2 hover:decoration-current ${over ? "font-medium text-vermilion-ink" : "text-azure"}`}
+      >
+        {row.name}
+      </Link>
       {over && (
         // Its own line on a phone, where the name and two figures already fill
         // the width; beside the name wherever there is room for it.

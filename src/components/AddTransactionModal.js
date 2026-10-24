@@ -14,9 +14,11 @@ import { insideBudget, spendsThroughBudget, useAccounts } from "../contexts/Acco
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import { useRewards } from "../contexts/RewardsContext";
+import { useSchedules } from "../contexts/SchedulesContext";
 import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import useAccountBalances from "../hooks/useAccountBalances";
 import { orderPayeesByUse } from "../domain/payeeSearch";
+import { DEFAULT_RECURRENCE, RECURRENCE_KEYS, RECURRENCES } from "../domain/recurrence";
 import useCardOffers from "../hooks/useCardOffers";
 import { OFFER_KINDS, offerNudges, rankCardsFor } from "../domain/rewards";
 import { cashbackCents } from "../domain/cashback";
@@ -109,6 +111,17 @@ function shouldShowMoneyInCallout() {
  * pick that card every time, and a monthly top-up to savings is usually the same
  * two accounts as last month's. Read off the ledger rather than stored, the
  * reason `orderPayeesByUse` reads recency the same way.
+ *
+ * **It can lay down a schedule as it saves.** A recurring bill is easiest to
+ * record as a schedule on the day it is first entered, when its payee, amount,
+ * account and category are already in hand — so "Repeat this transaction" offers
+ * a cadence and, on save, writes a schedule from the same answers, anchored to
+ * this entry's date. The entry just made *is* that schedule's first occurrence,
+ * so the schedule is created with its cursor already past that date (see
+ * `addSchedule`): the dashboard offers the next one rather than re-asking for the
+ * one just entered. No link is kept back from the transaction — the two are
+ * independent records, the rule `SchedulesContext` keeps for its own reasons. Not
+ * offered on a transfer or a split, neither of which a schedule can describe.
  *
  * **"Save and add another" keeps the form open** on the direction, the accounts,
  * the date and the category, and clears what is particular to one receipt — the
@@ -214,6 +227,13 @@ export default function AddTransactionModal({
   const [toAccountId, setToAccountId] = useState("");
   const [splitting, setSplitting] = useState(false);
   const [parts, setParts] = useState([]);
+  // Whether this entry is also laying down a schedule — a recurring bill the
+  // person is recording for the first time. Held in state because it reveals
+  // the cadence field; the cadence itself is read from its ref at submit, the
+  // rule every select here keeps. Off for a transfer or a split, neither of
+  // which a schedule can describe (see `SchedulesContext`).
+  const [repeat, setRepeat] = useState(false);
+  const repeatCadenceRef = useRef();
   // The payee, as either an existing record or a name that is not one yet. Held
   // in state rather than in a ref because `PayeeField` is controlled and because
   // picking one can seed the category select below it — both of which need a
@@ -279,6 +299,7 @@ export default function AddTransactionModal({
   const [heldFor, setHeldFor] = useState(null);
 
   const { addTransaction, transactions } = useTransactions();
+  const { addSchedule } = useSchedules();
   const recordCashback = useRecordCashback();
   const { accounts } = useAccounts();
   const { budgets } = useBudgets();
@@ -332,12 +353,23 @@ export default function AddTransactionModal({
   // Wherever a category is asked for, "several" is one of the answers — on money
   // in as much as money out, since a refund can cover more than one envelope.
   const canSplit = (needsCategory || isInflow) && budgets.length > 0;
+  // A schedule describes money out or money in, one payee and one figure: never
+  // a transfer (what it means to the budget is a rule the schedule form cannot
+  // check) and never a division (a bill is one category). So the offer to repeat
+  // is only on an ordinary, undivided entry — the same two kinds `SCHEDULE_KINDS`
+  // allows.
 
   // Nothing to book against. Said plainly, with the way out, rather than
   // presenting a form whose submit can only fail.
   const blocked =
     (isTransfer ? active.length < 2 : spendable.length === 0) ||
     (isOutflow && budgets.length === 0);
+
+  // The offer to repeat is live only on an undivided money-out or money-in entry
+  // the form can actually save (see the comment on `canSplit` above). When it is
+  // not, the control is gone and `repeat` is ignored at submit, so a box left
+  // ticked before a switch to a transfer or a split lays down nothing.
+  const canRepeat = !isTransfer && !splitting && !blocked;
 
   /**
    * The accounts this direction was last used with, newest entry first —
@@ -374,6 +406,7 @@ export default function AddTransactionModal({
     setKind(defaultKind);
     setSplitting(false);
     setParts([]);
+    setRepeat(false);
     setTotalCents(null);
     setPayeeId(draft?.payeeId ?? null);
     setPayeeName(draft?.payeeName ?? "");
@@ -844,6 +877,30 @@ export default function AddTransactionModal({
       }
     }
 
+    // The schedule, last and only once the money has landed: it is a prediction
+    // about the entry just made, so an entry the ledger refused has nothing to
+    // repeat. The date just recorded seeds both the anchor and the cursor — the
+    // occurrence it describes is already dealt with, so the dashboard offers the
+    // next one rather than re-asking for this one. Refused, it says so rather
+    // than closing as though the schedule had been written.
+    if (canRepeat && repeat) {
+      const scheduled = addSchedule({
+        kind,
+        payeeId: resolvedPayeeId,
+        amount: amountRef.current.value,
+        accountId: fromAccountId,
+        budgetId: budgetIdRef.current?.value || null,
+        cadence: repeatCadenceRef.current?.value || DEFAULT_RECURRENCE,
+        startDate: dateRef.current.value,
+        enteredThrough: dateRef.current.value,
+        description: descriptionRef.current.value,
+      });
+      if (!scheduled.ok) {
+        setError(`The transaction was saved, but the schedule was not: ${scheduled.error}`);
+        return;
+      }
+    }
+
     if (anotherRef.current) {
       anotherRef.current = false;
       startAnother();
@@ -876,6 +933,7 @@ export default function AddTransactionModal({
     setPayeeName("");
     setSplitting(false);
     setParts([]);
+    setRepeat(false);
     setTemplateShares(null);
     setRemember({});
     setHeldFor(null);
@@ -1177,6 +1235,45 @@ export default function AddTransactionModal({
               <Button variant="outline" size="sm" type="button" onClick={handleSplitToggle}>
                 {splitting ? "File it all under one category" : "Split it between categories"}
               </Button>
+            </div>
+          )}
+          {/* Make it recurring, at the moment it is first recorded — a bill is
+              easiest to write down as a schedule on the day it is also a
+              transaction, which is the one time its payee, amount and category
+              are all in hand. Only the cadence is asked here; the anchor is this
+              entry's date, and anything finer (an end date, a changed day) is a
+              later edit in Settings. Hidden for a transfer or a split, which a
+              schedule cannot describe. */}
+          {canRepeat && (
+            <div className="-mt-1 mb-5">
+              <label className="flex items-center gap-2 font-sans text-row text-chalk-soft">
+                <input
+                  type="checkbox"
+                  checked={repeat}
+                  onChange={(e) => setRepeat(e.target.checked)}
+                />
+                Repeat this transaction
+              </label>
+              {repeat && (
+                <div className="mt-3">
+                  <SelectField
+                    label="How often"
+                    selectRef={repeatCadenceRef}
+                    defaultValue={DEFAULT_RECURRENCE}
+                    required
+                  >
+                    {RECURRENCE_KEYS.map((key) => (
+                      <option key={key} value={key}>
+                        {RECURRENCES[key].label}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <p className="-mt-3 font-sans text-row text-chalk-soft">
+                    Nothing is recorded automatically. The next one will be waiting on your
+                    dashboard when it is due, to enter with whatever the statement says.
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {nudges.length > 0 && (

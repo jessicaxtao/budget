@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import Button from "./Button";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
-import { formatCents, formatDateMedium, formatDayDelta } from "../utils";
+import { formatCents, formatDateMedium, formatDayDelta, formatDayShort } from "../utils";
 
 /**
  * What is due next, and what was due already.
@@ -52,53 +52,55 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip }) {
 
   return (
     /**
-     * **Two lines, at every width**, and that is not a mobile concession: this
-     * panel is a third of the dashboard's grid even on a wide screen, and
-     * everything on the row but the name has an irreducible width — a date, an
-     * amount and two buttons cannot be truncated and still mean anything. Put
-     * all four on one line and the only thing that can give is the payee, which
-     * is the one part a reader is scanning for; it came back as "Gr…" and
-     * "Riverl…" against a perfectly readable "4 DAYS AGO" beside it.
+     * **The name and the figure first, everything else beneath.** The two facts
+     * a reader scans for share the top line — the name taking the room it needs
+     * on the left and the figure pinned right, so a long payee truncates rather
+     * than shoving the amount onto a line of its own. Below it sit where the
+     * money comes from, when it is due, and the two actions.
      *
-     * So the name takes a line of its own and the rest share the next. What was
-     * a one-line row is now two, and two lines that say something beat one that
-     * does not.
+     * The filing then takes a line of its own, and the due date and the two
+     * actions share the line below it. The filing is not folded in beside the
+     * date to save a line because this panel is always a narrow column of the
+     * dashboard grid, never full width — and "EVERYDAY CHECKING · INS…" trimmed
+     * to the account alone has lost the category, which is the half worth
+     * reading. A line each keeps both whole at every width.
      */
-    <div
-      className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 ${
-        striped ? "bg-sheet-alt" : "bg-sheet"
-      }`}
-    >
-      <div className="min-w-0 flex-1 basis-full">
-        <div className="truncate font-sans text-row text-ink">{name}</div>
-        <div className="truncate font-mono text-label uppercase text-ink-soft">{filing}</div>
-      </div>
-
-      <div className="shrink-0 text-right">
-        <div className={`font-mono text-row font-medium tabular-nums ${isInflow ? "text-verdant" : "text-vermilion-ink"}`}>
+    <div className={`px-4 py-2.5 ${striped ? "bg-sheet-alt" : "bg-sheet"}`}>
+      <div className="flex items-baseline gap-x-3">
+        <div className="min-w-0 flex-1 truncate font-sans text-row text-ink">{name}</div>
+        <div
+          className={`shrink-0 font-mono text-row font-medium tabular-nums ${isInflow ? "text-verdant" : "text-vermilion-ink"}`}
+        >
           {isInflow ? "+" : "−"}
           {formatCents(row.schedule.amountCents)}
         </div>
-        <div className={`whitespace-nowrap font-mono text-label uppercase ${status.tone}`}>
-          {formatDateMedium(row.date)} · {status.note}
-        </div>
       </div>
 
-      <span className="ml-auto inline-flex shrink-0 items-center gap-1">
-        {/* Enter before Skip, and drawn as a button where Skip is bare text: the
-            quiet one is the one that throws an occurrence away. */}
-        <Button
-          variant="row-action"
-          size="sm"
-          aria-label={`Enter ${label}`}
-          onClick={() => onEnter(row)}
-        >
-          Enter
-        </Button>
-        <Button variant="row" size="sm" aria-label={`Skip ${label}`} onClick={() => onSkip(row)}>
-          Skip
-        </Button>
-      </span>
+      <div className="mt-1 flex flex-col gap-y-1">
+        <div className="min-w-0 truncate font-mono text-label uppercase text-ink-soft">
+          {filing}
+        </div>
+        <div className="flex items-center gap-x-3">
+          <div className={`whitespace-nowrap font-mono text-label uppercase ${status.tone}`}>
+            {formatDayShort(row.date)} · {status.note}
+          </div>
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1">
+            {/* Enter before Skip, and drawn as a button where Skip is bare text:
+                the quiet one is the one that throws an occurrence away. */}
+            <Button
+              variant="row-action"
+              size="sm"
+              aria-label={`Enter ${label}`}
+              onClick={() => onEnter(row)}
+            >
+              Enter
+            </Button>
+            <Button variant="row" size="sm" aria-label={`Skip ${label}`} onClick={() => onSkip(row)}>
+              Skip
+            </Button>
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -144,7 +146,7 @@ export default function UpcomingBills({
           {scheduleCount === 0 ? (
             <>
               Nothing scheduled yet.{" "}
-              <Link to="/plan" className="text-azure underline underline-offset-2 hover:text-chalk">
+              <Link to="/settings" className="text-azure underline underline-offset-2 hover:text-chalk">
                 Add a scheduled transaction
               </Link>{" "}
               and what is due will appear here — nothing is ever recorded until you say so.

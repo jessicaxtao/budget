@@ -176,16 +176,24 @@ export const SchedulesProvider = ({ children }) => {
       const parsed = parseScheduleFields(input);
       if (!parsed.ok) return parsed;
 
+      // A new schedule has dealt with nothing, so its own `startDate` is the
+      // first thing it offers — seeding the cursor would otherwise silently
+      // swallow an occurrence the user deliberately backdated. The one caller
+      // that passes `enteredThrough` is the entry form turning a transaction it
+      // just recorded into a schedule: that transaction *is* the first
+      // occurrence, so swallowing it is the point rather than an accident, and
+      // the dashboard offers the next one instead of re-asking for what was
+      // just entered. Junk is dropped back to null, so the field is inert for
+      // every other caller.
+      const seededCursor = isValidISODate(input.enteredThrough) ? input.enteredThrough : null;
+
       const id = uuidV4();
       setSchedules((previous) => [
         ...previous,
         {
           id,
           ...parsed.fields,
-          // A new schedule has dealt with nothing, so its own `startDate` is the
-          // first thing it offers. Seeding the cursor to today instead would
-          // silently swallow an occurrence the user deliberately backdated.
-          enteredThrough: null,
+          enteredThrough: seededCursor,
         },
       ]);
       return { ok: true, id };

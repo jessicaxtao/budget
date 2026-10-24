@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import AppProviders from "../contexts/AppProviders";
 import TransactionsPage from "./TransactionsPage";
+import DashboardPage from "./DashboardPage";
 import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
 import { routerFuture } from "../routerFuture";
 import { addMonths, currentPeriod } from "../utils";
@@ -66,10 +67,16 @@ function seed(overrides = {}) {
   }
 }
 
-function renderPage() {
+function HistoryControls() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(-1)}>Go back</button>;
+}
+
+function renderPage(initialEntry = "/transactions") {
   return render(
     <AppProviders>
-      <MemoryRouter future={routerFuture}>
+      <MemoryRouter future={routerFuture} initialEntries={[initialEntry]}>
+        <HistoryControls />
         <TransactionsPage />
       </MemoryRouter>
     </AppProviders>
@@ -81,6 +88,120 @@ const entry = (id) => ledger().find((transaction) => transaction.id === id);
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+describe("finding transactions", () => {
+  const transaction = (id, fields = {}) => ({
+    id, description: id, kind: TRANSACTION_KINDS.OUTFLOW,
+    amountCents: 1000, date: `${PERIOD}-05`, accountId: "acc1", budgetId: "b1",
+    ...fields,
+  });
+  const account = (id, fields = {}) => ({
+    id, name: id, type: "asset", scope: "on-budget", assetClass: "Cash",
+    openingBalanceCents: 0, openingDate: null, reconciledOn: null, ...fields,
+  });
+  const visibleNotes = () => screen.queryAllByRole("textbox")
+    .map((input) => input.getAttribute("aria-label"))
+    .filter((label) => label?.startsWith("Note on "));
+
+  test.each([
+    ["View transactions for account: Everyday", "Account", "acc1"],
+    ["Groceries transactions", "Category", "b1"],
+  ])("the dashboard shortcut %s opens the full history", (linkName, filterName, value) => {
+    seed({ transactions: [transaction("Older", { date: `${addMonths(PERIOD, -2)}-04` })] });
+    localStorage.setItem("dashboardBudgetExplainerDismissed", "true");
+    render(
+      <AppProviders>
+        <MemoryRouter>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/transactions" element={<TransactionsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </AppProviders>
+    );
+    fireEvent.click(screen.getByRole("link", { name: linkName }));
+    expect(screen.getByRole("heading", { name: "Transactions" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: filterName })).toHaveValue(value);
+    expect(screen.getByRole("button", { name: "All dates" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Note on Older")).toBeInTheDocument();
+  });
+
+  test("all dates includes older and undated entries; the month selector narrows them again", () => {
+    seed({ transactions: [transaction("Current"), transaction("Older", { date: `${addMonths(PERIOD, -1)}-04` }), transaction("Legacy", { date: null })] });
+    renderPage();
+    expect(visibleNotes()).toEqual(["Note on Current", "Note on Legacy"]);
+    fireEvent.click(screen.getByRole("button", { name: "All dates" }));
+    expect(visibleNotes()).toEqual(["Note on Current", "Note on Older", "Note on Legacy"]);
+    expect(screen.getByRole("status")).toHaveTextContent("3 transactions across all dates");
+    fireEvent.click(screen.getByRole("button", { name: "By month" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(visibleNotes()).toEqual(["Note on Older", "Note on Legacy"]);
+  });
+
+  test("an account link includes incoming and outgoing transfers, including archived history", () => {
+    seed({
+      accounts: [account("acc1"), account("acc2", { archived: true }), account("acc3")],
+      transactions: [
+        transaction("Purchase", { accountId: "acc2" }),
+        transaction("Incoming", { kind: TRANSACTION_KINDS.TRANSFER, toAccountId: "acc2", budgetId: null }),
+        transaction("Outgoing", { kind: TRANSACTION_KINDS.TRANSFER, accountId: "acc2", toAccountId: "acc3", budgetId: null }),
+        transaction("Unrelated"),
+        transaction("Former transfer", { toAccountId: "acc2" }),
+      ],
+    });
+    renderPage("/transactions?account=acc2&dates=all");
+    expect(screen.getByRole("combobox", { name: "Account" })).toHaveValue("acc2");
+    expect(screen.getByRole("option", { name: "acc2 (archived)" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Note on Purchase")).toBeInTheDocument();
+    expect(screen.getByLabelText("Transferred to, for Incoming")).toBeInTheDocument();
+    expect(screen.getByLabelText("Transferred from, for Outgoing")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Note on Unrelated")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Note on Former transfer")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("3 transactions");
+  });
+
+  test("category filters read split parts, refunds and effective transfer categories; filters combine and clear", () => {
+    seed({
+      accounts: [account("acc1"), account("acc2"), account("investment", { scope: "off-budget" })],
+      transactions: [
+        transaction("Groceries"),
+        transaction("Refund", { kind: TRANSACTION_KINDS.INFLOW }),
+        transaction("Split", { budgetId: "b2", splits: [{ budgetId: "b1", amountCents: 400 }, { budgetId: "b2", amountCents: 600 }] }),
+        transaction("Stale category", { splits: [{ budgetId: "b2", amountCents: 400 }, { budgetId: "b2", amountCents: 600 }] }),
+        transaction("Invested", { kind: TRANSACTION_KINDS.TRANSFER, toAccountId: "investment" }),
+        transaction("Internal", { kind: TRANSACTION_KINDS.TRANSFER, toAccountId: "acc2" }),
+        transaction("Withdrawal", { kind: TRANSACTION_KINDS.TRANSFER, accountId: "investment", toAccountId: "acc1" }),
+        transaction("Other account", { accountId: "acc2" }),
+      ],
+    });
+    renderPage("/transactions?category=b1&dates=all");
+    expect(screen.getByRole("status")).toHaveTextContent("5 transactions");
+    expect(screen.getByLabelText("Note on Refund")).toBeInTheDocument();
+    expect(screen.getByLabelText("Split of Split, 2 parts")).toBeInTheDocument();
+    expect(screen.getByLabelText("Transferred to, for Invested")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Note on Stale category")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Transferred to, for Internal")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Transferred to, for Withdrawal")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Account" }), { target: { value: "acc1" } });
+    expect(screen.getByRole("status")).toHaveTextContent("4 transactions");
+    expect(screen.queryByLabelText("Note on Other account")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByRole("status")).toHaveTextContent("8 transactions");
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    expect(screen.getByRole("combobox", { name: "Account" })).toHaveValue("acc1");
+    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("b1");
+    expect(screen.getByRole("status")).toHaveTextContent("4 transactions");
+  });
+
+  test("an empty filter can be cleared without losing the ledger", () => {
+    seed();
+    renderPage("/transactions?category=b2&dates=all");
+    expect(screen.getByText("No transactions match these filters.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("0 transactions");
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByLabelText("Note on Trader Joe's")).toBeInTheDocument();
+  });
 });
 
 test("the month's movements are the page, newest first", () => {
