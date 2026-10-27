@@ -65,6 +65,18 @@
 
   --c-invested: 38 69 115; /* #264573 */
   --c-property: 172 86 174; /* #AC56AE */
+
+  /* The savings-goal envelope. Paper and ink, so it reads the same in both
+     modes; only the backdrop it sits on follows the page. */
+  --c-envelope: 142 47 67; /* #8E2F43 burgundy */
+  --c-envelope-stripe: 166 71 90; /* #A6475A */
+  --c-envelope-fold: 98 26 43; /* #621A2B */
+  --c-envelope-liner: 201 161 74; /* #C9A14A gold */
+  --c-envelope-seal: 168 127 42; /* #A87F2A */
+  --c-envelope-letter: 251 244 234; /* #FBF4EA */
+  --c-envelope-ink: 43 33 27; /* #2B211B */
+  --c-envelope-backdrop: 236 208 211; /* #ECD0D3 */
+  --c-envelope-dot: 244 226 227; /* #F4E2E3 */
 }
 
 :root[data-theme="dark"] {
@@ -113,6 +125,16 @@
 
   --c-invested: 87 132 199; /* #5784C7 */
   --c-property: 211 165 212; /* #D3A5D4 */
+
+  --c-envelope: 142 47 67;
+  --c-envelope-stripe: 166 71 90;
+  --c-envelope-fold: 98 26 43;
+  --c-envelope-liner: 201 161 74;
+  --c-envelope-seal: 168 127 42;
+  --c-envelope-letter: 251 244 234;
+  --c-envelope-ink: 43 33 27;
+  --c-envelope-backdrop: 52 31 37; /* #341F25 */
+  --c-envelope-dot: 64 39 46; /* #40272E */
 }
 
 body {
@@ -458,5 +480,234 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/**
+ * A savings goal as an envelope: sealed when the page arrives, then the seal
+ * peels, the flap swings up, and a letter bearing the goal's name rises out.
+ * `GoalEnvelope` only toggles `.is-open`; every step of the opening is here.
+ *
+ * The layers, back to front: the envelope's inside, the flap once it is open,
+ * the letter, the front pocket, the flap while it is closed, the seal. The
+ * flap changes layer half-way through its swing — a z-index transition with a
+ * zero duration and a delay — so it passes behind the letter it uncovered.
+ * The two orders below are each other run backwards: opening is seal, flap,
+ * letter; closing is letter, flap, seal.
+ */
+.goal-envelope {
+  position: relative;
+  container-type: inline-size;
+  padding: 34% 10% 7%;
+}
+
+.goal-envelope__backdrop {
+  position: absolute;
+  inset: 0 0 34% 0;
+  background:
+    radial-gradient(circle closest-side, rgb(var(--c-envelope-dot)) 97%, transparent 100%) 0 0 / 22cqi 22cqi,
+    rgb(var(--c-envelope-backdrop));
+}
+
+.goal-envelope__body {
+  position: relative;
+  aspect-ratio: 1.42;
+  perspective: 1200px;
+  filter: drop-shadow(0 6px 10px rgb(var(--c-envelope-fold) / 0.25));
+}
+
+.goal-envelope__back,
+.goal-envelope__pocket,
+.goal-envelope__flap-front,
+.goal-envelope__flap-back {
+  background: repeating-linear-gradient(
+    90deg,
+    rgb(var(--c-envelope)) 0 4.5cqi,
+    rgb(var(--c-envelope-stripe)) 4.5cqi 9cqi
+  );
+}
+
+.goal-envelope__back {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.goal-envelope__back::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--c-envelope-fold) / 0.35);
+}
+
+.goal-envelope__flap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 56%;
+  z-index: 3;
+  transform-origin: top;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.4s, z-index 0s linear 0.4s;
+}
+
+.goal-envelope__flap-front,
+.goal-envelope__flap-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.goal-envelope__flap-front {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* The closed flap's edge, a shade of fold drawn just below it. */
+.goal-envelope__flap-shadow {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  clip-path: polygon(0 1%, 100% 1%, 50% 106%);
+  background: rgb(var(--c-envelope-fold) / 0.55);
+}
+
+/* Turned over and pointing up once the flap has swung open, so its tip and
+   its gold liner are drawn as they will be seen. */
+.goal-envelope__flap-back {
+  transform: rotateX(180deg);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.goal-envelope__flap-back::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(50% 13%, 93% 100%, 7% 100%);
+  background: linear-gradient(180deg, rgb(var(--c-envelope-liner)), rgb(var(--c-envelope-seal)));
+}
+
+.goal-envelope__letter {
+  position: absolute;
+  top: 4%;
+  left: 5%;
+  width: 90%;
+  height: 92%;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6cqi 5cqi 0;
+  background: rgb(var(--c-envelope-letter));
+  color: rgb(var(--c-envelope-ink));
+  text-align: center;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.goal-envelope__ornament {
+  position: absolute;
+  font-size: 4.5cqi;
+  line-height: 1;
+  color: rgb(var(--c-envelope-stripe) / 0.55);
+}
+
+.goal-envelope__name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 7.5cqi;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.goal-envelope__caption {
+  margin-top: 2.5cqi;
+  font-size: 3cqi;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.goal-envelope__pocket {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  clip-path: polygon(0 0, 50% 47%, 100% 0, 100% 100%, 0 100%);
+}
+
+/* The side flaps fold over the bottom one, a shade darker. */
+.goal-envelope__pocket::before,
+.goal-envelope__pocket::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--c-envelope-fold) / 0.16);
+}
+
+.goal-envelope__pocket::before {
+  clip-path: polygon(0 0, 50% 47%, 50% 60%, 0 100%);
+}
+
+.goal-envelope__pocket::after {
+  clip-path: polygon(100% 0, 50% 47%, 50% 60%, 100% 100%);
+}
+
+.goal-envelope__seal {
+  position: absolute;
+  top: 56%;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 24%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, rgb(var(--c-envelope-liner)), rgb(var(--c-envelope-seal)) 70%);
+  box-shadow: inset 0 0 0 1.4cqi rgb(var(--c-envelope-seal)), inset 0 0 0 1.75cqi rgb(var(--c-envelope-letter) / 0.85);
+  color: rgb(var(--c-envelope-letter));
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+  transform-origin: 15% 30%;
+  transition: transform 0.35s ease 0.85s, opacity 0.25s ease 0.85s;
+}
+
+.goal-envelope__seal-figure {
+  font-size: 5cqi;
+}
+
+.goal-envelope__seal-label {
+  font-size: 2.4cqi;
+  letter-spacing: 0.14em;
+}
+
+.goal-envelope.is-open .goal-envelope__seal {
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(-28deg) scale(0.6) translate(-30%, -40%);
+  transition: transform 0.35s ease, opacity 0.3s ease 0.1s;
+}
+
+.goal-envelope.is-open .goal-envelope__flap {
+  z-index: 0;
+  transform: rotateX(180deg);
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1) 0.25s, z-index 0s linear 0.52s;
+}
+
+.goal-envelope.is-open .goal-envelope__letter {
+  transform: translateY(-48%);
+  transition: transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) 0.7s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-envelope *,
+  .goal-envelope.is-open * {
+    transition: none !important;
   }
 }
