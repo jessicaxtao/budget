@@ -57,6 +57,7 @@ function GoalCard({ row, index, onAssign, onEdit, onDelete, error, sortable }) {
           caption={row.targetDate ? `By ${formatDateMedium(row.targetDate)}` : "Saving up"}
           sealFigure={reached ? "✓" : `${percent}%`}
           sealLabel={reached ? "Reached" : "Saved"}
+          color={row.envelopeColor}
           delayMs={index * 150}
         />
       </div>

@@ -280,6 +280,8 @@ describe("what is stored", () => {
       targetCents: 320000,
       targetDate: null,
       budgetId: null,
+      photo: null,
+      envelopeColor: "canopy",
       accountIds: [],
       accountAmounts: {},
     });
@@ -321,9 +323,22 @@ describe("what is stored", () => {
       targetCents: 4_500_000,
       targetDate: null,
       budgetId: null,
+      photo: null,
+      envelopeColor: "canopy",
       accountIds: ["acc-brk"],
       accountAmounts: { "acc-brk": 750000 },
     });
+  });
+
+  test("an edit that does not name the envelope colour keeps the one chosen", () => {
+    seed({ savingsGoals: [goal({ ...HOUSE, envelopeColor: "rose" })] });
+    const { update, stored } = setup();
+
+    expect(update({ name: "First home", target: "45000" }).ok).toBe(true);
+    expect(stored().envelopeColor).toBe("rose");
+
+    expect(update({ name: "First home", target: "45000", envelopeColor: "sky" }).ok).toBe(true);
+    expect(stored().envelopeColor).toBe("sky");
   });
 
   test("a part that is not a positive figure is refused and changes nothing", () => {
@@ -358,6 +373,8 @@ describe("what is stored", () => {
       targetCents: 320000,
       targetDate: null,
       budgetId: null,
+      photo: null,
+      envelopeColor: "canopy",
       accountIds: [],
       accountAmounts: {},
     });

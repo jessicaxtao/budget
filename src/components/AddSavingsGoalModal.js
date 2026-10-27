@@ -4,7 +4,7 @@ import Dialog from "./Dialog";
 import Field, { SelectField } from "./Field";
 import Button from "./Button";
 import { useBudgets } from "../contexts/BudgetsContext";
-import { useSavingsGoals } from "../contexts/SavingsGoalsContext";
+import { ENVELOPE_COLORS, useSavingsGoals } from "../contexts/SavingsGoalsContext";
 import { countedHoldingCents, useHoldingOptions } from "../hooks/useSavingsGoalEnvelopes";
 import { amountEditing, currentPeriod, toCents } from "../utils";
 
@@ -45,6 +45,9 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   const [amounts, setAmounts] = useState({});
   const [photo, setPhoto] = useState(null);
   const [photoError, setPhotoError] = useState(null);
+  // Held in state for the photo's reason: the picker is radios drawn as
+  // swatches, and the choice has to survive the form being re-seeded.
+  const [envelopeColor, setEnvelopeColor] = useState(ENVELOPE_COLORS[0]);
 
   const { addSavingsGoal, updateSavingsGoal } = useSavingsGoals();
   const { budgets } = useBudgets();
@@ -67,6 +70,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
     setAmounts(goal?.accountAmounts ?? {});
     setPhoto(goal?.photo ?? null);
     setPhotoError(null);
+    setEnvelopeColor(goal?.envelopeColor ?? ENVELOPE_COLORS[0]);
   }, [show, goal]);
 
   const rows = options.map((row) => ({
@@ -126,6 +130,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
       // of it that was stated.
       accountAmounts: amounts,
       photo,
+      envelopeColor,
     };
     const result = editing ? updateSavingsGoal({ id: goal.id, ...fields }) : addSavingsGoal(fields);
 
@@ -192,6 +197,27 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           type="date"
         />
 
+        <fieldset className="mb-5">
+          <legend className="mb-2 font-sans text-row font-semibold text-chalk">Envelope colour</legend>
+          <div className="flex flex-wrap gap-2">
+            {ENVELOPE_COLORS.map((color) => (
+              <label key={color} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="envelope-color"
+                  value={color}
+                  checked={envelopeColor === color}
+                  onChange={() => setEnvelopeColor(color)}
+                  className="peer sr-only"
+                />
+                <span className="flex flex-col items-center gap-1 rounded-lg border-2 border-transparent p-1.5 font-sans text-label capitalize text-chalk-soft peer-checked:border-azure peer-checked:text-chalk peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-azure">
+                  <span data-envelope-color={color} className="goal-envelope-swatch" aria-hidden="true" />
+                  {color}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="mb-5 rounded-xl border border-edge bg-panel-raised p-4">
           <label className="mb-2 block font-sans text-row font-semibold text-chalk" htmlFor="goal-photo">

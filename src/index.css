@@ -705,6 +705,73 @@ body {
   transition: transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) 0.7s;
 }
 
+/**
+ * The paper a goal chose (`envelopeColor`), as the three envelope tokens
+ * redefined on the envelope itself, so every layer above follows. The liner,
+ * the seal and the letter stay coin and paper whatever the paper, which is
+ * what keeps all seven in the Grove. The same in both modes, like the rest of
+ * the envelope. Canopy is the `:root` value and needs no rule.
+ */
+[data-envelope-color="kraft"] {
+  --c-envelope: 140 106 66; /* #8C6A42 */
+  --c-envelope-stripe: 158 123 81; /* #9E7B51 */
+  --c-envelope-fold: 96 70 40; /* #604628 */
+}
+
+[data-envelope-color="sage"] {
+  --c-envelope: 86 116 82; /* #567452 */
+  --c-envelope-stripe: 103 133 98; /* #678562 */
+  --c-envelope-fold: 56 79 53; /* #384F35 */
+}
+
+[data-envelope-color="sky"] {
+  --c-envelope: 49 108 114; /* #316C72 river teal */
+  --c-envelope-stripe: 66 125 131; /* #427D83 */
+  --c-envelope-fold: 30 74 79; /* #1E4A4F */
+}
+
+[data-envelope-color="rose"] {
+  --c-envelope: 156 84 92; /* #9C545C */
+  --c-envelope-stripe: 174 101 109; /* #AE656D */
+  --c-envelope-fold: 110 54 61; /* #6E363D */
+}
+
+[data-envelope-color="lavender"] {
+  --c-envelope: 106 90 138; /* #6A5A8A */
+  --c-envelope-stripe: 122 106 155; /* #7A6A9B */
+  --c-envelope-fold: 72 60 98; /* #483C62 */
+}
+
+[data-envelope-color="butter"] {
+  --c-envelope: 196 152 54; /* #C49836 */
+  --c-envelope-stripe: 211 169 72; /* #D3A948 */
+  --c-envelope-fold: 140 104 26; /* #8C681A */
+}
+
+/* The picker's swatch: a closed envelope in miniature, read from the same
+   tokens so it cannot disagree with the card. */
+.goal-envelope-swatch {
+  position: relative;
+  display: block;
+  width: 2.75rem;
+  height: 1.875rem;
+  border-radius: 0.25rem;
+  background: repeating-linear-gradient(
+    90deg,
+    rgb(var(--c-envelope)) 0 0.25rem,
+    rgb(var(--c-envelope-stripe)) 0.25rem 0.5rem
+  );
+  overflow: hidden;
+}
+
+.goal-envelope-swatch::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 35% 0;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  background: rgb(var(--c-envelope-fold) / 0.45);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .goal-envelope *,
   .goal-envelope.is-open * {

@@ -41,7 +41,8 @@ export function useSavingsGoals() {
 
 const isAmount = (value) => Number.isInteger(value) && value > 0;
 const isDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
-export const ENVELOPE_COLORS = ["kraft", "sage", "sky", "rose", "lavender", "butter"];
+// The paper a goal's envelope is drawn in. Canopy, the first, is the default.
+export const ENVELOPE_COLORS = ["canopy", "kraft", "sage", "sky", "rose", "lavender", "butter"];
 
 /** The fields `addSavingsGoal` and `updateSavingsGoal` both have to check. */
 function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo, envelopeColor }) {
@@ -62,7 +63,7 @@ function parseGoalFields({ name, target, targetCents, targetDate, budgetId, phot
   const linkedBudgetId = typeof budgetId === "string" && budgetId ? budgetId : null;
 
   const goalPhoto = typeof photo === "string" && photo.startsWith("data:image/") && photo.length <= 180_000 ? photo : null;
-  const color = ENVELOPE_COLORS.includes(envelopeColor) ? envelopeColor : "kraft";
+  const color = ENVELOPE_COLORS.includes(envelopeColor) ? envelopeColor : ENVELOPE_COLORS[0];
   return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId, photo: goalPhoto, envelopeColor: color };
 }
 
@@ -142,7 +143,7 @@ function migrateGoals(stored) {
       // Inert but kept: a deleted category contributes nothing, resolved where read.
       budgetId: typeof goal.budgetId === "string" ? goal.budgetId : null,
       photo: typeof goal.photo === "string" && goal.photo.startsWith("data:image/") && goal.photo.length <= 180_000 ? goal.photo : null,
-      envelopeColor: ENVELOPE_COLORS.includes(goal.envelopeColor) ? goal.envelopeColor : "kraft",
+      envelopeColor: ENVELOPE_COLORS.includes(goal.envelopeColor) ? goal.envelopeColor : ENVELOPE_COLORS[0],
     }));
 }
 
@@ -211,7 +212,8 @@ export const SavingsGoalsProvider = ({ children }) => {
                 targetDate: parsed.targetDate,
                 budgetId: parsed.budgetId,
                 photo: parsed.photo,
-                envelopeColor: parsed.envelopeColor,
+                // A patch that says nothing about the colour leaves it alone.
+                envelopeColor: fields.envelopeColor === undefined ? goal.envelopeColor : parsed.envelopeColor,
                 ...holdings.patch,
               }
             : goal

@@ -126,7 +126,7 @@ export default function useSavingsGoalEnvelopes(period) {
         targetCents: goal.targetCents,
         targetDate: goal.targetDate,
         photo: goal.photo ?? null,
-        envelopeColor: goal.envelopeColor ?? "kraft",
+        envelopeColor: goal.envelopeColor ?? "canopy",
         categoryName,
         carriedInCents: row.carriedInCents,
         assignedCents: row.assignedCents,

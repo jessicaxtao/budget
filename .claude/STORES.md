@@ -294,7 +294,7 @@ A rotating-category card is a capped bonus per round; "Next round" on the page o
 
 ## `SavingsGoalsContext`
 
-`savingsGoals`: a **standing intention**, `{ id, name, targetCents, targetDate, budgetId, accountIds, accountAmounts }`, for the medium-term thing expected to *exceed* a normal month — a camera, a wedding, a special event — which is exactly what makes it a goal to plan around rather than a category to estimate.
+`savingsGoals`: a **standing intention**, `{ id, name, targetCents, targetDate, budgetId, photo, envelopeColor, accountIds, accountAmounts }`, for the medium-term thing expected to *exceed* a normal month — a camera, a wedding, a special event — which is exactly what makes it a goal to plan around rather than a category to estimate. `photo` and `envelopeColor` (one of `ENVELOPE_COLORS`, canopy unless chosen) only dress its card; an update that does not name a colour keeps the one stored.
 
 It holds **no money**: what has actually been put toward it lives next door, on the same split `BudgetsContext` keeps against `AssignmentsContext`, and for the same reason — the target is the estimate, the assignment is the money.
 
