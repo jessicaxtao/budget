@@ -66,11 +66,10 @@
   --c-invested: 38 69 115; /* #264573 */
   --c-property: 172 86 174; /* #AC56AE */
 
-  /* The savings-goal envelope: the canopy, its coin and paper, so it reads the same in both
+  /* The savings-goal envelope: a pastel paper, coin and paper, so it reads the same in both
      modes; only the backdrop it sits on follows the page. */
-  --c-envelope: 31 74 54; /* #1F4A36 canopy */
-  --c-envelope-stripe: 43 94 69; /* #2B5E45 */
-  --c-envelope-fold: 18 46 33; /* #122E21 */
+  --c-envelope: 178 206 187; /* #B2CEBB canopy, in pastel */
+  --c-envelope-fold: 116 156 129; /* #749C81 */
   --c-envelope-liner: 242 182 50; /* #F2B632 coin */
   --c-envelope-seal: 201 146 31; /* #C9921F */
   --c-envelope-letter: 255 253 248; /* #FFFDF8 paper */
@@ -126,9 +125,8 @@
   --c-invested: 87 132 199; /* #5784C7 */
   --c-property: 211 165 212; /* #D3A5D4 */
 
-  --c-envelope: 31 74 54;
-  --c-envelope-stripe: 43 94 69;
-  --c-envelope-fold: 18 46 33;
+  --c-envelope: 178 206 187;
+  --c-envelope-fold: 116 156 129;
   --c-envelope-liner: 242 182 50;
   --c-envelope-seal: 201 146 31;
   --c-envelope-letter: 255 253 248;
@@ -519,11 +517,7 @@ body {
 .goal-envelope__back,
 .goal-envelope__flap-front,
 .goal-envelope__flap-back {
-  background: repeating-linear-gradient(
-    90deg,
-    rgb(var(--c-envelope)) 0 4.5cqi,
-    rgb(var(--c-envelope-stripe)) 4.5cqi 9cqi
-  );
+  background: rgb(var(--c-envelope));
 }
 
 .goal-envelope__back {
@@ -601,6 +595,7 @@ body {
   align-items: center;
   padding: 6cqi 5cqi 0;
   background: rgb(var(--c-envelope-letter));
+  box-shadow: 0 1px 4px rgb(var(--c-envelope-fold) / 0.35);
   color: rgb(var(--c-envelope-ink));
   text-align: center;
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
@@ -634,7 +629,7 @@ body {
 
 /* The front pocket is an SVG rather than a clipped box: Chromium can paint a
    clip-path'd layer unclipped while the letter moves beneath it, hiding the
-   letter for the whole rise. Its stripes are 4.5cqi on a body 80cqi wide. */
+   letter for the whole rise. */
 .goal-envelope__pocket {
   position: absolute;
   inset: 0;
@@ -643,12 +638,8 @@ body {
   height: 100%;
 }
 
-.goal-envelope__pocket-stripe {
+.goal-envelope__pocket-paper {
   fill: rgb(var(--c-envelope));
-}
-
-.goal-envelope__pocket-stripe-alt {
-  fill: rgb(var(--c-envelope-stripe));
 }
 
 /* The side flaps fold over the bottom one, a shade darker. */
@@ -669,8 +660,8 @@ body {
   aspect-ratio: 1;
   border-radius: 9999px;
   background: radial-gradient(circle at 35% 30%, rgb(var(--c-envelope-liner)), rgb(var(--c-envelope-seal)) 70%);
-  box-shadow: inset 0 0 0 1.4cqi rgb(var(--c-envelope-seal)), inset 0 0 0 1.75cqi rgb(var(--c-envelope-fold) / 0.5);
-  color: rgb(var(--c-envelope-fold));
+  box-shadow: inset 0 0 0 1.4cqi rgb(var(--c-envelope-seal)), inset 0 0 0 1.75cqi rgb(var(--c-envelope-ink) / 0.3);
+  color: rgb(var(--c-envelope-ink));
   font-weight: 700;
   line-height: 1.05;
   text-transform: uppercase;
@@ -713,39 +704,33 @@ body {
  * the envelope. Canopy is the `:root` value and needs no rule.
  */
 [data-envelope-color="kraft"] {
-  --c-envelope: 140 106 66; /* #8C6A42 */
-  --c-envelope-stripe: 158 123 81; /* #9E7B51 */
-  --c-envelope-fold: 96 70 40; /* #604628 */
+  --c-envelope: 230 210 177; /* #E6D2B1 */
+  --c-envelope-fold: 184 152 106; /* #B8986A */
 }
 
 [data-envelope-color="sage"] {
-  --c-envelope: 86 116 82; /* #567452 */
-  --c-envelope-stripe: 103 133 98; /* #678562 */
-  --c-envelope-fold: 56 79 53; /* #384F35 */
+  --c-envelope: 200 217 188; /* #C8D9BC */
+  --c-envelope-fold: 135 162 117; /* #87A275 */
 }
 
 [data-envelope-color="sky"] {
-  --c-envelope: 49 108 114; /* #316C72 river teal */
-  --c-envelope-stripe: 66 125 131; /* #427D83 */
-  --c-envelope-fold: 30 74 79; /* #1E4A4F */
+  --c-envelope: 187 214 224; /* #BBD6E0 */
+  --c-envelope-fold: 117 160 178; /* #75A0B2 */
 }
 
 [data-envelope-color="rose"] {
-  --c-envelope: 156 84 92; /* #9C545C */
-  --c-envelope-stripe: 174 101 109; /* #AE656D */
-  --c-envelope-fold: 110 54 61; /* #6E363D */
+  --c-envelope: 238 200 204; /* #EEC8CC */
+  --c-envelope-fold: 196 132 141; /* #C4848D */
 }
 
 [data-envelope-color="lavender"] {
-  --c-envelope: 106 90 138; /* #6A5A8A */
-  --c-envelope-stripe: 122 106 155; /* #7A6A9B */
-  --c-envelope-fold: 72 60 98; /* #483C62 */
+  --c-envelope: 212 202 232; /* #D4CAE8 */
+  --c-envelope-fold: 150 134 190; /* #9686BE */
 }
 
 [data-envelope-color="butter"] {
-  --c-envelope: 196 152 54; /* #C49836 */
-  --c-envelope-stripe: 211 169 72; /* #D3A948 */
-  --c-envelope-fold: 140 104 26; /* #8C681A */
+  --c-envelope: 243 226 164; /* #F3E2A4 */
+  --c-envelope-fold: 196 163 72; /* #C4A348 */
 }
 
 /* The picker's swatch: a closed envelope in miniature, read from the same
@@ -756,11 +741,7 @@ body {
   width: 2.75rem;
   height: 1.875rem;
   border-radius: 0.25rem;
-  background: repeating-linear-gradient(
-    90deg,
-    rgb(var(--c-envelope)) 0 0.25rem,
-    rgb(var(--c-envelope-stripe)) 0.25rem 0.5rem
-  );
+  background: rgb(var(--c-envelope));
   overflow: hidden;
 }
 
