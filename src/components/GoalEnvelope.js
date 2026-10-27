@@ -56,10 +56,11 @@ export default function GoalEnvelope({ name, caption, sealFigure, sealLabel, del
         <svg className="goal-envelope__pocket" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <pattern id={stripesId} width="11.25" height="100" patternUnits="userSpaceOnUse">
-              <rect className="goal-envelope__pocket-stripe" width="5.625" height="100" />
-              <rect className="goal-envelope__pocket-stripe-alt" x="5.625" width="5.625" height="100" />
+              <rect className="goal-envelope__pocket-stripe" width="11.25" height="100" shapeRendering="crispEdges" />
+              <rect className="goal-envelope__pocket-stripe-alt" x="5.625" width="5.625" height="100" shapeRendering="crispEdges" />
             </pattern>
           </defs>
+          <polygon className="goal-envelope__pocket-stripe" points="0,0 50,47 100,0 100,100 0,100" />
           <polygon points="0,0 50,47 100,0 100,100 0,100" fill={`url(#${stripesId})`} />
           <polygon className="goal-envelope__pocket-fold" points="0,0 50,47 50,60 0,100" />
           <polygon className="goal-envelope__pocket-fold" points="100,0 50,47 50,60 100,100" />

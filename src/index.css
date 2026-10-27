@@ -66,17 +66,17 @@
   --c-invested: 38 69 115; /* #264573 */
   --c-property: 172 86 174; /* #AC56AE */
 
-  /* The savings-goal envelope. Paper and ink, so it reads the same in both
+  /* The savings-goal envelope: the canopy, its coin and paper, so it reads the same in both
      modes; only the backdrop it sits on follows the page. */
-  --c-envelope: 142 47 67; /* #8E2F43 burgundy */
-  --c-envelope-stripe: 166 71 90; /* #A6475A */
-  --c-envelope-fold: 98 26 43; /* #621A2B */
-  --c-envelope-liner: 201 161 74; /* #C9A14A gold */
-  --c-envelope-seal: 168 127 42; /* #A87F2A */
-  --c-envelope-letter: 251 244 234; /* #FBF4EA */
-  --c-envelope-ink: 43 33 27; /* #2B211B */
-  --c-envelope-backdrop: 236 208 211; /* #ECD0D3 */
-  --c-envelope-dot: 244 226 227; /* #F4E2E3 */
+  --c-envelope: 31 74 54; /* #1F4A36 canopy */
+  --c-envelope-stripe: 43 94 69; /* #2B5E45 */
+  --c-envelope-fold: 18 46 33; /* #122E21 */
+  --c-envelope-liner: 242 182 50; /* #F2B632 coin */
+  --c-envelope-seal: 201 146 31; /* #C9921F */
+  --c-envelope-letter: 255 253 248; /* #FFFDF8 paper */
+  --c-envelope-ink: 43 33 27; /* #2B211B bark */
+  --c-envelope-backdrop: 234 225 207; /* #EAE1CF sand */
+  --c-envelope-dot: 241 234 220; /* #F1EADC */
 }
 
 :root[data-theme="dark"] {
@@ -126,15 +126,15 @@
   --c-invested: 87 132 199; /* #5784C7 */
   --c-property: 211 165 212; /* #D3A5D4 */
 
-  --c-envelope: 142 47 67;
-  --c-envelope-stripe: 166 71 90;
-  --c-envelope-fold: 98 26 43;
-  --c-envelope-liner: 201 161 74;
-  --c-envelope-seal: 168 127 42;
-  --c-envelope-letter: 251 244 234;
+  --c-envelope: 31 74 54;
+  --c-envelope-stripe: 43 94 69;
+  --c-envelope-fold: 18 46 33;
+  --c-envelope-liner: 242 182 50;
+  --c-envelope-seal: 201 146 31;
+  --c-envelope-letter: 255 253 248;
   --c-envelope-ink: 43 33 27;
-  --c-envelope-backdrop: 52 31 37; /* #341F25 */
-  --c-envelope-dot: 64 39 46; /* #40272E */
+  --c-envelope-backdrop: 42 36 30; /* #2A241E loam */
+  --c-envelope-dot: 50 43 36; /* #322B24 */
 }
 
 body {
@@ -610,7 +610,7 @@ body {
   position: absolute;
   font-size: 4.5cqi;
   line-height: 1;
-  color: rgb(var(--c-envelope-stripe) / 0.55);
+  color: rgb(var(--c-envelope-seal) / 0.8);
 }
 
 .goal-envelope__name {
@@ -669,8 +669,8 @@ body {
   aspect-ratio: 1;
   border-radius: 9999px;
   background: radial-gradient(circle at 35% 30%, rgb(var(--c-envelope-liner)), rgb(var(--c-envelope-seal)) 70%);
-  box-shadow: inset 0 0 0 1.4cqi rgb(var(--c-envelope-seal)), inset 0 0 0 1.75cqi rgb(var(--c-envelope-letter) / 0.85);
-  color: rgb(var(--c-envelope-letter));
+  box-shadow: inset 0 0 0 1.4cqi rgb(var(--c-envelope-seal)), inset 0 0 0 1.75cqi rgb(var(--c-envelope-fold) / 0.5);
+  color: rgb(var(--c-envelope-fold));
   font-weight: 700;
   line-height: 1.05;
   text-transform: uppercase;
