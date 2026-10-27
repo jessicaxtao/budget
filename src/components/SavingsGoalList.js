@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
 import Button from "./Button";
-import SavingsGoalEnvelope from "./SavingsGoalEnvelope";
+import GoalEnvelope from "./GoalEnvelope";
 import { SortableList, useSortableItem } from "./Sortable";
 import { currentPeriod, formatCents, formatDateMedium, toCents, toPeriod } from "../utils";
+
+function GoalMeter({ ratio, label }) {
+  const percent = Math.max(0, Math.min(100, ratio * 100));
+  return (
+    <div className="h-1.5 overflow-hidden rounded-full bg-edge" role="progressbar" aria-label={label} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
+      <span className="block h-full rounded-full bg-verdant" style={{ width: percent + "%" }} />
+    </div>
+  );
+}
 
 function monthsUntil(targetDate, now) {
   const target = toPeriod(targetDate);
@@ -12,11 +21,13 @@ function monthsUntil(targetDate, now) {
   return (gy - ty) * 12 + gm - tm;
 }
 
-function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
+function GoalCard({ row, index, onAssign, onEdit, onDelete, error, sortable }) {
   const item = useSortableItem(row.goalId, { disabled: !sortable });
   const [confirmation, setConfirmation] = useState(null);
   const ratio = row.targetCents > 0 ? row.savedCents / row.targetCents : 0;
   const months = monthsUntil(row.targetDate, currentPeriod());
+  const percent = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
+  const reached = row.targetCents > 0 && row.remainingCents === 0;
 
   useEffect(() => {
     if (confirmation === null) return;
@@ -40,22 +51,27 @@ function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
 
   return (
     <article ref={item.ref} style={item.style} {...item.handle} className={`relative min-w-0 rounded-xl border border-edge bg-panel p-5 text-chalk ${item.isDragging ? "z-10" : ""}`}>
+      <div className="-mx-5 -mt-5 mb-4 overflow-hidden rounded-t-xl">
+        <GoalEnvelope
+          name={row.name}
+          caption={row.targetDate ? `By ${formatDateMedium(row.targetDate)}` : "Saving up"}
+          sealFigure={reached ? "✓" : `${percent}%`}
+          sealLabel={reached ? "Reached" : "Saved"}
+          delayMs={index * 150}
+        />
+      </div>
       <div className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-chalk-soft font-sans text-label uppercase tracking-wide">{row.targetDate ? `By ${formatDateMedium(row.targetDate)}` : "Saving up"}</p>
-            <h3 className="mt-1 break-words font-sans text-xl font-medium tracking-tight">{row.name}</h3>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <p className="break-words flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="font-mono text-2xl tracking-tight">{formatCents(row.savedCents)}</span>
+            <span className="text-chalk-soft font-sans text-label">of {formatCents(row.targetCents)} saved</span>
+          </p>
           {row.photo && <img src={row.photo} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />}
         </div>
-        <SavingsGoalEnvelope ratio={ratio} color={row.envelopeColor} name={row.name} />
-        <p className="break-words flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-mono text-2xl tracking-tight">{formatCents(row.savedCents)}</span>
-          <span className="text-chalk-soft font-sans text-label">of {formatCents(row.targetCents)} saved</span>
-        </p>
+        <GoalMeter ratio={ratio} label={`Savings progress for ${row.name}`} />
         <div className="text-chalk-soft flex flex-wrap items-center justify-between gap-3 font-sans text-label">
           <span>{row.remainingCents === 0 ? "Goal reached!" : `${formatCents(row.remainingCents)} to go`}</span>
-          <span className="font-mono">{Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%</span>
+          <span className="font-mono">{percent}%</span>
         </div>
         {pace && <p className="font-sans text-label text-chalk-soft">{pace}</p>}
       </div>
@@ -94,7 +110,7 @@ export default function SavingsGoalList({ rows, onAssign, onEdit, onDelete, onRe
         <div className="p-4 sm:p-5">
           <SortableList ids={rows.map((row) => row.goalId)} onReorder={onReorder ?? (() => {})}>
             <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {rows.map((row) => <GoalCard key={row.goalId} row={row} onAssign={commit} onEdit={onEdit} onDelete={onDelete} error={error?.id === row.goalId ? error.message : null} sortable={onReorder != null} />)}
+              {rows.map((row, index) => <GoalCard key={row.goalId} row={row} index={index} onAssign={commit} onEdit={onEdit} onDelete={onDelete} error={error?.id === row.goalId ? error.message : null} sortable={onReorder != null} />)}
             </div>
           </SortableList>
         </div>
