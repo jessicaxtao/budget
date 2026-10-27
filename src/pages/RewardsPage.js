@@ -713,13 +713,24 @@ export default function RewardsPage() {
           title="Cards, fees and credits"
           note={cardValue.rows.length > 0 ? `${cardValue.rows.length} cards` : null}
           actions={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRateModal({ show: true, rate: null, accountId: null })}
-            >
-              Add rates
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRateModal({ show: true, rate: null, accountId: null })}
+              >
+                Add rates
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setOfferModal({ show: true, offer: null, seed: null, initialKind: OFFER_KINDS.CREDIT })
+                }
+              >
+                Add a credit
+              </Button>
+            </>
           }
         >
           {cardValue.rows.length === 0 ? (
@@ -829,6 +840,7 @@ export default function RewardsPage() {
         show={offerModal.show}
         offer={offerModal.offer}
         seed={offerModal.seed}
+        initialKind={offerModal.initialKind}
         handleClose={() => setOfferModal({ show: false, offer: null, seed: null })}
       />
       <AddEarnRateModal

@@ -25,7 +25,7 @@ import { amountEditing, formatBps, todayISO } from "../utils";
  * answers survive a change of mind and reach the store, which keeps them for
  * the same reason; `SpendingMapFields` carries that rule for the lists.
  */
-export default function AddOfferModal({ show, offer, seed, handleClose }) {
+export default function AddOfferModal({ show, offer, seed, initialKind, handleClose }) {
   const formRef = useRef();
   const nameRef = useRef();
   const kindRef = useRef();
@@ -64,7 +64,7 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
     if (!show || !formRef.current) return;
     formRef.current.reset();
     setError(null);
-    const nextKind = source?.kind ?? OFFER_KINDS.CAP;
+    const nextKind = source?.kind ?? initialKind ?? OFFER_KINDS.CAP;
     setKind(nextKind);
     setProgressSource(source?.progressSource ?? PROGRESS_SOURCES.LEDGER);
     setAllSpending(source?.allSpending ?? false);
@@ -85,7 +85,7 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
     usedRef.current.value = source?.usedCents != null ? amountEditing(source.usedCents) : "";
     // `cards` is read for the default only; a sync landing mid-edit must not reset the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show, source]);
+  }, [show, source, initialKind]);
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -113,7 +113,13 @@ export default function AddOfferModal({ show, offer, seed, handleClose }) {
     handleClose();
   }
 
-  const title = editing ? "Edit offer" : seed ? "Next round of an offer" : "Track a card offer";
+  const title = editing
+    ? "Edit offer"
+    : seed
+      ? "Next round of an offer"
+      : initialKind === OFFER_KINDS.CREDIT
+        ? "Add a card credit"
+        : "Track a card offer";
 
   return (
     <Dialog show={show} handleClose={handleClose} title={title}>
