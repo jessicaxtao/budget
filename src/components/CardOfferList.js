@@ -65,9 +65,8 @@ export function describeOffer(row) {
     if (status === OFFER_STATUS.ENDED) {
       return { headline: `${formatCents(remainingCents)} expired unused`, tone: "bg-vermilion" };
     }
-    const pace = row.perWeekCents != null ? `, about ${formatCents(row.perWeekCents)} a week` : "";
     return {
-      headline: `${formatCents(remainingCents)} still to use${deadline}${pace}`,
+      headline: `${formatCents(remainingCents)} still to use${deadline}`,
       tone: qualifyingCents > 0 ? "bg-azure" : "bg-sulfur",
     };
   }
