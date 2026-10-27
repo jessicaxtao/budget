@@ -512,12 +512,11 @@ body {
 .goal-envelope__body {
   position: relative;
   aspect-ratio: 1.42;
-  perspective: 1200px;
+  isolation: isolate;
   filter: drop-shadow(0 6px 10px rgb(var(--c-envelope-fold) / 0.25));
 }
 
 .goal-envelope__back,
-.goal-envelope__pocket,
 .goal-envelope__flap-front,
 .goal-envelope__flap-back {
   background: repeating-linear-gradient(
@@ -547,6 +546,7 @@ body {
   width: 100%;
   height: 56%;
   z-index: 3;
+  transform: perspective(1200px) rotateX(0deg);
   transform-origin: top;
   transform-style: preserve-3d;
   transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.4s, z-index 0s linear 0.4s;
@@ -632,28 +632,28 @@ body {
   text-transform: uppercase;
 }
 
+/* The front pocket is an SVG rather than a clipped box: Chromium can paint a
+   clip-path'd layer unclipped while the letter moves beneath it, hiding the
+   letter for the whole rise. Its stripes are 4.5cqi on a body 80cqi wide. */
 .goal-envelope__pocket {
   position: absolute;
   inset: 0;
   z-index: 2;
-  clip-path: polygon(0 0, 50% 47%, 100% 0, 100% 100%, 0 100%);
+  width: 100%;
+  height: 100%;
+}
+
+.goal-envelope__pocket-stripe {
+  fill: rgb(var(--c-envelope));
+}
+
+.goal-envelope__pocket-stripe-alt {
+  fill: rgb(var(--c-envelope-stripe));
 }
 
 /* The side flaps fold over the bottom one, a shade darker. */
-.goal-envelope__pocket::before,
-.goal-envelope__pocket::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgb(var(--c-envelope-fold) / 0.16);
-}
-
-.goal-envelope__pocket::before {
-  clip-path: polygon(0 0, 50% 47%, 50% 60%, 0 100%);
-}
-
-.goal-envelope__pocket::after {
-  clip-path: polygon(100% 0, 50% 47%, 50% 60%, 100% 100%);
+.goal-envelope__pocket-fold {
+  fill: rgb(var(--c-envelope-fold) / 0.16);
 }
 
 .goal-envelope__seal {
@@ -696,7 +696,7 @@ body {
 
 .goal-envelope.is-open .goal-envelope__flap {
   z-index: 0;
-  transform: rotateX(180deg);
+  transform: perspective(1200px) rotateX(180deg);
   transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1) 0.25s, z-index 0s linear 0.52s;
 }
 

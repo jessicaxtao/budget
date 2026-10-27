@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -17,6 +17,7 @@ function prefersReducedMotion() {
  */
 export default function GoalEnvelope({ name, caption, sealFigure, sealLabel, delayMs = 0 }) {
   const ref = useRef(null);
+  const stripesId = `goal-envelope-stripes-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [open, setOpen] = useState(() => prefersReducedMotion() || typeof window.IntersectionObserver !== "function");
 
   useEffect(() => {
@@ -52,7 +53,17 @@ export default function GoalEnvelope({ name, caption, sealFigure, sealLabel, del
           <p className="goal-envelope__caption font-sans">{caption}</p>
           <span className="goal-envelope__ornament" style={{ top: "24cqi", right: "6cqi" }} aria-hidden="true">✻</span>
         </div>
-        <div className="goal-envelope__pocket" aria-hidden="true" />
+        <svg className="goal-envelope__pocket" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <pattern id={stripesId} width="11.25" height="100" patternUnits="userSpaceOnUse">
+              <rect className="goal-envelope__pocket-stripe" width="5.625" height="100" />
+              <rect className="goal-envelope__pocket-stripe-alt" x="5.625" width="5.625" height="100" />
+            </pattern>
+          </defs>
+          <polygon points="0,0 50,47 100,0 100,100 0,100" fill={`url(#${stripesId})`} />
+          <polygon className="goal-envelope__pocket-fold" points="0,0 50,47 50,60 0,100" />
+          <polygon className="goal-envelope__pocket-fold" points="100,0 50,47 50,60 100,100" />
+        </svg>
         <div className="goal-envelope__seal font-sans" aria-hidden="true">
           <span className="goal-envelope__seal-figure">{sealFigure}</span>
           <span className="goal-envelope__seal-label">{sealLabel}</span>
