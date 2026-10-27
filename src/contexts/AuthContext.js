@@ -288,8 +288,10 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Guest books belong only to this browser visit. `pagehide` runs for tab
     // closure and navigation away, giving shared-computer users a synchronous
-    // cleanup point before the page is discarded.
-    if (!local || isDesktop()) return undefined;
+    // cleanup point before the page is discarded. The dev server is the
+    // exception: demo books are intentionally kept across reloads so localhost
+    // can be used for testing.
+    if (!local || isDesktop() || process.env.NODE_ENV === "development") return undefined;
 
     const discardGuestBooks = () => {
       clearScope(GUEST_SCOPE);

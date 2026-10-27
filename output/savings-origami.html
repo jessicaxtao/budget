@@ -227,12 +227,12 @@ function bill(bx,by,w,h){
   </g>`;
 }
 function foldStack(t,P){
-  const E=P.edge, px=100, py=140, reached=t>=1;
+  const E=P.edge, px=100, py=156, reached=t>=1;
   const W=28, H=52;
   const n = t<=0 ? 0 : Math.max(1, Math.round(t*7));
-  // original open envelope: body + open flap behind + V-notch front pocket
-  const back=poly([[40,70],[160,70],[160,170],[40,170]],P.ledger,E,'filter="url(#sh)"');
-  const flap=poly([[40,70],[160,70],[100,36]],P.raised,E)+line([100,70],[100,36],E,1);
+  // open envelope: shadowed inside back wall, open lid above, V-notch front panel
+  const back=poly([[40,70],[160,70],[160,170],[40,170]],P.raised,E,'filter="url(#sh)"'); // inside back (recessed)
+  const flap=poly([[40,70],[160,70],[100,36]],P.panel,E)+line([100,70],[100,36],E,1);     // open lid (outside)
   // bills fanned vertically, rising out of the pocket
   const items=[];
   const step = n>1 ? Math.min(14, 72/(n-1)) : 0;

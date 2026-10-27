@@ -1,16 +1,8 @@
 import { useEffect, useState } from "react";
 import Button from "./Button";
+import SavingsGoalEnvelope from "./SavingsGoalEnvelope";
 import { SortableList, useSortableItem } from "./Sortable";
 import { currentPeriod, formatCents, formatDateMedium, toCents, toPeriod } from "../utils";
-
-function GoalMeter({ ratio, label }) {
-  const percent = Math.max(0, Math.min(100, ratio * 100));
-  return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-edge" role="progressbar" aria-label={label} aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
-      <span className="block h-full rounded-full bg-verdant" style={{ width: percent + "%" }} />
-    </div>
-  );
-}
 
 function monthsUntil(targetDate, now) {
   const target = toPeriod(targetDate);
@@ -56,11 +48,11 @@ function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
           </div>
           {row.photo && <img src={row.photo} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />}
         </div>
+        <SavingsGoalEnvelope ratio={ratio} color={row.envelopeColor} name={row.name} />
         <p className="break-words flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="font-mono text-2xl tracking-tight">{formatCents(row.savedCents)}</span>
           <span className="text-chalk-soft font-sans text-label">of {formatCents(row.targetCents)} saved</span>
         </p>
-        <GoalMeter ratio={ratio} label={`Savings progress for ${row.name}`} />
         <div className="text-chalk-soft flex flex-wrap items-center justify-between gap-3 font-sans text-label">
           <span>{row.remainingCents === 0 ? "Goal reached!" : `${formatCents(row.remainingCents)} to go`}</span>
           <span className="font-mono">{Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%</span>

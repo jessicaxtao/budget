@@ -1284,7 +1284,7 @@ const BACKUP_KEY = "demoBooksBackup";
  * emptying local mode would last exactly until the next reload.
  */
 const STAMP_KEY = "demoBooksSeeded";
-const SEED_VERSION = "1";
+const SEED_VERSION = "2";
 
 const stamp = () => {
   try {

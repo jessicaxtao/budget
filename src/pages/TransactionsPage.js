@@ -9,7 +9,7 @@ import PeriodStepper from "../components/PeriodStepper";
 import ToBeAssignedBar from "../components/ToBeAssignedBar";
 import SplitTransactionModal from "../components/SplitTransactionModal";
 import TransactionRegister from "../components/TransactionRegister";
-import { insideBudget, useAccounts } from "../contexts/AccountsContext";
+import { ACCOUNT_SCOPES, insideBudget, useAccounts } from "../contexts/AccountsContext";
 import { useBudgets } from "../contexts/BudgetsContext";
 import { usePayees } from "../contexts/PayeesContext";
 import {
@@ -74,6 +74,11 @@ export default function TransactionsPage() {
 
   const { transactions, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
+  const orderedAccounts = [...accounts].sort((a, b) => {
+    const rank = (account) =>
+      account.scope === ACCOUNT_SCOPES.OFF_BUDGET ? 1 : 0;
+    return rank(a) - rank(b);
+  });
   const { budgets } = useBudgets();
   const { payees, payeeById, addPayee, findPayeeByName } = usePayees();
   // Most recently used first, which is the order the register's payee cells offer
@@ -189,7 +194,7 @@ export default function TransactionsPage() {
               onChange={(event) => setFilter("account", event.target.value)}
             >
               <option value="">All accounts</option>
-              {accounts.map((account) => (
+              {orderedAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}{account.archived ? " (archived)" : ""}
                 </option>
