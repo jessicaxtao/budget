@@ -38,7 +38,6 @@ export default function GoalEnvelope({ name, caption, sealFigure, sealLabel, col
 
   return (
     <div ref={ref} data-envelope-color={color} className={`goal-envelope cursor-pointer select-none ${open ? "is-open" : ""}`} onClick={() => setOpen((value) => !value)}>
-      <div className="goal-envelope__backdrop" aria-hidden="true" />
       <div className="goal-envelope__body">
         <div className="goal-envelope__back" aria-hidden="true" />
         <div className="goal-envelope__flap" aria-hidden="true">

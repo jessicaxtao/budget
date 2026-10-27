@@ -74,8 +74,6 @@
   --c-envelope-seal: 201 146 31; /* #C9921F */
   --c-envelope-letter: 255 253 248; /* #FFFDF8 paper */
   --c-envelope-ink: 43 33 27; /* #2B211B bark */
-  --c-envelope-backdrop: 234 225 207; /* #EAE1CF sand */
-  --c-envelope-dot: 241 234 220; /* #F1EADC */
 }
 
 :root[data-theme="dark"] {
@@ -131,8 +129,6 @@
   --c-envelope-seal: 201 146 31;
   --c-envelope-letter: 255 253 248;
   --c-envelope-ink: 43 33 27;
-  --c-envelope-backdrop: 42 36 30; /* #2A241E loam */
-  --c-envelope-dot: 50 43 36; /* #322B24 */
 }
 
 body {
@@ -497,14 +493,6 @@ body {
   position: relative;
   container-type: inline-size;
   padding: 34% 10% 7%;
-}
-
-.goal-envelope__backdrop {
-  position: absolute;
-  inset: 0 0 34% 0;
-  background:
-    radial-gradient(circle closest-side, rgb(var(--c-envelope-dot)) 97%, transparent 100%) 0 0 / 22cqi 22cqi,
-    rgb(var(--c-envelope-backdrop));
 }
 
 .goal-envelope__body {
