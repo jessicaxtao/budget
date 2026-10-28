@@ -489,10 +489,19 @@ body {
  * The two orders below are each other run backwards: opening is seal, flap,
  * letter; closing is letter, flap, seal.
  */
+/* Closed, the envelope sits tight under its label. Opening it drops the body
+   so the flap has room to swing up into the space below the label rather than
+   over it; the card is already growing to show the details, so the extra height
+   costs nothing. */
 .goal-envelope {
   position: relative;
   container-type: inline-size;
-  padding: 34% 10% 7%;
+  padding: 11% 10% 7%;
+  transition: padding-top 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.goal-envelope.is-open {
+  padding-top: 36%;
 }
 
 .goal-envelope__body {
@@ -589,29 +598,18 @@ body {
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.goal-envelope__ornament {
-  position: absolute;
-  font-size: 4.5cqi;
-  line-height: 1;
-  color: rgb(var(--c-envelope-seal) / 0.8);
-}
-
-.goal-envelope__name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: 7.5cqi;
-  line-height: 1.12;
+.goal-envelope__figure {
+  font-size: 9.5cqi;
+  line-height: 1.05;
   letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
-.goal-envelope__caption {
-  margin-top: 2.5cqi;
+.goal-envelope__figure-label {
+  margin-top: 1.5cqi;
   font-size: 3cqi;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -679,9 +677,12 @@ body {
   transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1) 0.25s, z-index 0s linear 0.52s;
 }
 
+/* The letter is revealed in place as the flap lifts, not pulled clear of the
+   envelope — a small rise for life, kept shallow so it does not clip the
+   tightened top padding. */
 .goal-envelope.is-open .goal-envelope__letter {
-  transform: translateY(-48%);
-  transition: transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) 0.7s;
+  transform: translateY(-8%);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s;
 }
 
 /**
@@ -741,9 +742,31 @@ body {
   background: rgb(var(--c-envelope-fold) / 0.45);
 }
 
+/* The details panel a goal's envelope shows when it is opened: a short rise
+   and fade as it mounts, so the card grows into the extra height rather than
+   snapping to it. */
+.goal-details {
+  animation: goal-details-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes goal-details-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .goal-envelope *,
   .goal-envelope.is-open * {
     transition: none !important;
+  }
+
+  .goal-details {
+    animation: none;
   }
 }

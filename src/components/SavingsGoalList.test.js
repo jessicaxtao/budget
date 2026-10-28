@@ -6,6 +6,13 @@ import SavingsGoalList from "./SavingsGoalList";
  * input's contract — additive semantics (any typed figure adds to the running
  * total), pace display, and error surfacing. The store end is in
  * `SavingsGoalAssignmentsContext`'s own coverage.
+ *
+ * Each goal is an envelope that shows its name and date and nothing else until
+ * it is opened: the saved figure, the meter, the pace and the Add field all
+ * live behind that disclosure, so a test that reaches for one opens the card
+ * first (`openCard`). The envelope itself is the toggle — a button whose name
+ * begins with the goal's own, which is how `openCard` tells it from the Edit
+ * and Remove buttons that carry the same name once the card is open.
  */
 
 const goal = (fields) => ({
@@ -40,9 +47,11 @@ function renderList({ rows = [CAMERA, WEDDING], onAssign } = {}) {
 }
 
 const addField = (name) => screen.getByRole("textbox", { name: `Add to ${name}` });
+const openCard = (name) => fireEvent.click(screen.getByRole("button", { name: new RegExp("^" + name), expanded: false }));
 
-test("goals show savings, target, remaining, progress and actions together", () => {
+test("goals show savings, target, remaining, progress and actions together, once opened", () => {
   renderList({ rows: [goal({ name: "Trip", savedCents: 310000, remainingCents: 190000 })] });
+  openCard("Trip");
   expect(screen.getByText("$3,100")).toBeVisible();
   expect(screen.getByText("of $5,000 saved")).toBeVisible();
   expect(screen.getByText("$1,900 to go")).toBeVisible();
@@ -52,8 +61,26 @@ test("goals show savings, target, remaining, progress and actions together", () 
   expect(screen.getByRole("button", { name: "Remove goal: Trip" })).toBeVisible();
 });
 
+test("a goal shows its name and date but keeps its details sealed until opened", () => {
+  renderList();
+
+  // The name and date are on the envelope whether it is open or shut.
+  expect(screen.getByRole("heading", { name: /Camera/ })).toBeInTheDocument();
+  expect(screen.getByText("By May 1, 2027")).toBeInTheDocument();
+
+  // Everything else is behind the disclosure: no Add field, no actions.
+  expect(screen.queryByRole("textbox", { name: "Add to Camera" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Edit goal: Camera" })).not.toBeInTheDocument();
+
+  openCard("Camera");
+  expect(addField("Camera")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Edit goal: Camera" })).toBeVisible();
+});
+
 test("the add input always starts blank — it adds, it does not display a stored total", () => {
   renderList();
+  openCard("Camera");
+  openCard("Wedding");
 
   // Camera has $12,340.50 already assigned, but the field is blank: the user
   // is typing how much to add, not restating what is already there.
@@ -63,6 +90,7 @@ test("the add input always starts blank — it adds, it does not display a store
 
 test("the field clears after a successful add", () => {
   renderList();
+  openCard("Camera");
 
   const field = addField("Camera");
   fireEvent.change(field, { target: { value: "500" } });
@@ -75,6 +103,7 @@ test("a refused assignment says why, under the row, and the field clears", () =>
   const assign = renderList({
     onAssign: jest.fn(() => ({ ok: false, error: "Not enough to assign." })),
   });
+  openCard("Camera");
 
   const field = addField("Camera");
   fireEvent.change(field, { target: { value: "500" } });
@@ -88,6 +117,7 @@ test("a refused assignment says why, under the row, and the field clears", () =>
 
 test("invalid input clears silently without calling onAssign", () => {
   const assign = renderList();
+  openCard("Camera");
 
   const field = addField("Camera");
   fireEvent.change(field, { target: { value: "twelve" } });
@@ -100,16 +130,18 @@ test("invalid input clears silently without calling onAssign", () => {
 test("the message belongs to one row, and a later success clears it", () => {
   const assign = jest.fn(() => ({ ok: false, error: "Not enough to assign." }));
   renderList({ onAssign: assign });
+  openCard("Camera");
 
   const camera = addField("Camera");
   fireEvent.change(camera, { target: { value: "500" } });
   fireEvent.blur(camera);
 
   const card = screen.getByRole("alert").closest("article");
-  expect(within(card).getByRole("heading", { name: "Camera" })).toBeInTheDocument();
-  expect(within(card).queryByRole("heading", { name: "Wedding" })).not.toBeInTheDocument();
+  expect(within(card).getByRole("heading", { name: /Camera/ })).toBeInTheDocument();
+  expect(within(card).queryByRole("heading", { name: /Wedding/ })).not.toBeInTheDocument();
 
   assign.mockReturnValue({ ok: true });
+  openCard("Wedding");
   const wedding = addField("Wedding");
   fireEvent.change(wedding, { target: { value: "250" } });
   fireEvent.blur(wedding);
@@ -135,6 +167,7 @@ test("a target date reads as a date rather than as the ISO string it is stored a
 describe("additive input: every figure is added to what is already there", () => {
   test("a bare figure and a plus-prefixed figure both add to the running total", () => {
     const assign = renderList();
+    openCard("Camera");
     const field = addField("Camera");
 
     fireEvent.change(field, { target: { value: "250" } });
@@ -151,6 +184,7 @@ describe("additive input: every figure is added to what is already there", () =>
 
   test("money notation ($, commas, spaces) is parsed the way toCents reads it", () => {
     const assign = renderList();
+    openCard("Camera");
 
     const field = addField("Camera");
     fireEvent.change(field, { target: { value: "+ $1,250.50" } });
@@ -161,6 +195,7 @@ describe("additive input: every figure is added to what is already there", () =>
 
   test("a minus subtracts: typing −250 pulls $250 back out of the goal", () => {
     const assign = renderList();
+    openCard("Camera");
 
     const field = addField("Camera");
     fireEvent.change(field, { target: { value: "-250" } });
@@ -171,6 +206,7 @@ describe("additive input: every figure is added to what is already there", () =>
 
   test("adding to a goal with nothing assigned yet is just the typed figure", () => {
     const assign = renderList();
+    openCard("Wedding");
 
     const field = addField("Wedding");
     fireEvent.change(field, { target: { value: "250" } });
@@ -197,6 +233,7 @@ test("held money counts towards the saved total; the breakdown is in the edit mo
     remainingCents: 2_030_000,
   });
   renderList({ rows: [HOUSE] });
+  openCard("House deposit");
 
   expect(screen.getByText("of $40,000 saved")).toBeVisible();
   expect(screen.getByText("$19,700")).toBeInTheDocument();

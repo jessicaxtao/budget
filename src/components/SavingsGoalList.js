@@ -21,9 +21,11 @@ function monthsUntil(targetDate, now) {
   return (gy - ty) * 12 + gm - tm;
 }
 
-function GoalCard({ row, index, onAssign, onEdit, onDelete, error, sortable }) {
+function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
   const item = useSortableItem(row.goalId, { disabled: !sortable });
   const [confirmation, setConfirmation] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = `goal-details-${row.goalId}`;
   const ratio = row.targetCents > 0 ? row.savedCents / row.targetCents : 0;
   const months = monthsUntil(row.targetDate, currentPeriod());
   const percent = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
@@ -51,43 +53,61 @@ function GoalCard({ row, index, onAssign, onEdit, onDelete, error, sortable }) {
 
   return (
     <article ref={item.ref} style={item.style} {...item.handle} className={`relative min-w-0 rounded-xl border border-edge bg-panel p-5 text-chalk ${item.isDragging ? "z-10" : ""}`}>
-      <div className="-mx-5 -mt-5 mb-4 overflow-hidden rounded-t-xl">
-        <GoalEnvelope
-          name={row.name}
-          caption={row.targetDate ? `By ${formatDateMedium(row.targetDate)}` : "Saving up"}
-          sealFigure={reached ? "✓" : `${percent}%`}
-          sealLabel={reached ? "Reached" : "Saved"}
-          color={row.envelopeColor}
-          delayMs={index * 150}
-        />
-      </div>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="break-words flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="font-mono text-2xl tracking-tight">{formatCents(row.savedCents)}</span>
-            <span className="text-chalk-soft font-sans text-label">of {formatCents(row.targetCents)} saved</span>
-          </p>
-          {row.photo && <img src={row.photo} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />}
+      {/* The name and date sit outside the envelope, so a sealed one still says
+          which goal it is. They head a button that opens the envelope and
+          reveals the goal's details — one toggle for both. A heading wrapping a
+          button is the accordion pattern: the heading keeps its place for
+          screen-reader navigation and takes its name from the label, while the
+          button carries the expanded state. */}
+      <h3 className="m-0">
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          className="group block w-full -mx-5 -mt-5 overflow-hidden rounded-t-xl px-5 pt-5 text-center"
+        >
+          <span className="block font-display text-xl leading-tight text-chalk">{row.name}</span>
+          <span className="mt-1 block font-sans text-label uppercase tracking-wider text-chalk-soft">
+            {row.targetDate ? `By ${formatDateMedium(row.targetDate)}` : "Saving up"}
+          </span>
+          <span className="-mx-5 mt-2 block">
+            <GoalEnvelope
+              open={expanded}
+              figure={formatCents(row.savedCents)}
+              figureLabel={row.targetCents > 0 ? `of ${formatCents(row.targetCents)} saved` : "saved"}
+              sealFigure={reached ? "✓" : `${percent}%`}
+              sealLabel={reached ? "Reached" : "Saved"}
+              color={row.envelopeColor}
+            />
+          </span>
+          <span aria-hidden="true" className="-mt-1 flex items-center justify-center gap-1.5 pb-3 font-sans text-label uppercase text-chalk-soft transition-colors group-hover:text-chalk">
+            {expanded ? "Hide" : "Add money"}
+            <svg viewBox="0 0 12 8" className={`h-2 w-3 transition-transform ${expanded ? "rotate-180" : ""}`}><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+        </button>
+      </h3>
+      {expanded && (
+        <div id={detailsId} className="goal-details space-y-3">
+          <GoalMeter ratio={ratio} label={`Savings progress for ${row.name}`} />
+          <div className="text-chalk-soft flex flex-wrap items-center justify-between gap-3 font-sans text-label">
+            <span>{row.remainingCents === 0 ? "Goal reached!" : `${formatCents(row.remainingCents)} to go`}</span>
+            <span className="font-mono">{percent}%</span>
+          </div>
+          {pace && <p className="font-sans text-label text-chalk-soft">{pace}</p>}
+          {row.categoryName && <p className="text-label text-chalk-soft">Linked to {row.categoryName}</p>}
+          {row.photo && <img src={row.photo} alt="" className="h-16 w-full rounded object-cover" />}
+          <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-3">
+            <label className="font-sans text-label uppercase text-chalk-soft" htmlFor={`goal-add-${row.goalId}`}>Add money</label>
+            <input key={row.assignedCents} id={`goal-add-${row.goalId}`} type="text" inputMode="decimal" placeholder="$0" aria-label={`Add to ${row.name}`} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} onBlur={handleBlur} className="w-28 border-b-2 border-rule bg-transparent px-1 py-1 text-right font-mono text-row text-chalk outline-none focus:border-azure" />
+            {confirmation !== null && <span className="text-label text-verdant">{confirmation > 0 ? "+" : ""}{formatCents(confirmation)}</span>}
+            <span className="flex-1" />
+            <Button variant="row-action" size="sm" aria-label={`Edit goal: ${row.name}`} onClick={() => onEdit(row)}>Edit</Button>
+            <Button variant="row" size="sm" aria-label={`Remove goal: ${row.name}`} onClick={() => onDelete(row)}>Remove</Button>
+          </div>
+          {error && <p role="alert" className="font-sans text-row text-vermilion">{error}</p>}
         </div>
-        <GoalMeter ratio={ratio} label={`Savings progress for ${row.name}`} />
-        <div className="text-chalk-soft flex flex-wrap items-center justify-between gap-3 font-sans text-label">
-          <span>{row.remainingCents === 0 ? "Goal reached!" : `${formatCents(row.remainingCents)} to go`}</span>
-          <span className="font-mono">{percent}%</span>
-        </div>
-        {pace && <p className="font-sans text-label text-chalk-soft">{pace}</p>}
-      </div>
-      <div className="mt-4 space-y-3">
-        {row.categoryName && <p className="text-label text-chalk-soft">Linked to {row.categoryName}</p>}
-        <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-3">
-          <label className="font-sans text-label uppercase text-chalk-soft" htmlFor={`goal-add-${row.goalId}`}>Add money</label>
-          <input key={row.assignedCents} id={`goal-add-${row.goalId}`} type="text" inputMode="decimal" placeholder="$0" aria-label={`Add to ${row.name}`} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} onBlur={handleBlur} className="w-28 border-b-2 border-rule bg-transparent px-1 py-1 text-right font-mono text-row text-chalk outline-none focus:border-azure" />
-          {confirmation !== null && <span className="text-label text-verdant">{confirmation > 0 ? "+" : ""}{formatCents(confirmation)}</span>}
-          <span className="flex-1" />
-          <Button variant="row-action" size="sm" aria-label={`Edit goal: ${row.name}`} onClick={() => onEdit(row)}>Edit</Button>
-          <Button variant="row" size="sm" aria-label={`Remove goal: ${row.name}`} onClick={() => onDelete(row)}>Remove</Button>
-        </div>
-        {error && <p role="alert" className="font-sans text-row text-vermilion">{error}</p>}
-      </div>
+      )}
     </article>
   );
 }
@@ -111,7 +131,7 @@ export default function SavingsGoalList({ rows, onAssign, onEdit, onDelete, onRe
         <div className="p-4 sm:p-5">
           <SortableList ids={rows.map((row) => row.goalId)} onReorder={onReorder ?? (() => {})}>
             <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {rows.map((row, index) => <GoalCard key={row.goalId} row={row} index={index} onAssign={commit} onEdit={onEdit} onDelete={onDelete} error={error?.id === row.goalId ? error.message : null} sortable={onReorder != null} />)}
+              {rows.map((row) => <GoalCard key={row.goalId} row={row} onAssign={commit} onEdit={onEdit} onDelete={onDelete} error={error?.id === row.goalId ? error.message : null} sortable={onReorder != null} />)}
             </div>
           </SortableList>
         </div>
