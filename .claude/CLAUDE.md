@@ -18,7 +18,7 @@ This file is the orientation and the rules that bite everywhere. **Each companio
 | **`DESKTOP_APP.md`** | touching the Electron shell, the books file, or packaging |
 | **`ASSISTANT.md`** | touching "Ask" |
 
-Plans, not descriptions of what exists: `LIFE_EVENTS.md`, `END_TO_END_ENCRYPTION.md`.
+Plans, not descriptions of what exists: `LIFE_EVENTS.md`, `END_TO_END_ENCRYPTION.md`, `LOANS.md`.
 
 ## Commands
 
