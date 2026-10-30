@@ -79,6 +79,7 @@ function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
               sealFigure={reached ? "✓" : `${percent}%`}
               sealLabel={reached ? "Reached" : "Saved"}
               color={row.envelopeColor}
+              photo={row.photo}
             />
           </span>
           <span aria-hidden="true" className="-mt-1 flex items-center justify-center gap-1.5 pb-3 font-sans text-label uppercase text-chalk-soft transition-colors group-hover:text-chalk">
@@ -90,13 +91,14 @@ function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
       {expanded && (
         <div id={detailsId} className="goal-details space-y-3">
           <GoalMeter ratio={ratio} label={`Savings progress for ${row.name}`} />
-          <div className="text-chalk-soft flex flex-wrap items-center justify-between gap-3 font-sans text-label">
+          {/* The envelope's letter already carries saved-of-target and the bar
+              carries the percent, so the panel adds only what they cannot: what
+              is left to go and the pace that clears it. */}
+          <div className="text-chalk-soft flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-sans text-label">
             <span>{row.remainingCents === 0 ? "Goal reached!" : `${formatCents(row.remainingCents)} to go`}</span>
-            <span className="font-mono">{percent}%</span>
+            {pace && <span>{pace}</span>}
           </div>
-          {pace && <p className="font-sans text-label text-chalk-soft">{pace}</p>}
           {row.categoryName && <p className="text-label text-chalk-soft">Linked to {row.categoryName}</p>}
-          {row.photo && <img src={row.photo} alt="" className="h-16 w-full rounded object-cover" />}
           <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-3">
             <label className="font-sans text-label uppercase text-chalk-soft" htmlFor={`goal-add-${row.goalId}`}>Add money</label>
             <input key={row.assignedCents} id={`goal-add-${row.goalId}`} type="text" inputMode="decimal" placeholder="$0" aria-label={`Add to ${row.name}`} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} onBlur={handleBlur} className="w-28 border-b-2 border-rule bg-transparent px-1 py-1 text-right font-mono text-row text-chalk outline-none focus:border-azure" />

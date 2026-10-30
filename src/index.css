@@ -49,6 +49,7 @@
   --c-tab-lime: 178 215 104;
   --c-tab-mint: 104 202 155;
   --c-tab-sky: 89 200 222;
+  --c-tab-teal: 72 196 190;
   --c-tab-periwinkle: 111 166 233;
   --c-tab-lavender: 152 134 225;
   --c-tab-violet: 190 127 213;
@@ -68,8 +69,8 @@
 
   /* The savings-goal envelope: a pastel paper, coin and paper, so it reads the same in both
      modes; only the backdrop it sits on follows the page. */
-  --c-envelope: 178 206 187; /* #B2CEBB canopy, in pastel */
-  --c-envelope-fold: 116 156 129; /* #749C81 */
+  --c-envelope: 152 194 168; /* #98C2A8 canopy, deeper pastel */
+  --c-envelope-fold: 82 130 101; /* #528265 */
   --c-envelope-liner: 242 182 50; /* #F2B632 coin */
   --c-envelope-seal: 201 146 31; /* #C9921F */
   --c-envelope-letter: 255 253 248; /* #FFFDF8 paper */
@@ -106,6 +107,7 @@
   --c-tab-lime: 178 215 104;
   --c-tab-mint: 104 202 155;
   --c-tab-sky: 89 200 222;
+  --c-tab-teal: 72 196 190;
   --c-tab-periwinkle: 111 166 233;
   --c-tab-lavender: 152 134 225;
   --c-tab-violet: 190 127 213;
@@ -123,8 +125,8 @@
   --c-invested: 87 132 199; /* #5784C7 */
   --c-property: 211 165 212; /* #D3A5D4 */
 
-  --c-envelope: 178 206 187;
-  --c-envelope-fold: 116 156 129;
+  --c-envelope: 152 194 168;
+  --c-envelope-fold: 82 130 101;
   --c-envelope-liner: 242 182 50;
   --c-envelope-seal: 201 146 31;
   --c-envelope-letter: 255 253 248;
@@ -613,6 +615,33 @@ body {
   text-transform: uppercase;
 }
 
+/* A goal with a picture carries a printed instant photo rather than a plain
+   letter: the white paper becomes the photo's border — even on three sides,
+   thick at the foot — the picture fills the top, and the saved figure is
+   written across the white sill beneath it. On open the whole photo rises well
+   clear of the pocket (see `.is-open.has-photo` below) so it reads as a
+   snapshot drawn out of the envelope, not a letter peeking over the fold. */
+.goal-envelope__letter--photo {
+  justify-content: flex-start;
+  padding: 3.5cqi 3.5cqi 0;
+}
+
+/* The picture is drawn as large as the card allows — a slim white border, then
+   the saved figure written just below it — so that once the card has risen the
+   whole photo stands clear of the envelope's mouth and only the blank sill
+   beneath tucks back into the pocket. */
+.goal-envelope__photo {
+  width: 100%;
+  height: 74%;
+  object-fit: cover;
+  background: rgb(var(--c-envelope-fold) / 0.2);
+}
+
+.goal-envelope__letter--photo .goal-envelope__figure {
+  margin-top: 2.5cqi;
+  font-size: 6cqi;
+}
+
 /* The front pocket is an SVG rather than a clipped box: Chromium can paint a
    clip-path'd layer unclipped while the letter moves beneath it, hiding the
    letter for the whole rise. */
@@ -685,6 +714,15 @@ body {
   transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s;
 }
 
+/* A photo is drawn right out: it lifts far enough that the whole snapshot
+   clears the envelope's mouth and only its foot stays tucked behind the pocket.
+   The open body keeps the same top margin as a letter-only goal, so opening a
+   goal reaches the same height whether or not it has a picture — the taller
+   rise happens entirely within that shared space. */
+.goal-envelope.is-open.has-photo .goal-envelope__letter {
+  transform: translateY(-68%);
+}
+
 /**
  * The paper a goal chose (`envelopeColor`), as the three envelope tokens
  * redefined on the envelope itself, so every layer above follows. The liner,
@@ -720,6 +758,26 @@ body {
 [data-envelope-color="butter"] {
   --c-envelope: 243 226 164; /* #F3E2A4 */
   --c-envelope-fold: 196 163 72; /* #C4A348 */
+}
+
+[data-envelope-color="orange"] {
+  --c-envelope: 246 212 176; /* #F6D4B0 */
+  --c-envelope-fold: 208 150 86; /* #D09656 */
+}
+
+[data-envelope-color="red"] {
+  --c-envelope: 240 185 181; /* #F0B9B5 */
+  --c-envelope-fold: 196 103 96; /* #C46760 */
+}
+
+[data-envelope-color="cobalt"] {
+  --c-envelope: 177 204 238; /* #B1CCEE */
+  --c-envelope-fold: 93 141 208; /* #5D8DD0 */
+}
+
+[data-envelope-color="indigo"] {
+  --c-envelope: 194 190 230; /* #C2BEE6 */
+  --c-envelope-fold: 109 98 191; /* #6D62BF */
 }
 
 /* The picker's swatch: a closed envelope in miniature, read from the same
