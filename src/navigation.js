@@ -4,6 +4,7 @@ import TransactionsPage from "./pages/TransactionsPage";
 import ConfigurationPage from "./pages/ConfigurationPage";
 import ReportsPage from "./pages/ReportsPage";
 import NetWorthPage from "./pages/NetWorthPage";
+import LoansPage from "./pages/LoansPage";
 import RetirementPage from "./pages/RetirementPage";
 import SavingsGoalsPage from "./pages/SavingsGoalsPage";
 import RewardsPage from "./pages/RewardsPage";
@@ -53,6 +54,12 @@ export const navigation = [
     label: "Net worth",
     activeClass: "border-tab-sky",
     Component: NetWorthPage,
+  },
+  {
+    path: "/loans",
+    label: "Loans",
+    activeClass: "border-tab-teal",
+    Component: LoansPage,
   },
   {
     path: "/retirement",

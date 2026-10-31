@@ -84,6 +84,7 @@ module.exports = {
         "tab-lime": token("tab-lime"),
         "tab-mint": token("tab-mint"),
         "tab-sky": token("tab-sky"),
+        "tab-teal": token("tab-teal"),
         "tab-periwinkle": token("tab-periwinkle"),
         "tab-lavender": token("tab-lavender"),
         "tab-violet": token("tab-violet"),

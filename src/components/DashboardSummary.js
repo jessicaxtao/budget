@@ -57,6 +57,13 @@ function budgetedTone(budgetedCents, plannedCents, categoryCount) {
   return { text: "text-azure", note: `Matches the ${formatCents(plannedCents)} plan` };
 }
 
+function spentRatio(spentCents, fundedCents) {
+  const ratio = fundedCents > 0 ? spentCents / fundedCents : 0;
+  if (ratio >= 1) return "text-vermilion";
+  if (ratio >= 0.8) return "text-sulfur";
+  return "text-verdant";
+}
+
 function Tile({ label, figure, tone = "text-chalk", note }) {
   return (
     <div className="bg-panel px-4 py-3">
@@ -178,7 +185,8 @@ export default function DashboardSummary({
             label="Spent this month against the money sitting in envelopes"
           />
           <span className="font-sans text-xs text-chalk-soft">
-            {formatCents(spentCents)} spent of {formatCents(fundedCents)} in envelopes
+            <span className={spentRatio(spentCents, fundedCents)}>{formatCents(spentCents)} spent</span>
+            {" "}of {formatCents(fundedCents)} in envelopes
           </span>
         </div>
       )}

@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { useSchedules } from "../contexts/SchedulesContext";
-import { TRANSACTION_KINDS } from "../contexts/TransactionsContext";
+import { TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
+import { usePaySchedule } from "../contexts/PayScheduleContext";
+import { useIncomePlan } from "../contexts/IncomePlanContext";
+import { isScheduleConfigured, nextPayday } from "../domain/paySchedule";
 import { upcomingThrough, UPCOMING_DAYS } from "../domain/recurrence";
 import { outstandingOccurrences } from "../domain/scheduleOccurrences";
-import { daysBetween, todayISO } from "../utils";
+import { addDays, daysBetween, todayISO } from "../utils";
 
 /**
  * Outstanding calendar occurrences, including overdue bills. Reads schedules
@@ -13,6 +16,9 @@ import { daysBetween, todayISO } from "../utils";
  */
 export default function useUpcoming(today = todayISO(), { days = UPCOMING_DAYS } = {}) {
   const { schedules } = useSchedules();
+  const { schedule: paySchedule } = usePaySchedule();
+  const { transactions } = useTransactions();
+  const { sources } = useIncomePlan();
 
   return useMemo(() => {
     const through = upcomingThrough(today, days);
@@ -33,6 +39,44 @@ export default function useUpcoming(today = todayISO(), { days = UPCOMING_DAYS }
           // would cry wolf every single month.
           overdue: dueInDays < 0,
         });
+      }
+    }
+
+    // The payday calendar already knows when household pay arrives. Surface
+    // those dates here too, using a cadence-matched income plan amount when
+    // available and otherwise the latest recorded paycheck.
+    const cadenceByPayCadence = { weekly: "weekly", biweekly: "biweekly", semimonthly: "semimonthly", monthly: "monthly" };
+    const plannedPayCents = (sources ?? [])
+      .filter((source) => source.cadence === cadenceByPayCadence[paySchedule.cadence])
+      .reduce((sum, source) => sum + (source.amountCents ?? 0), 0);
+    const lastPaycheck = [...transactions]
+      .filter((transaction) => transaction.kind === TRANSACTION_KINDS.INFLOW && !transaction.budgetId && transaction.date <= today)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    const paycheckCents = plannedPayCents || lastPaycheck?.amountCents || 0;
+    if (isScheduleConfigured(paySchedule) && paycheckCents > 0) {
+      let cursor = today;
+      for (let count = 0; count < 20; count += 1) {
+        const { nextDate } = nextPayday(paySchedule, cursor);
+        if (!nextDate || nextDate > through) break;
+        rows.push({
+          key: `paycheck:${nextDate}`,
+          date: nextDate,
+          dueInDays: daysBetween(today, nextDate),
+          overdue: false,
+          isPaycheck: true,
+          amountCents: paycheckCents,
+          estimateBasis: plannedPayCents ? "income plan" : "last paycheck",
+          schedule: {
+            isPaycheck: true,
+            kind: TRANSACTION_KINDS.INFLOW,
+            amountCents: paycheckCents,
+            description: "Paycheck",
+            payeeId: null,
+            accountId: null,
+            budgetId: null,
+          },
+        });
+        cursor = addDays(nextDate, 1);
       }
     }
 
@@ -63,5 +107,5 @@ export default function useUpcoming(today = todayISO(), { days = UPCOMING_DAYS }
       windowDays: days,
       scheduleCount: schedules.length,
     };
-  }, [schedules, today, days]);
+  }, [schedules, paySchedule, transactions, sources, today, days]);
 }

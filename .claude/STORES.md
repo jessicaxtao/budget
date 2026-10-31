@@ -322,10 +322,22 @@ A goal names **no transaction**, so nothing outside this pair deletes into or ou
 
 `setPeriodAssignments({ period, entries })` validates the **whole batch before writing any of it**, so a bad figure in the ninth goal cannot land after the first eight have already committed — the rule `AssignmentsContext` and `setPeriodBalances` both keep, and the one that makes `AssignIncomeModal`'s single submit safe. `removeGoalAssignments` is the cascade `deleteSavingsGoal` calls.
 
+## `LoansContext`
+
+`loans`: the terms of an amortizing loan — a mortgage, a car loan, a student loan. `{ id, accountId, kind, originalPrincipalCents, rateBps, termMonths, firstPaymentDate, paymentSource, paymentCents, rateChanges, balloonCents, collateralAccountId, collateralValueCents, collateralRateBps, escrowCents, pmiCents, pmiRemovalLtvBps, whatIf }`, the seventeenth store.
+
+**A loan is terms *about* a liability account, never a second balance** — it holds no money and moves no figure anywhere (`.claude/LOANS.md`). What is owed is `useNetWorth`'s figure for the account; the amortization schedule is a reading *beside* it, and `useLoans` is the join. It reads no other store, so its position in the provider order is free, and every reference it carries — `accountId`, `collateralAccountId`, each `rateChanges` id — is **inert but kept**: never validated against live records, nothing cascades in, a deleted account leaves the loan readable as "account removed" with its schedule intact. **One loan per account.**
+
+- **`paymentSource` is the both-answers-kept rule.** Derived is the standard annuity payment from principal, rate and term (computed, never stored); typed is what the statement says, kept on `paymentCents` whichever source is in force. Switching clears neither.
+- **`escrowCents` and `pmiCents` are not principal or interest** and never enter the amortization — only what the payment *costs* and the record-payment split. Blank removes the field; `0` is a real answer ("no PMI"), the blank-vs-zero rule.
+- **`collateralRateBps` is signed and nullable** (+3.5% a house, −15% a car); null takes a default by kind in the hook (mortgage reads the retirement plan's `propertyRateBps`, a car −15%, anything else no collateral line). A typed figure overrides and is kept.
+- **`whatIf` sits on the record** — a guess that holds no money, synced like everything else, read by the Loans page and nothing else. Clearing it (`EMPTY_WHAT_IF`) never touches the terms.
+- Validation through `toCents` / `toBps`: principal > 0, term 1–600 months, rate 0–`MAX_RATE_BPS`, a valid first-payment date, rate changes dated after it. **Coherence is not checked** — a typed payment below the first month's interest is reported on the page ("this never pays off"), not refused at the field, `RetirementContext`'s stance. **Whether the account is a liability is `AddLoanModal`'s check**, not the store's, since the store reads no other.
+
 ## Mutators that can reject input
 
-`addBudget`, `addTransaction`, `updateTransaction`, `addAccount`, `updateAccount`, `reconcileAccount`, `setAssignedAmount`, `setPeriodAssignments`, `moveBetweenBudgets`, `setBalance`, `setPeriodBalances`, `setBalanceHistory`, `setPaySchedule`, `setRetirementPlan`, `setEmergencyFund`, `addRecipient`, `updateRecipient`, `recordDonation`, `updateDonation`, `setGivingGoal`, `addSavingsGoal`, `updateSavingsGoal`, and the savings-goal `setAssignedAmount` / `setPeriodAssignments` — all return `{ ok, error }`.
+`addBudget`, `addTransaction`, `updateTransaction`, `addAccount`, `updateAccount`, `reconcileAccount`, `setAssignedAmount`, `setPeriodAssignments`, `moveBetweenBudgets`, `setBalance`, `setPeriodBalances`, `setBalanceHistory`, `setPaySchedule`, `setRetirementPlan`, `setEmergencyFund`, `addRecipient`, `updateRecipient`, `recordDonation`, `updateDonation`, `setGivingGoal`, `addSavingsGoal`, `updateSavingsGoal`, the savings-goal `setAssignedAmount` / `setPeriodAssignments`, and `addLoan`, `updateLoan`, `setLoanWhatIf` — all return `{ ok, error }`.
 
-`deleteSavingsGoal` is the exception in that pair and deliberately so: a goal holds no money and nothing else names its id, so there is nothing a delete could be refused for.
+`deleteSavingsGoal` is the exception in that pair and deliberately so: a goal holds no money and nothing else names its id, so there is nothing a delete could be refused for. `deleteLoan` is the same — a loan holds no money and nothing references its id.
 
 **Callers must surface the error** — never close a modal as though the write succeeded.

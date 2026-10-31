@@ -140,6 +140,7 @@ export default function DashboardPage() {
    * refiled.
    */
   function describeSchedule(schedule) {
+    if (schedule.isPaycheck) return { name: "Paycheck", filing: "Income" };
     const payee = schedule.payeeId == null ? null : payeeById.get(schedule.payeeId);
     const account = accounts.find((entry) => entry.id === schedule.accountId);
     const budget = budgets.find((entry) => entry.id === schedule.budgetId);

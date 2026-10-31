@@ -90,9 +90,18 @@ const ACC = {
   brokerage: "demo-acct-brokerage",
   house: "demo-acct-house",
   mortgage: "demo-acct-mortgage",
+  car: "demo-acct-car",
+  carLoan: "demo-acct-car-loan",
 };
 
-const OFF_BUDGET = new Set([ACC.retirement, ACC.brokerage, ACC.house, ACC.mortgage]);
+const OFF_BUDGET = new Set([
+  ACC.retirement,
+  ACC.brokerage,
+  ACC.house,
+  ACC.mortgage,
+  ACC.car,
+  ACC.carLoan,
+]);
 
 /** `null` is inside, the stance `insideBudget` takes for a detached record. */
 const inside = (accountId) => accountId == null || !OFF_BUDGET.has(accountId);
@@ -165,6 +174,26 @@ const accounts = [
     scope: "off-budget",
     assetClass: "Other",
     openingBalanceCents: -32_500_000,
+    openingDate: dateIn(12, 1),
+    reconciledOn: null,
+  },
+  {
+    id: ACC.car,
+    name: "Car",
+    type: "asset",
+    scope: "off-budget",
+    assetClass: "Other",
+    openingBalanceCents: 2_800_000,
+    openingDate: dateIn(12, 1),
+    reconciledOn: null,
+  },
+  {
+    id: ACC.carLoan,
+    name: "Car loan",
+    type: "liability",
+    scope: "off-budget",
+    assetClass: "Other",
+    openingBalanceCents: -2_500_000,
     openingDate: dateIn(12, 1),
     reconciledOn: null,
   },
@@ -1200,6 +1229,53 @@ const rewardsOffers = [
   },
 ];
 
+// The terms of two loans, read beside what the books say each account owes. The
+// mortgage is the one the dashboard already pays by monthly statement; the car
+// is new, and carries a what-if so the "pay it off faster" panel has a result to
+// show. Neither moves any figure in the books — a loan is terms, not a balance.
+const loans = [
+  {
+    id: "demo-loan-mortgage",
+    accountId: ACC.mortgage,
+    kind: "mortgage",
+    originalPrincipalCents: 32_500_000,
+    rateBps: 575,
+    termMonths: 360,
+    firstPaymentDate: `${THIS_YEAR - 7}-01-01`,
+    paymentSource: "derived",
+    paymentCents: null,
+    rateChanges: [],
+    balloonCents: null,
+    collateralAccountId: ACC.house,
+    collateralValueCents: 48_500_000,
+    collateralRateBps: null, // follows the retirement plan's property rate
+    escrowCents: 45000,
+    pmiCents: null,
+    pmiRemovalLtvBps: 8000,
+    whatIf: { extraMonthlyCents: 0, extraYearlyCents: 0, extraYearlyMonth: null, lumpSums: [], biweekly: false },
+  },
+  {
+    id: "demo-loan-car",
+    accountId: ACC.carLoan,
+    kind: "auto",
+    originalPrincipalCents: 3_500_000,
+    rateBps: 700,
+    termMonths: 60,
+    firstPaymentDate: `${THIS_YEAR - 1}-06-01`,
+    paymentSource: "derived",
+    paymentCents: null,
+    rateChanges: [],
+    balloonCents: null,
+    collateralAccountId: ACC.car,
+    collateralValueCents: 3_500_000,
+    collateralRateBps: null, // a car's -15%-a-year default
+    escrowCents: null,
+    pmiCents: null,
+    pmiRemovalLtvBps: 8000,
+    whatIf: { extraMonthlyCents: 10000, extraYearlyCents: 0, extraYearlyMonth: null, lumpSums: [], biweekly: false },
+  },
+];
+
 /** The whole household, as the `{ key: value }` snapshot storage speaks in. */
 export function demoBooks() {
   const { rows, giftIds } = buildLedger();
@@ -1232,6 +1308,7 @@ export function demoBooks() {
     rewardsOffers,
     rewardsCards,
     rewardsEarnRates,
+    loans,
   };
 }
 
@@ -1284,7 +1361,7 @@ const BACKUP_KEY = "demoBooksBackup";
  * emptying local mode would last exactly until the next reload.
  */
 const STAMP_KEY = "demoBooksSeeded";
-const SEED_VERSION = "2";
+const SEED_VERSION = "3";
 
 const stamp = () => {
   try {

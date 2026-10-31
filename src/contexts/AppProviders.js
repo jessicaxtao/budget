@@ -14,6 +14,7 @@ import { EmergencyFundProvider } from "./EmergencyFundContext";
 import { LifeEventsProvider } from "./LifeEventsContext";
 import { ScenariosProvider } from "./ScenariosContext";
 import { RewardsProvider } from "./RewardsContext";
+import { LoansProvider } from "./LoansContext";
 
 // Composes every store in one place so index.js and the tests wrap the app the
 // same way, and adding a store does not mean editing both.
@@ -96,6 +97,13 @@ import { RewardsProvider } from "./RewardsContext";
 // kept — useCardOffers resolves them, the store never reads them back.
 // Nothing cascades either way, so its position here is free.
 //
+// Loans is independent in both directions too, and the seventeenth store: a
+// loan is *terms about* a liability account, not a second balance, so nothing
+// derived from the books reads it — src/hooks/useLoans.js joins the terms to
+// what useNetWorth already says the account owes. It names its account and its
+// collateral by id and inert but kept, and nothing deletes into it, so its
+// position here is free.
+//
 // SavingsGoals is independent of every other store: a goal names no category,
 // no account, and no transaction, so nothing outside this pair deletes into or
 // out of it. SavingsGoalAssignments is the money-actually-put-in half of a
@@ -121,7 +129,9 @@ export default function AppProviders({ children }) {
                             <EmergencyFundProvider>
                               <LifeEventsProvider>
                                 <ScenariosProvider>
-                                  <RewardsProvider>{children}</RewardsProvider>
+                                  <RewardsProvider>
+                                    <LoansProvider>{children}</LoansProvider>
+                                  </RewardsProvider>
                                 </ScenariosProvider>
                               </LifeEventsProvider>
                             </EmergencyFundProvider>

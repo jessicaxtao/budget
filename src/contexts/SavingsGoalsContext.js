@@ -42,7 +42,7 @@ export function useSavingsGoals() {
 const isAmount = (value) => Number.isInteger(value) && value > 0;
 const isDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 // The paper a goal's envelope is drawn in. Canopy, the first, is the default.
-export const ENVELOPE_COLORS = ["canopy", "kraft", "sage", "sky", "rose", "lavender", "butter"];
+export const ENVELOPE_COLORS = ["canopy", "sage", "kraft", "butter", "orange", "rose", "red", "lavender", "indigo", "sky", "cobalt"];
 
 /** The fields `addSavingsGoal` and `updateSavingsGoal` both have to check. */
 function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo, envelopeColor }) {

@@ -75,6 +75,11 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip, matches = [], on
           {formatCents(row.schedule.amountCents)}
         </div>
       </div>
+      {row.isPaycheck && (
+        <p className="mt-0.5 text-label uppercase text-ink-soft">
+          Estimate based on {row.estimateBasis}
+        </p>
+      )}
       {matches.length > 0 && (
         <div className="mt-3 border-t border-rule pt-2 text-row text-ink">
           <p>{matches.length === 1 ? "Possible payment already recorded" : "Several payments could match — choose the one for this reminder"}</p>
@@ -98,7 +103,7 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip, matches = [], on
           <div className={`whitespace-nowrap text-label uppercase ${status.tone}`}>
             {formatDayShort(row.date)} · {status.note}
           </div>
-          <span className="ml-auto inline-flex shrink-0 items-center gap-1">
+          {!row.isPaycheck && <span className="ml-auto inline-flex shrink-0 items-center gap-1">
             {/* Enter before Skip, and drawn as a button where Skip is bare text:
                 the quiet one is the one that throws an occurrence away. */}
             <Button
@@ -112,7 +117,7 @@ function UpcomingRow({ row, striped, describe, onEnter, onSkip, matches = [], on
             <Button variant="row" size="sm" aria-label={`Skip ${label}`} onClick={() => onSkip(row)}>
               Skip
             </Button>
-          </span>
+          </span>}
         </div>
       </div>
     </div>

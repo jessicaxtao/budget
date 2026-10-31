@@ -67,6 +67,7 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 | `/transactions` | The editable register, a slim to-be-assigned bar, the ledger-entry modal, the split editor, assignment |
 | `/plan` | Categories, estimates and goals, expected income, pay schedule, accounts and openings, the emergency fund, the balance-history grid (closed, at the foot) |
 | `/net-worth` | Hero figure and band split, stacked chart + table twin, holdings by band, settling a statement, the monthly pass |
+| `/loans` | Per-loan cards and totals, the hero and four tiles, balance-over-time chart, pay-it-off-faster with a sensitivity table, the mortgage/car panel, the full schedule (closed, at the foot) |
 | `/retirement` | The outlook, year-by-year chart + table twin, net worth by age, the account picker, assumptions, scenarios |
 | `/reports` | The window, headline figures, bucket split, cashflow chart, where-it-went flow diagram, plan-vs-actual chart, spending by category ranked, per-category drill-in |
 | `/donations` | A year of giving: given against claimable, the year's gifts, the goal, the organizations |
@@ -79,13 +80,13 @@ Stated once here. Where a rule in a companion doc names one of these, this is it
 
 **The dashboard and the register cut the same books along different axes.** What each *envelope* holds is answered once, on the dashboard, by `CategoryLedgerTable`. What *happened*, line by line, is the register. The one envelope figure on the register is what is left to assign. **Do not put a grid of envelope cards back on `/transactions`.**
 
-## State: sixteen providers in `src/contexts/AppProviders.js`
+## State: seventeen providers in `src/contexts/AppProviders.js`
 
 Add stores there, not in `index.js`. IDs are generated with `uuid` v4 **in the context**, never in form components. Each context memoises its value. **Cross-store maths belongs in a hook, never in a provider.**
 
-`BooksKeyProvider` (`src/contexts/BooksKeyContext.js`) does not join this count: it wraps `AppProviders` from outside, in `index.js`, alongside `AuthProvider` and `SyncProvider` rather than among the sixteen stores. It holds the account's key record and the unwrapped master key, never a store's own data. **`ACCOUNTS.md` is the detail** — the key design (why envelope encryption, why two passwords, why the local cache stays plaintext, why receipts are in scope), the five layers in `index.js`, and the storage-key inventory.
+`BooksKeyProvider` (`src/contexts/BooksKeyContext.js`) does not join this count: it wraps `AppProviders` from outside, in `index.js`, alongside `AuthProvider` and `SyncProvider` rather than among the seventeen stores. It holds the account's key record and the unwrapped master key, never a store's own data. **`ACCOUNTS.md` is the detail** — the key design (why envelope encryption, why two passwords, why the local cache stays plaintext, why receipts are in scope), the five layers in `index.js`, and the storage-key inventory.
 
-The stores: `Transactions`, `Payees`, `Schedules`, `EmergencyFund`, `Assignments`, `Budgets`, `Accounts`, `IncomePlan`, `PaySchedule`, `Retirement`, `Donations`, `LifeEvents`, `Scenarios`, `Rewards`, `SavingsGoals`, `SavingsGoalAssignments`. **`STORES.md` is the field-by-field detail.**
+The stores: `Transactions`, `Payees`, `Schedules`, `EmergencyFund`, `Assignments`, `Budgets`, `Accounts`, `IncomePlan`, `PaySchedule`, `Retirement`, `Donations`, `LifeEvents`, `Scenarios`, `Rewards`, `SavingsGoals`, `SavingsGoalAssignments`, `Loans`. **`STORES.md` is the field-by-field detail.**
 
 **Provider order is a cascade order** — a store that cleans up after another's delete sits *outside* it:
 
@@ -146,17 +147,17 @@ The assignment terms cancel algebraically, so this checks **coverage, not arithm
 
 **The balance sheet is the other cut of the same ledger**: `balance(a, P) = opening(a) + Σ inflows − Σ outflows, through P` (`useAccountBalances`, derived and never stored). Envelopes say what money is *for*, this says where it *is*. `accountBalancesAt` **stays the only definition of what an account holds.**
 
-## The ten cross-store hooks
+## The eleven cross-store hooks
 
-`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `cashflowSankey`, `bucketTones`, `cashback`, `payeeSearch`, `payeeDefaults`, `duplicates`, `receipts`, `socialSecurity`) own the arithmetic React would only be in the way of.
+`useEnvelopes`, `useAccountBalances`, `useNetWorth`, `useRetirementProjection`, `useSpendingReport`, `useGiving`, `useSavingsGoalEnvelopes`, `useEmergencyFund`, `useCardOffers`, `useCardValue`, `useLoans`. Each owns a definition no single store can own, and the pure modules beside them (`paySchedule`, `recurrence`, `cadence`, `netWorthProjection`, `rewards`, `chartAxis`, `cashflowSankey`, `bucketTones`, `cashback`, `payeeSearch`, `payeeDefaults`, `duplicates`, `receipts`, `socialSecurity`, `amortization`) own the arithmetic React would only be in the way of.
 
-**`DERIVATIONS.md` is the detail**, including which hooks are deliberately *not* in the ten and why `useUpcoming` must never join them, the four cadence names that look consolidatable and are not, and the two `plannedCents` figures that look alike and are not.
+**`DERIVATIONS.md` is the detail**, including which hooks are deliberately *not* in the eleven and why `useUpcoming` must never join them, the four cadence names that look consolidatable and are not, and the two `plannedCents` figures that look alike and are not.
 
 ## Testing
 
-**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`, the guarded WebCrypto and `TextEncoder`/`TextDecoder` polyfills jsdom 16 ships without), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what — including `booksCrypto.test.js`, `BooksKeyContext.test.js` and `SyncContext.test.js`, the three the key design added — and the five tripwires.
+**Read `TESTING.md` before writing or changing a test.** It carries the environment gotchas (jsdom's missing `<dialog>`, `resetMocks: true`, money fields being textboxes, the dnd-kit wait, why `electron/` tests live in `src/`, the guarded WebCrypto and `TextEncoder`/`TextDecoder` polyfills jsdom 16 ships without), the seeding rules (real providers over mocked hooks, an account before any transaction, whole stored records), which suite covers what — including `booksCrypto.test.js`, `BooksKeyContext.test.js` and `SyncContext.test.js`, the three the key design added — and the six tripwires.
 
-**The five tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `storage.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.
+**The six tripwires — `dataModel.test.js`, `useRetirementProjection.test.js`, `netWorthProjection.test.js`, `useSpendingReport.test.js`, `storage.test.js`, `amortization.test.js` — must stay green through any change to the maths**, and each asserts its claim from outside the code under test. What each one pins down is in `TESTING.md`; weakening one to make a change pass is never the answer.
 
 ## Agent skills
 
