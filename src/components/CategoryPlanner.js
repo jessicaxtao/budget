@@ -103,31 +103,26 @@ function GripIcon() {
 const rowBg = (index) => (index % 2 === 0 ? "bg-sheet" : "bg-sheet-alt");
 
 /**
- * The row's two shapes. From `sm` up it is one line of six fixed columns, as it
- * always was. On a phone those widths come to more than the screen, and the
+ * The row's two shapes. From `sm` up it is one line with fixed control columns
+ * and a name column that takes the remaining space. On a phone those widths
+ * come to more than the screen, and the
  * column that gives way is the name — the one that matters most — so below `sm`
  * the row is a grid of two lines instead: the handle, the name and Remove on the
  * first, the bucket and the two figures under it. Every element carries its
- * place in that grid (`PLACE`), and grid placement means nothing to a flex
- * container, so the same classes are inert once the row turns back into one
- * line. The headings, the rows and the drag overlay all take both, which is
- * what keeps the three in step at either width.
+ * place in that grid (`PLACE`). The headings, the rows and the drag overlay use
+ * the same grid columns at desktop widths, keeping every label over its control.
  */
 const lineClass =
-  "grid grid-cols-[auto_minmax(0,1fr)_4.75rem_4.75rem] items-center gap-x-3 gap-y-1 sm:flex sm:gap-y-0";
+  "grid grid-cols-[auto_minmax(0,1fr)_4.75rem_4.75rem] items-center gap-x-3 gap-y-1 sm:grid-cols-[1.125rem_minmax(0,1fr)_8rem_6rem_6rem_7.5rem_4rem] sm:gap-y-0";
 
 const PLACE = {
   handle: "col-start-1 row-start-1",
-  name: "col-span-2 col-start-2 row-start-1",
-  remove: "col-start-4 row-start-1 justify-self-end",
-  bucket: "col-span-2 col-start-1 row-start-2",
-  estimate: "col-start-3 row-start-2",
-  goal: "col-start-4 row-start-2",
-  // A third line below, spanning every column on a phone — `sm:contents`
-  // dissolves the wrapper above `sm`, so its two children fall back into the
-  // row's own flex sequence in the order they appear here, right where they
-  // sit in the desktop line.
-  extras: "col-span-4 col-start-1 row-start-3",
+  name: "col-span-2 col-start-2 row-start-1 sm:col-span-1 sm:col-start-2 sm:row-start-1",
+  remove: "col-start-4 row-start-1 justify-self-end sm:col-start-7 sm:row-start-1",
+  bucket: "col-span-2 col-start-1 row-start-2 sm:col-span-1 sm:col-start-3 sm:row-start-1",
+  estimate: "col-start-3 row-start-2 sm:col-start-4 sm:row-start-1",
+  goal: "col-start-4 row-start-2 sm:col-start-5 sm:row-start-1",
+  extras: "col-span-4 col-start-1 row-start-3 sm:col-span-1 sm:col-start-6 sm:row-start-1",
 };
 
 const rowClass = (index) => `${lineClass} px-3 py-2 ${rowBg(index)}`;
@@ -164,17 +159,23 @@ const figureInputClass = `${figureClass} border-0 border-b-2 border-rule bg-tran
 function ColumnHeadings() {
   return (
     <div
-      className={`${lineClass} border-b border-rule bg-band px-3 py-1.5 text-label uppercase text-ink`}
+      className={`hidden sm:grid ${lineClass.replace("grid ", "")} border-b border-rule bg-band px-3 py-1.5 text-label uppercase text-ink`}
     >
       <span aria-hidden="true" className={`${handleClass} ${PLACE.handle} invisible`}>
         <GripIcon />
       </span>
       <span className={`${PLACE.name} min-w-0 flex-1`}>Category</span>
-      <span className={`${bucketClass} ${PLACE.bucket}`}>What it&rsquo;s for</span>
-      <span className={`${figureClass} ${PLACE.estimate}`}>Estimate</span>
-      <span className={`${figureClass} ${PLACE.goal}`}>Goal</span>
-      <div className={`${PLACE.extras} flex items-center justify-between gap-2 pt-1 sm:contents`}>
-        <span>Rollover</span>
+      <span className={`${bucketClass} ${PLACE.bucket} text-left`}>
+        What it&rsquo;s for
+      </span>
+      <span
+        className={`w-full shrink-0 text-left sm:w-24 ${PLACE.estimate}`}
+      >
+        Estimate
+      </span>
+      <span className={`w-full shrink-0 text-left sm:w-24 ${PLACE.goal}`}>Goal</span>
+      <div className={`${PLACE.extras} flex items-center justify-between gap-2 pt-1 sm:grid sm:grid-cols-[4.5rem_1fr]`}>
+        <span className="text-center">Rollover</span>
         <Button aria-hidden="true" tabIndex={-1} variant="row" size="sm" className="invisible">
           Hide
         </Button>
@@ -337,6 +338,8 @@ function CategoryRow({
         className={`${PLACE.name} min-w-0 flex-1 border-0 border-b-2 border-rule bg-transparent px-0 py-1 font-sans text-row text-ink outline-none transition-colors focus:border-azure`}
       />
 
+      <label className={`${PLACE.bucket} min-w-0`}>
+        <span className="block text-label text-ink-soft sm:hidden">What it?s for</span>
       <BucketSelect
         value={budget.effectiveBucket}
         onChange={(bucket) => onBucketChange(budget, bucket)}
@@ -346,6 +349,9 @@ function CategoryRow({
         )}`}
       />
 
+      </label>
+      <label className={`${PLACE.estimate} min-w-0`}>
+        <span className="block text-right text-label text-ink-soft sm:hidden">Estimate</span>
       <input
         type="text"
         inputMode="decimal"
@@ -356,6 +362,9 @@ function CategoryRow({
         className={`${figureInputClass} ${PLACE.estimate}`}
       />
 
+      </label>
+      <label className={`${PLACE.goal} min-w-0`}>
+        <span className="block text-right text-label text-ink-soft sm:hidden">Goal</span>
       {/* Keyed on the stored goal, unlike the estimate beside it: this field has
           two empty states — nothing typed, and a goal taken off — and without a
           re-seed a cleared field would keep showing a blank the store had
@@ -371,14 +380,15 @@ function CategoryRow({
         className={`${figureInputClass} ${PLACE.goal}`}
       />
 
-      <div
-        className={`${PLACE.extras} flex items-center justify-between gap-2 pt-1 sm:contents`}
-      >
+      </label>
+      <div className={`${PLACE.extras} flex items-center justify-between gap-2 pt-1 sm:grid sm:grid-cols-[4.5rem_1fr]`}>
         {/* Controlled, `BucketSelect`'s reason: there is nothing to type, so
             the box has to show what the store now holds rather than what was
             last clicked. No text beside it — the column heading above already
             says what it is, the way Estimate and Goal say theirs without a
             row repeating the word beside every figure. */}
+        <label className="flex items-center gap-2 sm:justify-center">
+        <span className="text-label text-ink-soft sm:hidden">Rollover</span>
         <input
           type="checkbox"
           checked={budget.rolloverEnabled !== false}
@@ -386,6 +396,7 @@ function CategoryRow({
           aria-label={`Roll over ${budget.name}'s overspending into next month`}
           className="h-3.5 w-3.5 accent-azure"
         />
+        </label>
         <Button
           variant="row"
           size="sm"

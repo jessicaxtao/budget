@@ -5,7 +5,7 @@ import { useBudgets } from "../contexts/BudgetsContext";
 import { useSavingsGoalAssignments } from "../contexts/SavingsGoalAssignmentsContext";
 import { budgetLegs, TRANSACTION_KINDS, useTransactions } from "../contexts/TransactionsContext";
 import { UNCATEGORIZED_BUDGET_ID } from "../contexts/constants";
-import { currentPeriod, periodLTE, toPeriod } from "../utils";
+import { periodLTE, toPeriod } from "../utils";
 import useEmergencyFund from "./useEmergencyFund";
 
 /**
@@ -31,8 +31,8 @@ import useEmergencyFund from "./useEmergencyFund";
  *   toBeAssigned + reserved + assignedAhead + Σ available + Σ goal available
  *     === opening + cumulative inflow − cumulative spend
  *
- * where `reserved` is the emergency fund held back from the pool (from the
- * current month on — see `emergencyReservedCents`) and `assignedAhead` is
+ * where `reserved` is the emergency fund held back from the pool (see
+ * `emergencyReservedCents`) and `assignedAhead` is
  * money already given a job in a month this one has not reached yet (see
  * `assignedAheadCents`).
  *
@@ -116,11 +116,11 @@ import useEmergencyFund from "./useEmergencyFund";
  */
 export default function useEnvelopes(period) {
   // The emergency fund's money is in on-budget accounts and so in the pool;
-  // held back here so it cannot be assigned to anything else. Only from the
-  // current month on — it is today's reading, and a month already past was
-  // assigned without it.
+  // held back here so it cannot be assigned to anything else. This reserve
+  // applies when viewing earlier periods too, so a balance held as emergency
+  // savings does not appear assignable when the user steps back a month.
   const { reservedCents: fundReservedCents } = useEmergencyFund();
-  const emergencyReservedCents = periodLTE(currentPeriod(), period) ? fundReservedCents : 0;
+  const emergencyReservedCents = fundReservedCents;
 
   const { budgets } = useBudgets();
   const { transactions } = useTransactions();

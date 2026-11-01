@@ -99,6 +99,7 @@ function GoalCard({ row, onAssign, onEdit, onDelete, error, sortable }) {
             {pace && <span>{pace}</span>}
           </div>
           {row.categoryName && <p className="text-label text-chalk-soft">Linked to {row.categoryName}</p>}
+          {row.link && <p><a href={row.link} target="_blank" rel="noopener noreferrer" className="font-sans text-label text-azure underline">Open goal link <span className="sr-only">for {row.name}</span></a></p>}
           <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-3">
             <label className="font-sans text-label uppercase text-chalk-soft" htmlFor={`goal-add-${row.goalId}`}>Add money</label>
             <input key={row.assignedCents} id={`goal-add-${row.goalId}`} type="text" inputMode="decimal" placeholder="$0" aria-label={`Add to ${row.name}`} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} onBlur={handleBlur} className="w-28 border-b-2 border-rule bg-transparent px-1 py-1 text-right font-mono text-row text-chalk outline-none focus:border-azure" />

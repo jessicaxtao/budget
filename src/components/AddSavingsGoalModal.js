@@ -37,6 +37,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
   const nameRef = useRef();
   const targetRef = useRef();
   const targetDateRef = useRef();
+  const linkRef = useRef();
   const budgetIdRef = useRef();
   const [error, setError] = useState(null);
   // The draft of where the money is held: which accounts, and how much of one
@@ -65,6 +66,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
     // "1250.5" — the exact defect that keeps every money field off `type=number`.
     targetRef.current.value = goal ? amountEditing(goal.targetCents) : "";
     targetDateRef.current.value = goal?.targetDate ?? "";
+    linkRef.current.value = goal?.link ?? "";
     budgetIdRef.current.value = goal?.budgetId ?? "";
     setAccountIds(goal?.accountIds ?? []);
     setAmounts(goal?.accountAmounts ?? {});
@@ -123,6 +125,7 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
       name: nameRef.current.value,
       target: targetRef.current.value,
       targetDate: targetDateRef.current.value || null,
+      link: linkRef.current.value,
       budgetId: budgetIdRef.current.value || null,
       accountIds,
       // Kept rather than filtered to the ticked accounts, the switched-away-from
@@ -195,6 +198,12 @@ export default function AddSavingsGoalModal({ show, goal, handleClose }) {
           label="Target date (optional)"
           inputRef={targetDateRef}
           type="date"
+        />
+        <Field
+          label="Link (optional)"
+          inputRef={linkRef}
+          type="url"
+          placeholder="https://…"
         />
 
         <fieldset className="mb-5">

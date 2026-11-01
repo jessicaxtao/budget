@@ -45,7 +45,7 @@ const isDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.tes
 export const ENVELOPE_COLORS = ["canopy", "sage", "kraft", "butter", "orange", "rose", "red", "lavender", "indigo", "sky", "cobalt"];
 
 /** The fields `addSavingsGoal` and `updateSavingsGoal` both have to check. */
-function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo, envelopeColor }) {
+function parseGoalFields({ name, target, targetCents, targetDate, budgetId, photo, link, envelopeColor }) {
   const trimmed = (name ?? "").trim();
   if (!trimmed) return { ok: false, error: "Give the goal a name." };
 
@@ -62,9 +62,21 @@ function parseGoalFields({ name, target, targetCents, targetDate, budgetId, phot
   // Inert but kept: a string id is stored as-is, "" or non-string becomes null.
   const linkedBudgetId = typeof budgetId === "string" && budgetId ? budgetId : null;
 
+  const rawLink = typeof link === "string" ? link.trim() : "";
+  let goalLink = null;
+  if (rawLink) {
+    try {
+      const parsedLink = new URL(rawLink);
+      if (parsedLink.protocol !== "http:" && parsedLink.protocol !== "https:") throw new Error();
+      goalLink = parsedLink.href;
+    } catch {
+      return { ok: false, error: "Enter a valid web link, or leave it blank." };
+    }
+  }
+
   const goalPhoto = typeof photo === "string" && photo.startsWith("data:image/") && photo.length <= 180_000 ? photo : null;
   const color = ENVELOPE_COLORS.includes(envelopeColor) ? envelopeColor : ENVELOPE_COLORS[0];
-  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId, photo: goalPhoto, envelopeColor: color };
+  return { ok: true, name: trimmed, targetCents: cents, targetDate: date, budgetId: linkedBudgetId, photo: goalPhoto, link: goalLink, envelopeColor: color };
 }
 
 /** Ids, deduped. Anything that is not a string was never an account id. */
@@ -143,6 +155,7 @@ function migrateGoals(stored) {
       // Inert but kept: a deleted category contributes nothing, resolved where read.
       budgetId: typeof goal.budgetId === "string" ? goal.budgetId : null,
       photo: typeof goal.photo === "string" && goal.photo.startsWith("data:image/") && goal.photo.length <= 180_000 ? goal.photo : null,
+      link: typeof goal.link === "string" && /^https?:\/\//i.test(goal.link) ? goal.link : null,
       envelopeColor: ENVELOPE_COLORS.includes(goal.envelopeColor) ? goal.envelopeColor : ENVELOPE_COLORS[0],
     }));
 }
@@ -172,6 +185,7 @@ export const SavingsGoalsProvider = ({ children }) => {
           targetDate: parsed.targetDate,
           budgetId: parsed.budgetId,
           photo: parsed.photo,
+          link: parsed.link,
           envelopeColor: parsed.envelopeColor,
           // Empty rather than a guess at which account the money is in — the
           // `EmergencyFundContext` rule: naming one the household never agreed
@@ -212,6 +226,7 @@ export const SavingsGoalsProvider = ({ children }) => {
                 targetDate: parsed.targetDate,
                 budgetId: parsed.budgetId,
                 photo: parsed.photo,
+                link: parsed.link,
                 // A patch that says nothing about the colour leaves it alone.
                 envelopeColor: fields.envelopeColor === undefined ? goal.envelopeColor : parsed.envelopeColor,
                 ...holdings.patch,

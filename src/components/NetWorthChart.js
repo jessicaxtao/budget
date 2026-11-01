@@ -312,6 +312,21 @@ export default function NetWorthChart({ series, slices }) {
             className="w-full"
             role="group"
             aria-label="Net worth by month, split by account"
+            onMouseMove={(event) => {
+              // Resolve the pointer to its nearest month. This gives each month
+              // an even share of the plot, including when a long history makes
+              // the visible columns only a few pixels wide.
+              const bounds = event.currentTarget.getBoundingClientRect();
+              const x = ((event.clientX - bounds.left) / bounds.width) * view.width;
+              const y = ((event.clientY - bounds.top) / bounds.height) * view.height;
+              if (x < plot.left || x >= plot.right || y < plot.top || y >= plot.bottom) {
+                setActive(null);
+                return;
+              }
+              const index = Math.min(lastIndex, Math.floor((x - plot.left) / slot));
+              setActive(index);
+            }}
+            onMouseLeave={() => setActive(null)}
           >
             {/* Recessive, solid hairlines — never dashed, which reads as a
                 threshold rather than as a grid. */}
@@ -472,8 +487,6 @@ export default function NetWorthChart({ series, slices }) {
                 role="img"
                 aria-label={describe(entry, drawn)}
                 className="cursor-pointer outline-none focus-visible:fill-chalk/5"
-                onMouseEnter={() => setActive(index)}
-                onMouseLeave={() => setActive(null)}
                 onFocus={() => setActive(index)}
                 onBlur={() => setActive(null)}
                 onKeyDown={(event) => handleKeyDown(event, index)}

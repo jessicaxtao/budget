@@ -134,8 +134,8 @@ test("the two figure columns are named, since a row now carries both", () => {
 
   // The aria-labels tell them apart for a screen reader; the headings are what
   // tell them apart on screen.
-  expect(screen.getByText("Estimate")).toBeInTheDocument();
-  expect(screen.getByText("Goal")).toBeInTheDocument();
+  expect(screen.getAllByText("Estimate")).toHaveLength(2);
+  expect(screen.getAllByText("Goal")).toHaveLength(2);
 });
 
 test("what a category is for offers the four buckets and nothing else", () => {
